@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type RecorderState = 'idle' | 'recording' | 'stopped'
 
@@ -48,6 +48,12 @@ export function useAudioRecorder() {
     setAudioUrl(null)
     setDuration(0)
     setState('idle')
+  }, [audioUrl])
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+    }
   }, [audioUrl])
 
   const getFile = useCallback(

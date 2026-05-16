@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
+import type { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
@@ -53,7 +54,7 @@ export default function RequestPage() {
         feedbackGoals: selectedGoals,
       }),
     onSuccess: () => router.push('/feed'),
-    onError: (e: any) => setError(e.response?.data?.message || '요청 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '요청 실패'),
   })
 
   const audioMutation = useMutation({
@@ -69,7 +70,7 @@ export default function RequestPage() {
       })
     },
     onSuccess: () => router.push('/feed'),
-    onError: (e: any) => setError(e.response?.data?.message || '요청 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '요청 실패'),
   })
 
   const toggleGoal = (goal: string) => {

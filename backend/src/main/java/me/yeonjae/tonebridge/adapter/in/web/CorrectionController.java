@@ -50,7 +50,7 @@ public class CorrectionController {
     public ResponseEntity<Void> rate(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID correctionId,
-            @RequestBody RateCorrectionDto dto) {
+            @Valid @RequestBody RateCorrectionDto dto) {
         rateUseCase.rate(new RateCorrectionUseCase.Command(correctionId, userId, dto.helpful()));
         return ResponseEntity.noContent().build();
     }
