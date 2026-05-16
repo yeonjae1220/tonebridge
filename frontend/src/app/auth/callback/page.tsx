@@ -1,17 +1,17 @@
 'use client'
 
 import { Suspense, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 
 function AuthCallbackInner() {
-  const searchParams = useSearchParams()
   const router = useRouter()
   const setTokens = useAuthStore((s) => s.setTokens)
 
   useEffect(() => {
-    const token = searchParams.get('token')
-    const refresh = searchParams.get('refresh')
+    const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search.slice(1))
+    const token = params.get('token')
+    const refresh = params.get('refresh')
 
     if (!token || !refresh) {
       router.replace('/login?error=missing_tokens')
@@ -27,9 +27,7 @@ function AuthCallbackInner() {
 
     setTokens(token, refresh)
     router.replace('/onboarding')
-  // router는 안정적이지 않아 의존성 배열에서 제외
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, setTokens])
+  }, [router, setTokens])
 
   return (
     <main className="min-h-screen flex items-center justify-center">

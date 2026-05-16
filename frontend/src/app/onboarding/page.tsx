@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
@@ -22,18 +22,16 @@ export default function OnboardingPage() {
   const router = useRouter()
   const accessToken = useAuthStore((s) => s.accessToken)
 
-  // 로그인 안 된 상태면 로그인 페이지로
-  if (!accessToken && typeof window !== 'undefined') {
-    router.replace('/login')
-    return null
-  }
-
   const [step, setStep] = useState<Step>('native')
   const [nativeLanguage, setNativeLanguage] = useState('')
   const [fluentLanguages, setFluentLanguages] = useState<string[]>([])
   const [learningLanguages, setLearningLanguages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
 
   const toggleMulti = (lang: string, list: string[], setList: (v: string[]) => void) => {
     setList(list.includes(lang) ? list.filter((l) => l !== lang) : [...list, lang])
@@ -132,6 +130,8 @@ export default function OnboardingPage() {
   }
 
   const current = steps[step]
+
+  if (!accessToken) return null
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">

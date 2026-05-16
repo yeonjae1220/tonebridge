@@ -56,7 +56,7 @@ public class AuthController {
         try {
             TokenResponse tokens = loginWithGoogleUseCase.login(code, redirectUri);
             String callbackUrl = frontendUrl + "/auth/callback"
-                    + "?token=" + URLEncoder.encode(tokens.accessToken(), StandardCharsets.UTF_8)
+                    + "#token=" + URLEncoder.encode(tokens.accessToken(), StandardCharsets.UTF_8)
                     + "&refresh=" + URLEncoder.encode(tokens.refreshToken(), StandardCharsets.UTF_8);
             response.sendRedirect(callbackUrl);
         } catch (Exception e) {

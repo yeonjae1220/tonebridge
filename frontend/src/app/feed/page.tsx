@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -24,15 +25,17 @@ export default function FeedPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
 
-  if (!accessToken) {
-    router.replace('/login')
-    return null
-  }
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
 
   const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],
     queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
+    enabled: !!accessToken,
   })
+
+  if (!accessToken) return null
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -95,7 +98,7 @@ export default function FeedPage() {
               )}
 
               {req.context && (
-                <p className="text-xs text-gray-400 mt-2 italic">"{req.context}"</p>
+                <p className="text-xs text-gray-400 mt-2 italic">&quot;{req.context}&quot;</p>
               )}
             </div>
           ))}

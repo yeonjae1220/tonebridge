@@ -21,14 +21,14 @@ export default function ResultPage() {
   const queryClient = useQueryClient()
   const sseRef = useRef<EventSource | null>(null)
 
-  if (!accessToken) {
-    router.replace('/login')
-    return null
-  }
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
 
   const { data: myRequests } = useQuery<CorrectionRequest[]>({
     queryKey: ['my-requests'],
     queryFn: () => api.get('/correction-requests/mine').then((r) => r.data),
+    enabled: !!accessToken,
   })
 
   const request = myRequests?.find((r) => r.id === requestId)
@@ -36,6 +36,7 @@ export default function ResultPage() {
   const { data: corrections, refetch } = useQuery<Correction[]>({
     queryKey: ['corrections', requestId],
     queryFn: () => api.get(`/corrections/request/${requestId}`).then((r) => r.data),
+    enabled: !!accessToken,
   })
 
   // SSE — listen for correction-ready notifications
@@ -55,6 +56,8 @@ export default function ResultPage() {
       api.post(`/corrections/${correctionId}/rate`, { helpful }),
     onSuccess: () => refetch(),
   })
+
+  if (!accessToken) return null
 
   return (
     <main className="min-h-screen bg-gray-50">

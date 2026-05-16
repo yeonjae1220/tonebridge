@@ -20,18 +20,30 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JwtProvider {
 
+    private static final String TOKEN_TYPE_CLAIM = "token_type";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
+
     private final JwtProperties jwtProperties;
 
     public String generateAccessToken(UUID userId) {
-        return buildToken(userId.toString(), jwtProperties.getAccessTokenTtlMinutes());
+        return buildToken(userId.toString(), jwtProperties.getAccessTokenTtlMinutes(), ACCESS_TOKEN_TYPE);
     }
 
     public String generateRefreshToken(UUID userId) {
-        return buildToken(userId.toString(), jwtProperties.getRefreshTokenTtlMinutes());
+        return buildToken(userId.toString(), jwtProperties.getRefreshTokenTtlMinutes(), REFRESH_TOKEN_TYPE);
     }
 
-    public UUID extractUserId(String token) {
-        return UUID.fromString(parseClaims(token).getSubject());
+    public UUID extractAccessUserId(String token) {
+        Claims claims = parseClaims(token);
+        validateTokenType(claims, ACCESS_TOKEN_TYPE);
+        return UUID.fromString(claims.getSubject());
+    }
+
+    public UUID extractRefreshUserId(String token) {
+        Claims claims = parseClaims(token);
+        validateTokenType(claims, REFRESH_TOKEN_TYPE);
+        return UUID.fromString(claims.getSubject());
     }
 
     public boolean isValid(String token) {
@@ -43,14 +55,21 @@ public class JwtProvider {
         }
     }
 
-    private String buildToken(String subject, long ttlMinutes) {
+    private String buildToken(String subject, long ttlMinutes, String tokenType) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(subject)
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlMinutes * 60)))
                 .signWith(signingKey())
                 .compact();
+    }
+
+    private void validateTokenType(Claims claims, String expectedType) {
+        if (!expectedType.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
+            throw new ToneBridgeException(ErrorCode.INVALID_TOKEN);
+        }
     }
 
     private Claims parseClaims(String token) {

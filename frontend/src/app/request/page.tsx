@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -26,10 +26,9 @@ export default function RequestPage() {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
   const [error, setError] = useState('')
 
-  if (!accessToken) {
-    router.replace('/login')
-    return null
-  }
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -50,6 +49,8 @@ export default function RequestPage() {
   }
 
   const CREDIT_COST = 5
+
+  if (!accessToken) return null
 
   return (
     <main className="min-h-screen bg-gray-50">

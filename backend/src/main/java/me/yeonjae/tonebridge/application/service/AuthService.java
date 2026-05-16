@@ -53,8 +53,12 @@ public class AuthService implements LoginWithGoogleUseCase, RefreshTokenUseCase 
     @Override
     @Transactional
     public TokenResponse refresh(String refreshToken) {
+        UUID tokenUserId = jwtProvider.extractRefreshUserId(refreshToken);
         UUID userId = refreshTokenPort.findUserIdByToken(refreshToken)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.INVALID_TOKEN));
+        if (!tokenUserId.equals(userId)) {
+            throw new ToneBridgeException(ErrorCode.INVALID_TOKEN);
+        }
 
         refreshTokenPort.delete(refreshToken);
         return issueTokens(userId);

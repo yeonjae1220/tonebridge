@@ -65,6 +65,14 @@ public class CorrectionService implements
 
     @Override
     public void rate(RateCorrectionUseCase.Command command) {
+        Correction correction = correctionPort.findById(command.correctionId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
+        CorrectionRequest request = correctionRequestPort.findById(correction.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+
+        if (!request.isOwnedBy(command.raterId())) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
         if (ratingPort.existsByCorrection(command.correctionId())) {
             throw new ToneBridgeException(ErrorCode.ALREADY_RATED);
         }
@@ -74,6 +82,20 @@ public class CorrectionService implements
     @Override
     @Transactional(readOnly = true)
     public List<Correction> getResult(UUID requestId, UUID userId) {
-        return correctionPort.findByRequestId(requestId);
+        CorrectionRequest request = correctionRequestPort.findById(requestId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        List<Correction> corrections = correctionPort.findByRequestId(requestId);
+
+        if (request.isOwnedBy(userId)) {
+            return corrections;
+        }
+
+        List<Correction> ownCorrections = corrections.stream()
+                .filter(correction -> userId.equals(correction.correctorId()))
+                .toList();
+        if (ownCorrections.isEmpty()) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
+        return ownCorrections;
     }
 }

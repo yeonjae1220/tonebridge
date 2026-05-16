@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            UUID userId = jwtProvider.extractUserId(token);
+            UUID userId = jwtProvider.extractAccessUserId(token);
             var auth = new UsernamePasswordAuthenticationToken(userId, null, List.of());
             SecurityContextHolder.getContext().setAuthentication(auth);
             filterChain.doFilter(request, response);

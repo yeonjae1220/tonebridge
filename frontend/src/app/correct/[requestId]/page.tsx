@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -20,14 +20,14 @@ export default function CorrectPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [error, setError] = useState('')
 
-  if (!accessToken) {
-    router.replace('/login')
-    return null
-  }
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
 
   const { data: requests } = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],
     queryFn: () => api.get('/correction-requests/feed?limit=50').then((r) => r.data),
+    enabled: !!accessToken,
   })
 
   const request = requests?.find((r) => r.id === requestId)
@@ -52,6 +52,8 @@ export default function CorrectPage() {
 
   const isValid = correctedText.trim().length > 0 && explanation.trim().length >= 20
 
+  if (!accessToken) return null
+
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
@@ -68,7 +70,7 @@ export default function CorrectPage() {
           <p className="text-xs font-semibold text-amber-600 mb-2">원문</p>
           <p className="text-sm text-gray-800">{request?.contentText ?? '...'}</p>
           {request?.context && (
-            <p className="text-xs text-amber-500 mt-2 italic">"{request.context}"</p>
+            <p className="text-xs text-amber-500 mt-2 italic">&quot;{request.context}&quot;</p>
           )}
           {request?.feedbackGoals && request.feedbackGoals.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-3">
