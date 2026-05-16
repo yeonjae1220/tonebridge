@@ -20,7 +20,7 @@ spec:
             - containerPort: 3000
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: https://tonebridge.mungji.com
+              value: http://backend:8080
           resources:
             requests:
               memory: "256Mi"
