@@ -87,6 +87,10 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: CORS_ALLOWED_ORIGINS
+            - name: FRONTEND_URL
+              value: https://tonebridge.mungji.com
+            - name: GOOGLE_REDIRECT_URI
+              value: https://tonebridge.mungji.com/api/auth/google/callback
           readinessProbe:
             httpGet:
               path: /actuator/health
