@@ -8,6 +8,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "110m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # HIGH-5: HTTP → HTTPS 강제 리다이렉트
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # SSE 연결 유지
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
 spec:
   ingressClassName: nginx
   tls:
@@ -18,14 +23,15 @@ spec:
     - host: tonebridge.mungji.com
       http:
         paths:
-          - path: /api
-            pathType: Prefix
+          # CRITICAL-2: /actuator 전체 제거 → /actuator/health 만 Exact 허용
+          - path: /actuator/health
+            pathType: Exact
             backend:
               service:
                 name: backend
                 port:
                   number: 8080
-          - path: /actuator
+          - path: /api
             pathType: Prefix
             backend:
               service:

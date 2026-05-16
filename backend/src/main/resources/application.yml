@@ -143,3 +143,16 @@ logging:
   level:
     me.yeonjae.tonebridge: INFO
     org.hibernate.SQL: WARN
+jwt:
+  secret: ${JWT_SECRET}
+
+tonebridge:
+  storage:
+    access-key: ${STORAGE_ACCESS_KEY}
+    secret-key: ${STORAGE_SECRET_KEY}
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
