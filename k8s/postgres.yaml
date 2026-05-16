@@ -25,9 +25,22 @@ spec:
       labels:
         app: postgres
     spec:
+      securityContext:
+        runAsUser: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - FOWNER
+                - SETUID
+                - SETGID
           env:
             - name: POSTGRES_DB
               value: tonebridge

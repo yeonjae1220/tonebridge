@@ -4,7 +4,6 @@ metadata:
   name: minio-init
   namespace: tonebridge
   annotations:
-    # 재배포 시 매번 실행 — bucket already exists는 무시됨
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
   ttlSecondsAfterFinished: 300
@@ -13,15 +12,14 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: mc
-          image: minio/mc:latest
+          image: minio/mc:RELEASE.2025-04-03T17-07-56Z
           command:
             - /bin/sh
             - -c
             - |
               mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
               mc mb --ignore-existing local/tonebridge-audio &&
-              mc anonymous set download local/tonebridge-audio &&
-              echo "MinIO bucket ready"
+              echo "MinIO bucket ready (private, Presigned URL access only)"
           env:
             - name: MINIO_ROOT_USER
               valueFrom:
