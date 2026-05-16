@@ -1,0 +1,62 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:tonebridge_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  autoconfigure:
+    exclude:
+      - org.springdoc.webmvc.ui.SwaggerUiWebMvcConfigurer
+      - org.springdoc.core.configuration.SpringDocConfiguration
+      - org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration
+
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LXRoYXQtaXMtbG9uZy1lbm91Z2gtZm9yLUhTMjU2LWFsZ29yaXRobQ==
+  access-token-ttl-minutes: 15
+  refresh-token-ttl-minutes: 43200
+
+tonebridge:
+  storage:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: tonebridge-audio
+    region: us-east-1
+  ai:
+    claude-api-key: test-key
+    claude-model: claude-sonnet-4-6
+  credit:
+    signup-bonus: 30
+    text-request-cost: 5
+    audio-request-cost: 10
+    text-correction-reward: 4
+    audio-correction-reward: 8
+    audio-with-recording-reward: 12
+    streak-7day-bonus: 10
+  correction:
+    expiry-hours: 48
+    ai-fallback-after-hours: 48
+
+cors:
+  allowed-origins: http://localhost:3000
+
+logging:
+  level:
+    me.yeonjae.tonebridge: DEBUG
+    org.springframework.security: WARN

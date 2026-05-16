@@ -1,0 +1,14 @@
+# Backend
+backend/.gradle/
+backend/build/
+backend/out/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# Common
+.DS_Store
+*.log

@@ -1,0 +1,90 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'me.yeonjae'
+version = '0.0.1-SNAPSHOT'
+description = 'ToneBridge'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // ── Web ──────────────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // ── Security + JWT ────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // ── JPA + QueryDSL ────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    // ── PostgreSQL 배열 타입 매핑 ──────────────────────────────────────────────
+
+    // ── Database ──────────────────────────────────────────────────────────────
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // ── Flyway ────────────────────────────────────────────────────────────────
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // ── Redis ─────────────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // ── Storage (MinIO via AWS SDK S3) ────────────────────────────────────────
+    implementation 'software.amazon.awssdk:s3:2.25.0'
+
+    // ── AI (Claude API HTTP 호출) ──────────────────────────────────────────────
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // ── Monitoring ────────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // ── API Docs ──────────────────────────────────────────────────────────────
+
+    // ── Dev / Test ────────────────────────────────────────────────────────────
+    compileOnly    'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    runtimeOnly 'com.h2database:h2'
+}
+
+// ── QueryDSL Q클래스 생성 경로 ────────────────────────────────────────────────
+def generatedDir = layout.buildDirectory.dir('generated/querydsl')
+
+sourceSets {
+    main.java.srcDir generatedDir
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.getGeneratedSourceOutputDirectory().set(file(generatedDir))
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

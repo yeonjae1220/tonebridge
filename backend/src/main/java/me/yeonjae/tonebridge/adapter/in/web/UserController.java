@@ -1,0 +1,42 @@
+package me.yeonjae.tonebridge.adapter.in.web;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.adapter.in.web.dto.OnboardingRequest;
+import me.yeonjae.tonebridge.adapter.in.web.dto.UserResponse;
+import me.yeonjae.tonebridge.application.port.in.CompleteOnboardingUseCase;
+import me.yeonjae.tonebridge.application.port.in.GetCurrentUserUseCase;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/users")
+@RequiredArgsConstructor
+public class UserController {
+
+    private final GetCurrentUserUseCase getCurrentUserUseCase;
+    private final CompleteOnboardingUseCase completeOnboardingUseCase;
+
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getMe(@AuthenticationPrincipal UUID userId) {
+        return ResponseEntity.ok(UserResponse.from(getCurrentUserUseCase.get(userId)));
+    }
+
+    @PatchMapping("/me/onboarding")
+    public ResponseEntity<UserResponse> completeOnboarding(
+            @AuthenticationPrincipal UUID userId,
+            @Valid @RequestBody OnboardingRequest request
+    ) {
+        var command = new CompleteOnboardingUseCase.Command(
+                userId,
+                request.nativeLanguage(),
+                request.fluentLanguages(),
+                request.learningLanguages()
+        );
+        completeOnboardingUseCase.complete(command);
+        return ResponseEntity.ok(UserResponse.from(getCurrentUserUseCase.get(userId)));
+    }
+}
