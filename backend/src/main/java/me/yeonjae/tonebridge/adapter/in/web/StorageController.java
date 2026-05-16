@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.adapter.in.web;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.application.port.in.ValidateAudioKeyAccessUseCase;
 import me.yeonjae.tonebridge.application.port.out.StoragePort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class StorageController {
 
     private final StoragePort storagePort;
+    private final ValidateAudioKeyAccessUseCase validateAccessUseCase;
 
     record PresignedUploadRequest(
             @NotBlank String fileName,
@@ -38,6 +40,7 @@ public class StorageController {
     public ResponseEntity<PresignedDownloadResponse> presignedDownload(
             @AuthenticationPrincipal UUID userId,
             @RequestParam String key) {
+        validateAccessUseCase.validate(userId, key);
         String downloadUrl = storagePort.generatePresignedDownloadUrl(key, Duration.ofMinutes(30));
         return ResponseEntity.ok(new PresignedDownloadResponse(downloadUrl));
     }

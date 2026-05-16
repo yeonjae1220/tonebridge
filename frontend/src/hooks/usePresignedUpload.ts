@@ -19,11 +19,15 @@ export function usePresignedUpload() {
         contentType: file.type,
       })
 
-      await fetch(data.uploadUrl, {
+      const putRes = await fetch(data.uploadUrl, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': file.type },
       })
+
+      if (!putRes.ok) {
+        throw new Error(`파일 업로드 실패: ${putRes.status} ${putRes.statusText}`)
+      }
 
       return data.audioKey
     } catch (e) {

@@ -33,6 +33,8 @@ public enum ErrorCode {
     // Storage
     FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_001", "파일 업로드에 실패했습니다"),
     FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORAGE_002", "파일을 찾을 수 없습니다"),
+    STORAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "STORAGE_003", "파일에 접근할 권한이 없습니다"),
+    INVALID_AUDIO_KEY(HttpStatus.BAD_REQUEST, "STORAGE_004", "유효하지 않은 오디오 키 형식입니다"),
 
     // General
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_001", "서버 오류가 발생했습니다"),
