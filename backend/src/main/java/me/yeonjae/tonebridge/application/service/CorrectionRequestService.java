@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.application.service;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetMyCorrectionRequestsUseCase;
+import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.CreditPort;
@@ -28,6 +29,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CorrectionRequestService implements
         SubmitTextCorrectionRequestUseCase,
+        SubmitAudioCorrectionRequestUseCase,
         GetCorrectionFeedUseCase,
         GetMyCorrectionRequestsUseCase {
 
@@ -37,7 +39,7 @@ public class CorrectionRequestService implements
     private final ToneBridgeProperties properties;
 
     @Override
-    public CorrectionRequest submit(Command command) {
+    public CorrectionRequest submit(SubmitTextCorrectionRequestUseCase.Command command) {
         int cost = properties.getCredit().getTextRequestCost();
         creditPort.adjustCredits(command.requesterId(), -cost);
         creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
@@ -46,6 +48,23 @@ public class CorrectionRequestService implements
         CorrectionRequest request = new CorrectionRequest(
                 null, command.requesterId(), CorrectionType.TEXT,
                 command.contentText(), null, command.targetLanguage(),
+                command.context(),
+                command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
+                cost, RequestStatus.PENDING, null, null, null
+        );
+        return correctionRequestPort.save(request);
+    }
+
+    @Override
+    public CorrectionRequest submit(SubmitAudioCorrectionRequestUseCase.Command command) {
+        int cost = properties.getCredit().getAudioRequestCost();
+        creditPort.adjustCredits(command.requesterId(), -cost);
+        creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
+                TransactionType.SPEND, null, "음성 교정 요청", null));
+
+        CorrectionRequest request = new CorrectionRequest(
+                null, command.requesterId(), CorrectionType.AUDIO,
+                null, command.audioKey(), command.targetLanguage(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
                 cost, RequestStatus.PENDING, null, null, null

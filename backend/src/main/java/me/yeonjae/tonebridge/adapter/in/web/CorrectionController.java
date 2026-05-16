@@ -30,7 +30,10 @@ public class CorrectionController {
             @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody SubmitCorrectionDto dto) {
         var result = submitUseCase.submit(new SubmitCorrectionUseCase.Command(
-                dto.requestId(), userId, dto.correctedText(), dto.explanation(), dto.tags()
+                dto.requestId(), userId,
+                dto.correctedText(), dto.explanation(), dto.tags(),
+                dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),
+                dto.fluencyScore(), dto.referenceAudioUrl()
         ));
         return ResponseEntity.status(HttpStatus.CREATED).body(CorrectionResponse.from(result));
     }

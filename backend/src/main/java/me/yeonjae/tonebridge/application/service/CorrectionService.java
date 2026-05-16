@@ -44,20 +44,30 @@ public class CorrectionService implements
             throw new ToneBridgeException(ErrorCode.CANNOT_CORRECT_OWN_REQUEST);
         }
 
-        int reward = properties.getCredit().getTextCorrectionReward();
+        boolean isAudio = request.type() == CorrectionType.AUDIO;
+        int reward = isAudio
+                ? (command.referenceAudioUrl() != null
+                        ? properties.getCredit().getAudioWithRecordingReward()
+                        : properties.getCredit().getAudioCorrectionReward())
+                : properties.getCredit().getTextCorrectionReward();
+
         Correction correction = correctionPort.save(new Correction(
                 null, command.requestId(), command.correctorId(), false,
                 command.correctedText(), command.explanation(),
                 command.tags() != null ? command.tags() : List.of(),
-                List.of(), null, null, null, null,
+                command.timestampComments() != null ? command.timestampComments() : List.of(),
+                command.pronunciationScore(), command.intonationScore(), command.fluencyScore(),
+                command.referenceAudioUrl(),
                 reward, CorrectionStatus.SUBMITTED, null
         ));
 
         correctionRequestPort.updateStatus(command.requestId(), RequestStatus.COMPLETED);
 
+        String originalText = isAudio ? "(audio)" : request.contentText();
+        String correctedText = isAudio ? command.explanation() : command.correctedText();
         aiQualityCheckPort.checkQualityAsync(
                 correction.id(), command.correctorId(), request.requesterId(),
-                request.contentText(), command.correctedText(), command.explanation()
+                originalText, correctedText, command.explanation(), reward
         );
 
         return correction;
