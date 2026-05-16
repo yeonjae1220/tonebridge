@@ -11,6 +11,7 @@ public record CorrectionRequestResponse(
         UUID requesterId,
         String type,
         String contentText,
+        String audioUrl,
         String targetLanguage,
         String context,
         List<String> feedbackGoals,
@@ -21,7 +22,7 @@ public record CorrectionRequestResponse(
 ) {
     public static CorrectionRequestResponse from(CorrectionRequest r) {
         return new CorrectionRequestResponse(
-                r.id(), r.requesterId(), r.type().name(), r.contentText(),
+                r.id(), r.requesterId(), r.type().name(), r.contentText(), r.audioUrl(),
                 r.targetLanguage(), r.context(), r.feedbackGoals(),
                 r.creditCost(), r.status().name(), r.createdAt(), r.expiresAt()
         );

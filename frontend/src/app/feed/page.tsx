@@ -21,6 +21,11 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}일 전`
 }
 
+function rewardLabel(req: CorrectionRequest) {
+  if (req.type === 'AUDIO') return '+8~12'
+  return '+4'
+}
+
 export default function FeedPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
@@ -76,16 +81,27 @@ export default function FeedPage() {
               onClick={() => router.push(`/correct/${req.id}`)}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                  {LANG_LABELS[req.targetLanguage] ?? req.targetLanguage}
-                </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-green-600">+{4} 크레딧</span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                    {LANG_LABELS[req.targetLanguage] ?? req.targetLanguage}
+                  </span>
+                  {req.type === 'AUDIO' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
+                      🎙 음성
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-sm font-bold text-green-600">{rewardLabel(req)} 크레딧</span>
                   <span className="text-xs text-gray-400">{timeAgo(req.createdAt)}</span>
                 </div>
               </div>
 
-              <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
+              {req.type === 'TEXT' ? (
+                <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
+              ) : (
+                <p className="text-sm text-gray-400 italic mb-3">🎙 음성 교정 요청 — 재생해서 확인하세요</p>
+              )}
 
               {req.feedbackGoals && req.feedbackGoals.length > 0 && (
                 <div className="flex flex-wrap gap-1">

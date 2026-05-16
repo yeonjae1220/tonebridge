@@ -3,9 +3,11 @@ package me.yeonjae.tonebridge.adapter.in.web;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CorrectionRequestResponse;
+import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitAudioRequestDto;
 import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitTextRequestDto;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetMyCorrectionRequestsUseCase;
+import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class CorrectionRequestController {
 
     private final SubmitTextCorrectionRequestUseCase submitUseCase;
+    private final SubmitAudioCorrectionRequestUseCase submitAudioUseCase;
     private final GetCorrectionFeedUseCase feedUseCase;
     private final GetMyCorrectionRequestsUseCase myUseCase;
 
@@ -30,6 +33,16 @@ public class CorrectionRequestController {
             @Valid @RequestBody SubmitTextRequestDto dto) {
         var result = submitUseCase.submit(new SubmitTextCorrectionRequestUseCase.Command(
                 userId, dto.targetLanguage(), dto.contentText(), dto.context(), dto.feedbackGoals()
+        ));
+        return ResponseEntity.status(HttpStatus.CREATED).body(CorrectionRequestResponse.from(result));
+    }
+
+    @PostMapping("/audio")
+    public ResponseEntity<CorrectionRequestResponse> submitAudio(
+            @AuthenticationPrincipal UUID userId,
+            @Valid @RequestBody SubmitAudioRequestDto dto) {
+        var result = submitAudioUseCase.submit(new SubmitAudioCorrectionRequestUseCase.Command(
+                userId, dto.targetLanguage(), dto.audioKey(), dto.context(), dto.feedbackGoals()
         ));
         return ResponseEntity.status(HttpStatus.CREATED).body(CorrectionRequestResponse.from(result));
     }
