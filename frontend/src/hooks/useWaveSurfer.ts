@@ -10,10 +10,13 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
   useEffect(() => {
     if (!containerRef.current || !audioUrl) return
 
-    let ws: import('wavesurfer.js').default
+    let cancelled = false
+    let ws: import('wavesurfer.js').default | undefined
 
     const init = async () => {
       const WaveSurfer = (await import('wavesurfer.js')).default
+      if (cancelled) return
+
       ws = WaveSurfer.create({
         container: containerRef.current!,
         waveColor: '#6366f1',
@@ -27,7 +30,7 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
       })
 
       ws.on('ready', () => {
-        setDuration(ws.getDuration())
+        setDuration(ws!.getDuration())
         setReady(true)
       })
       ws.on('timeupdate', (t) => setCurrentTime(t))
@@ -42,6 +45,7 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
     init()
 
     return () => {
+      cancelled = true
       ws?.destroy()
       wavesurferRef.current = null
       setReady(false)

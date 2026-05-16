@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import type { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { CorrectionRequest, TimestampComment } from '@/types'
+
+type TimestampCommentWithId = TimestampComment & { id: string }
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
@@ -57,7 +60,7 @@ export default function CorrectPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [error, setError] = useState('')
 
-  const [timestampComments, setTimestampComments] = useState<TimestampComment[]>([])
+  const [timestampComments, setTimestampComments] = useState<TimestampCommentWithId[]>([])
   const [pendingComment, setPendingComment] = useState('')
   const [pendingCategory, setPendingCategory] = useState(TIMESTAMP_CATEGORIES[0])
   const [pronunciationScore, setPronunciationScore] = useState(5)
@@ -105,7 +108,7 @@ export default function CorrectPage() {
         explanation,
         tags: selectedTags,
         ...(request?.type === 'AUDIO' && {
-          timestampComments,
+          timestampComments: timestampComments.map(({ id: _id, ...tc }) => tc),
           pronunciationScore,
           intonationScore,
           fluencyScore,
@@ -114,7 +117,7 @@ export default function CorrectPage() {
       })
     },
     onSuccess: () => router.push('/feed'),
-    onError: (e: any) => setError(e.response?.data?.message || '제출 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '제출 실패'),
   })
 
   const toggleTag = (tag: string) => {
@@ -128,7 +131,7 @@ export default function CorrectPage() {
     const start = ws.currentTime
     setTimestampComments((prev) => [
       ...prev,
-      { start, end: start + 2, comment: pendingComment.trim(), category: pendingCategory },
+      { id: crypto.randomUUID(), start, end: start + 2, comment: pendingComment.trim(), category: pendingCategory },
     ])
     setPendingComment('')
   }
@@ -226,7 +229,7 @@ export default function CorrectPage() {
             {timestampComments.length > 0 && (
               <div className="flex flex-col gap-2">
                 {timestampComments.map((tc, i) => (
-                  <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
+                  <div key={tc.id} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
                     <button
                       onClick={() => ws.seekTo(tc.start)}
                       className="text-xs font-mono text-blue-500 hover:text-blue-700 shrink-0 mt-0.5"

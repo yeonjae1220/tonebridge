@@ -20,9 +20,9 @@ import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @Transactional
@@ -78,8 +78,10 @@ public class CorrectionRequestService implements
         User corrector = userPort.findById(correctorId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 
-        List<String> languages = new ArrayList<>(corrector.fluentLanguages());
-        languages.add(corrector.nativeLanguage());
+        List<String> languages = Stream.concat(
+                corrector.fluentLanguages().stream(),
+                Stream.of(corrector.nativeLanguage())
+        ).toList();
 
         return correctionRequestPort.findFeed(correctorId, languages, limit);
     }

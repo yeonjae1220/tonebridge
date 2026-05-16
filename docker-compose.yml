@@ -56,7 +56,7 @@ services:
         mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
         mc mb --ignore-existing local/tonebridge-audio &&
         mc anonymous set none local/tonebridge-audio &&
-        mc cors set --json '[{\"AllowedOrigins\":[\"http://localhost:3000\"],\"AllowedMethods\":[\"PUT\",\"GET\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"]}]' local/tonebridge-audio &&
+        mc cors set --json '[{\"AllowedOrigins\":[\"http://localhost:3000\"],\"AllowedMethods\":[\"PUT\",\"GET\"],\"AllowedHeaders\":[\"Content-Type\",\"Content-Length\"],\"ExposeHeaders\":[\"ETag\"]}]' local/tonebridge-audio &&
         echo 'MinIO bucket ready'
       "
     restart: on-failure
