@@ -1,5 +1,12 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+
+// _retry 필드를 Axios 타입에 병합 — AxiosRequestConfig에 없는 필드를 안전하게 사용
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    _retry?: boolean
+  }
+}
 
 export const api = axios.create({
   baseURL: '/api',
@@ -19,8 +26,13 @@ let pendingQueue: Array<{ resolve: (token: string) => void; reject: (err: unknow
 
 function processQueue(error: unknown, token: string | null) {
   pendingQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error)
-    else resolve(token!)
+    if (error) {
+      reject(error)
+    } else if (token !== null) {
+      resolve(token)
+    } else {
+      reject(new Error('Token was null after successful refresh'))
+    }
   })
   pendingQueue = []
 }
@@ -28,10 +40,10 @@ function processQueue(error: unknown, token: string | null) {
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    const original = error.config
+    const original: InternalAxiosRequestConfig & { _retry?: boolean } = error.config
 
-    // refresh 엔드포인트 자체가 401이면 → 로그아웃
-    if (error.response?.status === 401 && original?.url?.includes('/auth/refresh')) {
+    // _retry が true なら refresh 自体の失敗か retry済み → 로그아웃
+    if (error.response?.status === 401 && original?._retry) {
       useAuthStore.getState().logout()
       if (typeof window !== 'undefined') window.location.href = '/login'
       return Promise.reject(error)
@@ -52,10 +64,11 @@ api.interceptors.response.use(
 
       isRefreshing = true
       try {
+        // _retry: true 를 명시해서 이 요청 자체가 401이 되면 위의 guard가 잡음
         const { data } = await axios.post<{ accessToken: string }>(
           '/api/auth/refresh',
           null,
-          { withCredentials: true }
+          { withCredentials: true, _retry: true } as InternalAxiosRequestConfig
         )
         const newToken = data.accessToken
         useAuthStore.getState().setAccessToken(newToken)
