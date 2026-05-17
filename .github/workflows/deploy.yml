@@ -126,12 +126,12 @@ jobs:
             sudo kubectl apply -f /opt/tonebridge/k8s/frontend.yaml
             sudo kubectl apply -f /opt/tonebridge/k8s/ingress.yaml
 
-            # 이미지 최신화 및 롤아웃
+            # 이미지 최신화 및 롤아웃 (SHA 태그로 변경을 강제하여 :latest 동일 시 롤아웃 누락 방지)
             sudo kubectl set image deployment/backend \
-              backend=${{ env.BACKEND_IMAGE }}:latest \
+              backend=${{ env.BACKEND_IMAGE }}:${{ github.sha }} \
               -n tonebridge
             sudo kubectl set image deployment/frontend \
-              frontend=${{ env.FRONTEND_IMAGE }}:latest \
+              frontend=${{ env.FRONTEND_IMAGE }}:${{ github.sha }} \
               -n tonebridge
 
             if ! sudo kubectl rollout status deployment/backend -n tonebridge --timeout=300s; then
