@@ -34,7 +34,8 @@ public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUse
                 command.fluentLanguages(),
                 command.learningLanguages(),
                 user.credits(), user.reputationScore(), user.correctorLevel(),
-                user.correctionStreak(), user.lastCorrectionDate(), user.createdAt()
+                user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
+                user.isAdmin()
         );
         userPort.save(updated);
     }

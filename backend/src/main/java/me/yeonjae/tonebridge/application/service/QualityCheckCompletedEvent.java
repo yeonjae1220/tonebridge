@@ -7,5 +7,6 @@ public record QualityCheckCompletedEvent(
         UUID correctorId,
         UUID requesterId,
         boolean passed,
-        int reward
+        int reward,
+        boolean isAudio
 ) {}

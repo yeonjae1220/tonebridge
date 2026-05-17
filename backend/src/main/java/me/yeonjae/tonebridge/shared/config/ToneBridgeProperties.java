@@ -15,6 +15,19 @@ public class ToneBridgeProperties {
     private Credit credit = new Credit();
     private Correction correction = new Correction();
     private Auth auth = new Auth();
+    private Admin admin = new Admin();
+    private Fcm fcm = new Fcm();
+
+    @Getter @Setter
+    public static class Fcm {
+        private String serviceAccountPath;
+        private String projectId;
+    }
+
+    @Getter @Setter
+    public static class Admin {
+        private java.util.List<String> emails = new java.util.ArrayList<>();
+    }
 
     @Getter @Setter
     public static class Storage {
@@ -47,11 +60,25 @@ public class ToneBridgeProperties {
     public static class Correction {
         private int expiryHours = 48;
         private int aiFallbackAfterHours = 48;
+        private int fallbackBatchSize = 50;
+        private long fallbackSchedulerIntervalMs = 3_600_000;
     }
 
     @Getter @Setter
     public static class Auth {
         private String frontendUrl = "http://localhost:3000";
         private String redirectUri = "http://localhost:8080/api/auth/google/callback";
+    }
+
+    private Gamification gamification = new Gamification();
+
+    @Getter @Setter
+    public static class Gamification {
+        private boolean streakEnabled = true;
+        private boolean reputationEnabled = true;
+        private boolean badgesEnabled = true;
+        private int badgeFastResponderCount = 5;
+        private int badgeAudioExpertCount = 10;
+        private int fastResponderMaxMinutes = 60;
     }
 }

@@ -60,6 +60,9 @@ dependencies {
     // ── AI (Claude API HTTP 호출) ──────────────────────────────────────────────
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
+    // ── Firebase Admin SDK (FCM 푸시 알림) ───────────────────────────────────────
+    implementation 'com.google.firebase:firebase-admin:9.3.0'
+
     // ── Monitoring ────────────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'

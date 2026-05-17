@@ -7,4 +7,5 @@ import java.util.UUID;
 public interface RatingPort {
     boolean existsByCorrection(UUID correctionId);
     Rating save(Rating rating);
+    double findHelpfulRatioByCorrector(UUID correctorId, int limit);
 }

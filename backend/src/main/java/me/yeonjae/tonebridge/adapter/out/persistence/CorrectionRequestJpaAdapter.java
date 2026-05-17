@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,5 +58,14 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
     @Override
     public void updateStatus(UUID id, RequestStatus status) {
         repository.updateStatus(id, status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CorrectionRequest> findPendingOlderThan(Instant threshold, int limit) {
+        return repository.findPendingOlderThan(threshold, PageRequest.of(0, limit))
+                .stream()
+                .map(CorrectionRequestEntity::toDomain)
+                .toList();
     }
 }

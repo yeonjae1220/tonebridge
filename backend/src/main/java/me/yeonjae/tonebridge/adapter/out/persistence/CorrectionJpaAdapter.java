@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.domain.correction.Correction;
 import me.yeonjae.tonebridge.domain.correction.CorrectionStatus;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,5 +49,28 @@ public class CorrectionJpaAdapter implements CorrectionPort {
     @Override
     public void updateStatus(UUID id, CorrectionStatus status) {
         repository.updateStatus(id, status);
+    }
+
+    private static final int FAST_RESPONDER_TIMING_LIMIT = 100;
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countApprovedAudioByCorrector(UUID correctorId) {
+        return repository.countApprovedAudioByCorrector(correctorId, CorrectionStatus.APPROVED, "AUDIO");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> findCorrectionTimingsByCorrector(UUID correctorId) {
+        return repository.findCorrectionTimingsByCorrector(
+                correctorId,
+                CorrectionStatus.APPROVED,
+                PageRequest.of(0, FAST_RESPONDER_TIMING_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByRequestId(UUID requestId) {
+        return repository.existsByRequestId(requestId);
     }
 }

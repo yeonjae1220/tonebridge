@@ -13,4 +13,7 @@ public interface CorrectionPort {
     Optional<Correction> findByReferenceAudioUrl(String referenceAudioUrl);
     List<Correction> findByRequestId(UUID requestId);
     void updateStatus(UUID id, CorrectionStatus status);
+    long countApprovedAudioByCorrector(UUID correctorId);
+    List<Object[]> findCorrectionTimingsByCorrector(UUID correctorId);
+    boolean existsByRequestId(UUID requestId);
 }

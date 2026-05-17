@@ -1,3 +1,10 @@
+export type BadgeType = 'STREAK_7DAY' | 'FAST_RESPONDER' | 'AUDIO_EXPERT'
+
+export interface UserBadge {
+  badgeType: BadgeType
+  awardedAt: string
+}
+
 export interface User {
   id: string
   email: string
@@ -9,6 +16,18 @@ export interface User {
   reputationScore: number
   correctorLevel: 'NATIVE' | 'VERIFIED_CORRECTOR' | 'EXPERT_COACH'
   correctionStreak: number
+  lastCorrectionDate?: string
+}
+
+export interface UserProfile {
+  id: string
+  username: string
+  nativeLanguage: string
+  fluentLanguages: string[]
+  correctionStreak: number
+  reputationScore: number
+  correctorLevel: 'NATIVE' | 'VERIFIED_CORRECTOR' | 'EXPERT_COACH'
+  badges: UserBadge[]
 }
 
 export interface CorrectionRequest {
@@ -50,4 +69,32 @@ export interface TimestampComment {
   end: number
   comment: string
   category: string
+}
+
+export interface AdminStats {
+  totalRequests: number
+  pendingRequests: number
+  completedRequests: number
+  qualityPassRate: number
+  pendingByLanguage: Record<string, number>
+}
+
+export interface AdminUserSummary {
+  id: string
+  email: string
+  username: string
+  nativeLanguage: string
+  credits: number
+  reputationScore: number
+  correctionStreak: number
+  isAdmin: boolean
+  createdAt: string
+}
+
+export interface PageResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
 }

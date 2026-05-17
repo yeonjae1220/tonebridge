@@ -44,6 +44,7 @@ public class SecurityConfig {
                                     return new org.springframework.security.authorization.AuthorizationDecision(isLocal);
                                 }
                         )
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

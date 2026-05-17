@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { CorrectionRequest } from '@/types'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const LANG_LABELS: Record<string, string> = {
   ko: '한국어', ja: '일본어', zh: '중국어', en: '영어', es: '스페인어', fr: '프랑스어',
@@ -34,6 +35,8 @@ export default function FeedPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
+  const { data: currentUser } = useCurrentUser()
+
   const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],
     queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
@@ -50,12 +53,22 @@ export default function FeedPage() {
             <h1 className="text-2xl font-bold text-gray-900">첨삭 피드</h1>
             <p className="text-sm text-gray-500 mt-0.5">교정해서 크레딧 버세요</p>
           </div>
-          <button
-            onClick={() => router.push('/request')}
-            className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
-          >
-            요청하기
-          </button>
+          <div className="flex items-center gap-2">
+            {currentUser && currentUser.correctionStreak > 0 && (
+              <button
+                onClick={() => router.push('/profile')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl text-sm font-semibold text-orange-700 hover:bg-orange-100 transition-colors"
+              >
+                🔥 {currentUser.correctionStreak}일
+              </button>
+            )}
+            <button
+              onClick={() => router.push('/request')}
+              className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+            >
+              요청하기
+            </button>
+          </div>
         </div>
 
         {isLoading && (
