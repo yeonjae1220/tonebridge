@@ -96,6 +96,18 @@ public class UserEntity {
                 .build();
     }
 
+    public void updateFrom(User user) {
+        this.nativeLanguage = user.nativeLanguage();
+        this.fluentLanguagesRaw = joinList(user.fluentLanguages());
+        this.learningLanguagesRaw = joinList(user.learningLanguages());
+        this.credits = user.credits();
+        this.reputationScore = user.reputationScore();
+        this.correctorLevel = user.correctorLevel();
+        this.correctionStreak = user.correctionStreak();
+        this.lastCorrectionDate = user.lastCorrectionDate();
+        this.isAdmin = user.isAdmin();
+    }
+
     private static List<String> parseList(String raw) {
         if (raw == null || raw.isBlank()) return new ArrayList<>();
         return Arrays.stream(raw.split(","))

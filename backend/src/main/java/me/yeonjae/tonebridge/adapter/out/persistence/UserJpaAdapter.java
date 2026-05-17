@@ -26,6 +26,14 @@ public class UserJpaAdapter implements UserPort {
 
     @Override
     public User save(User user) {
+        if (user.id() != null) {
+            Optional<UserEntity> existing = userJpaRepository.findById(user.id());
+            if (existing.isPresent()) {
+                UserEntity entity = existing.get();
+                entity.updateFrom(user);
+                return userJpaRepository.save(entity).toDomain();
+            }
+        }
         return userJpaRepository.save(UserEntity.fromDomain(user)).toDomain();
     }
 }
