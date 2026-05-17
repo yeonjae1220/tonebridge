@@ -8,17 +8,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 
 const FEEDBACK_GOALS = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스']
-
-const LANGUAGES = [
-  { code: 'ko', label: '한국어' },
-  { code: 'ja', label: '일본어' },
-  { code: 'zh', label: '중국어' },
-  { code: 'en', label: '영어' },
-  { code: 'es', label: '스페인어' },
-  { code: 'fr', label: '프랑스어' },
-]
 
 type Tab = 'TEXT' | 'AUDIO'
 
@@ -33,6 +25,7 @@ export default function RequestPage() {
   const { accessToken } = useAuthStore()
   const [tab, setTab] = useState<Tab>('TEXT')
   const [targetLanguage, setTargetLanguage] = useState('')
+  const [targetVariant, setTargetVariant] = useState<string | null>(null)
   const [contentText, setContentText] = useState('')
   const [context, setContext] = useState('')
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
@@ -49,6 +42,7 @@ export default function RequestPage() {
     mutationFn: () =>
       api.post('/correction-requests', {
         targetLanguage,
+        targetVariant: targetVariant ?? undefined,
         contentText,
         context,
         feedbackGoals: selectedGoals,
@@ -64,6 +58,7 @@ export default function RequestPage() {
       const audioKey = await upload(file)
       return api.post('/correction-requests/audio', {
         targetLanguage,
+        targetVariant: targetVariant ?? undefined,
         audioKey,
         context,
         feedbackGoals: selectedGoals,
@@ -117,24 +112,18 @@ export default function RequestPage() {
           ))}
         </div>
 
-        {/* Language */}
+        {/* Language + Variant */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
           <label className="text-sm font-semibold text-gray-700">교정 언어</label>
-          <div className="grid grid-cols-3 gap-2">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setTargetLanguage(lang.code)}
-                className={`py-2 rounded-xl text-sm font-medium border transition-colors ${
-                  targetLanguage === lang.code
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                }`}
-              >
-                {lang.label}
-              </button>
-            ))}
-          </div>
+          <LanguagePicker
+            value={targetLanguage}
+            variant={targetVariant}
+            onLanguageChange={(code) => {
+              setTargetLanguage(code)
+              setTargetVariant(null)
+            }}
+            onVariantChange={setTargetVariant}
+          />
         </div>
 
         {/* Content */}

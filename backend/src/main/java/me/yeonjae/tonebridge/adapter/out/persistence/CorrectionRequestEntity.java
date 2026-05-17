@@ -40,6 +40,8 @@ public class CorrectionRequestEntity {
     @Column(nullable = false)
     private String targetLanguage;
 
+    private String targetVariant;
+
     @Column(columnDefinition = "TEXT")
     private String context;
 
@@ -71,8 +73,8 @@ public class CorrectionRequestEntity {
 
     public CorrectionRequest toDomain() {
         return new CorrectionRequest(
-                id, requesterId, type, contentText, audioUrl, targetLanguage, context,
-                parseList(feedbackGoalsRaw), creditCost, status, aiCorrection, createdAt, expiresAt
+                id, requesterId, type, contentText, audioUrl, targetLanguage, targetVariant,
+                context, parseList(feedbackGoalsRaw), creditCost, status, aiCorrection, createdAt, expiresAt
         );
     }
 
@@ -84,6 +86,7 @@ public class CorrectionRequestEntity {
                 .contentText(r.contentText())
                 .audioUrl(r.audioUrl())
                 .targetLanguage(r.targetLanguage())
+                .targetVariant(r.targetVariant())
                 .context(r.context())
                 .feedbackGoalsRaw(joinList(r.feedbackGoals()))
                 .creditCost(r.creditCost())

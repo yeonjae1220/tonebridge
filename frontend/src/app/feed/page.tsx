@@ -7,10 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { CorrectionRequest } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-
-const LANG_LABELS: Record<string, string> = {
-  ko: '한국어', ja: '일본어', zh: '중국어', en: '영어', es: '스페인어', fr: '프랑스어',
-}
+import { ALL_LANG_LABELS } from '@/constants/languages'
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -25,6 +22,10 @@ function timeAgo(iso: string) {
 function rewardLabel(req: CorrectionRequest) {
   if (req.type === 'AUDIO') return '+8~12'
   return '+4'
+}
+
+function variantLabel(code: string) {
+  return ALL_LANG_LABELS[code] ?? code
 }
 
 export default function FeedPage() {
@@ -42,6 +43,11 @@ export default function FeedPage() {
     queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
     enabled: !!accessToken,
   })
+
+  const correctorVariants = new Set<string>([
+    ...(currentUser?.fluentLanguages ?? []),
+    currentUser?.nativeLanguage ?? '',
+  ].filter(Boolean))
 
   if (!accessToken) return null
 
@@ -87,50 +93,64 @@ export default function FeedPage() {
         )}
 
         <div className="flex flex-col gap-3">
-          {requests?.map((req) => (
-            <div
-              key={req.id}
-              className="bg-white rounded-2xl border border-gray-100 p-5 hover:border-blue-200 transition-colors cursor-pointer"
-              onClick={() => router.push(`/correct/${req.id}`)}
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                    {LANG_LABELS[req.targetLanguage] ?? req.targetLanguage}
-                  </span>
-                  {req.type === 'AUDIO' && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
-                      🎙 음성
+          {requests?.map((req) => {
+            const isDialectMatch = !!req.targetVariant && correctorVariants.has(req.targetVariant)
+            return (
+              <div
+                key={req.id}
+                className={`bg-white rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
+                  isDialectMatch ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-100'
+                }`}
+                onClick={() => router.push(`/correct/${req.id}`)}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                      {ALL_LANG_LABELS[req.targetLanguage] ?? req.targetLanguage}
                     </span>
-                  )}
+                    {req.targetVariant && (
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        isDialectMatch
+                          ? 'bg-indigo-50 text-indigo-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {variantLabel(req.targetVariant)}
+                      </span>
+                    )}
+                    {req.type === 'AUDIO' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
+                        🎙 음성
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-bold text-green-600">{rewardLabel(req)} 크레딧</span>
+                    <span className="text-xs text-gray-400">{timeAgo(req.createdAt)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-bold text-green-600">{rewardLabel(req)} 크레딧</span>
-                  <span className="text-xs text-gray-400">{timeAgo(req.createdAt)}</span>
-                </div>
+
+                {req.type === 'TEXT' ? (
+                  <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
+                ) : (
+                  <p className="text-sm text-gray-400 italic mb-3">🎙 음성 교정 요청 — 재생해서 확인하세요</p>
+                )}
+
+                {req.feedbackGoals && req.feedbackGoals.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {req.feedbackGoals.map((g) => (
+                      <span key={g} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {req.context && (
+                  <p className="text-xs text-gray-400 mt-2 italic">&quot;{req.context}&quot;</p>
+                )}
               </div>
-
-              {req.type === 'TEXT' ? (
-                <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
-              ) : (
-                <p className="text-sm text-gray-400 italic mb-3">🎙 음성 교정 요청 — 재생해서 확인하세요</p>
-              )}
-
-              {req.feedbackGoals && req.feedbackGoals.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {req.feedbackGoals.map((g) => (
-                    <span key={g} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {req.context && (
-                <p className="text-xs text-gray-400 mt-2 italic">&quot;{req.context}&quot;</p>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </main>
