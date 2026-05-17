@@ -16,6 +16,7 @@ import me.yeonjae.tonebridge.shared.config.JwtProperties;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +32,10 @@ import java.util.Arrays;
 public class AuthController {
 
     static final String REFRESH_COOKIE = "refresh_token";
+
+    /** prod 프로파일에서 true — 로컬 개발(HTTP)에서는 false로 오버라이드 */
+    @Value("${cookie.secure:true}")
+    private boolean secureCookie;
 
     private final LoginWithGoogleUseCase loginWithGoogleUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
@@ -103,16 +108,24 @@ public class AuthController {
     // ── Cookie helpers ────────────────────────────────────────────────────────
 
     private void setRefreshCookie(HttpServletResponse response, String refreshToken) {
-        int maxAge = (int) (jwtProperties.getRefreshTokenTtlMinutes() * 60);
-        String header = String.format(
-                "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly; Secure; SameSite=Lax",
-                REFRESH_COOKIE, refreshToken, maxAge);
-        response.setHeader("Set-Cookie", header);
+        // Math.toIntExact throws ArithmeticException on overflow so misconfiguration
+        // is caught at runtime rather than silently producing a negative Max-Age.
+        int maxAge = Math.toIntExact(jwtProperties.getRefreshTokenTtlMinutes() * 60);
+        // Path=/api/auth restricts the cookie to auth endpoints only — the browser
+        // will NOT send it on regular API calls, limiting exposure surface.
+        // addHeader (not setHeader) is required: Set-Cookie is a multi-value header
+        // and setHeader would overwrite any cookie set by other filters/interceptors.
+        String secureFlag = secureCookie ? "; Secure" : "";
+        response.addHeader("Set-Cookie", String.format(
+                "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly%s; SameSite=Lax",
+                REFRESH_COOKIE, refreshToken, maxAge, secureFlag));
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
-        response.setHeader("Set-Cookie",
-                REFRESH_COOKIE + "=; Max-Age=0; Path=/api/auth; HttpOnly; Secure; SameSite=Lax");
+        String secureFlag = secureCookie ? "; Secure" : "";
+        response.addHeader("Set-Cookie", String.format(
+                "%s=; Max-Age=0; Path=/api/auth; HttpOnly%s; SameSite=Lax",
+                REFRESH_COOKIE, secureFlag));
     }
 
     private String extractRefreshCookie(HttpServletRequest request) {

@@ -9,11 +9,12 @@ function AuthCallbackInner() {
   const setAccessToken = useAuthStore((s) => s.setAccessToken)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search.slice(1))
+    // 백엔드는 항상 URL 프래그먼트(#token=...)로 access token을 전달
+    const params = new URLSearchParams(window.location.hash.slice(1))
     const token = params.get('token')
 
     if (!token) {
-      router.replace('/login?error=missing_tokens')
+      router.replace('/login?error=missing_token')
       return
     }
 

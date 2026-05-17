@@ -13,14 +13,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     })
   )
 
-  // 페이지 새로고침 시 httpOnly 쿠키로 accessToken을 조용히 복원
+  // sessionReady가 false인 동안 children을 렌더하지 않아
+  // React Query의 useQuery가 tryRestoreSession보다 먼저 실행되어
+  // 중복 /auth/refresh 호출이 발생하는 레이스 컨디션을 방지합니다.
+  const [sessionReady, setSessionReady] = useState(false)
+
   useEffect(() => {
-    tryRestoreSession()
+    tryRestoreSession().finally(() => setSessionReady(true))
   }, [])
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      {sessionReady ? children : null}
     </QueryClientProvider>
   )
 }
