@@ -62,9 +62,10 @@ jobs:
       - name: Copy k8s manifests to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ secrets.LENOVO_HOST }}
+          port: ${{ secrets.LENOVO_PORT }}
+          username: ${{ secrets.LENOVO_USER }}
+          key: ${{ secrets.LENOVO_SSH_KEY }}
           source: "k8s/"
           target: "/opt/tonebridge/"
 
@@ -79,9 +80,10 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ secrets.LENOVO_HOST }}
+          port: ${{ secrets.LENOVO_PORT }}
+          username: ${{ secrets.LENOVO_USER }}
+          key: ${{ secrets.LENOVO_SSH_KEY }}
           envs: POSTGRES_PASSWORD,REDIS_PASSWORD,JWT_SECRET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,CLAUDE_API_KEY,MINIO_ROOT_PASSWORD
           script: |
             set -e
