@@ -59,6 +59,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare deploy directory on server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.LENOVO_HOST }}
+          port: ${{ secrets.LENOVO_PORT }}
+          username: ${{ secrets.LENOVO_USER }}
+          key: ${{ secrets.LENOVO_SSH_KEY }}
+          script: sudo mkdir -p /opt/tonebridge && sudo chown $USER:$USER /opt/tonebridge
+
       - name: Copy k8s manifests to server
         uses: appleboy/scp-action@v0.1.7
         with:
