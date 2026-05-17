@@ -66,11 +66,18 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
 
         Request request = new Request.Builder().url(tokenUri).post(body).build();
         try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful() || response.body() == null) {
+            String responseBody = response.body() != null ? response.body().string() : "(no body)";
+            if (!response.isSuccessful()) {
+                log.error("Google token exchange failed: HTTP {} - {}", response.code(), responseBody);
                 throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
             }
-            JsonNode json = objectMapper.readTree(response.body().string());
-            return json.get("access_token").asText();
+            JsonNode json = objectMapper.readTree(responseBody);
+            JsonNode accessTokenNode = json.get("access_token");
+            if (accessTokenNode == null || accessTokenNode.isNull()) {
+                log.error("Google token response missing access_token: {}", json);
+                throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
+            }
+            return accessTokenNode.asText();
         } catch (IOException e) {
             log.error("Google token exchange failed", e);
             throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
