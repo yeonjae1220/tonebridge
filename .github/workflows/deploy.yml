@@ -134,9 +134,6 @@ jobs:
               frontend=${{ env.FRONTEND_IMAGE }}:latest \
               -n tonebridge
 
-            sudo kubectl rollout restart deployment/backend -n tonebridge
-            sudo kubectl rollout restart deployment/frontend -n tonebridge
-
             if ! sudo kubectl rollout status deployment/backend -n tonebridge --timeout=300s; then
               echo "=== Backend pod status ==="
               sudo kubectl get pods -n tonebridge -l app=backend -o wide
