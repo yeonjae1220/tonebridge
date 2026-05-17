@@ -4,9 +4,8 @@ import type { User } from '@/types'
 
 interface AuthState {
   accessToken: string | null
-  refreshToken: string | null
   user: User | null
-  setTokens: (access: string, refresh: string) => void
+  setAccessToken: (token: string) => void
   setUser: (user: User) => void
   logout: () => void
 }
@@ -15,12 +14,11 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
-      refreshToken: null,
       user: null,
-      setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      setAccessToken: (accessToken) => set({ accessToken }),
       setUser: (user) => set({ user }),
-      logout: () => set({ accessToken: null, refreshToken: null, user: null }),
+      logout: () => set({ accessToken: null, user: null }),
     }),
-    { name: 'tonebridge-auth', partialize: (s) => ({ accessToken: s.accessToken, refreshToken: s.refreshToken }) }
+    { name: 'tonebridge-auth', partialize: (s) => ({ accessToken: s.accessToken }) }
   )
 )

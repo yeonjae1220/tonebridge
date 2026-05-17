@@ -1,13 +1,18 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.yeonjae.tonebridge.adapter.in.web.dto.AccessTokenResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.TokenResponse;
 import me.yeonjae.tonebridge.application.port.in.LoginWithGoogleUseCase;
 import me.yeonjae.tonebridge.application.port.in.RefreshTokenUseCase;
 import me.yeonjae.tonebridge.application.port.out.GoogleOAuthPort;
 import me.yeonjae.tonebridge.application.port.out.OAuthStatePort;
+import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
+import me.yeonjae.tonebridge.shared.config.JwtProperties;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
@@ -17,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 @Slf4j
 @RestController
@@ -24,11 +30,15 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class AuthController {
 
+    static final String REFRESH_COOKIE = "refresh_token";
+
     private final LoginWithGoogleUseCase loginWithGoogleUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
+    private final RefreshTokenPort refreshTokenPort;
     private final GoogleOAuthPort googleOAuthPort;
     private final OAuthStatePort oAuthStatePort;
     private final ToneBridgeProperties properties;
+    private final JwtProperties jwtProperties;
 
     @GetMapping("/google")
     public void initiateGoogleLogin(HttpServletResponse response) throws IOException {
@@ -55,9 +65,9 @@ public class AuthController {
 
         try {
             TokenResponse tokens = loginWithGoogleUseCase.login(code, redirectUri);
+            setRefreshCookie(response, tokens.refreshToken());
             String callbackUrl = frontendUrl + "/auth/callback"
-                    + "#token=" + URLEncoder.encode(tokens.accessToken(), StandardCharsets.UTF_8)
-                    + "&refresh=" + URLEncoder.encode(tokens.refreshToken(), StandardCharsets.UTF_8);
+                    + "#token=" + URLEncoder.encode(tokens.accessToken(), StandardCharsets.UTF_8);
             response.sendRedirect(callbackUrl);
         } catch (Exception e) {
             log.error("Google OAuth callback failed", e);
@@ -66,9 +76,51 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest request) {
-        return ResponseEntity.ok(refreshTokenUseCase.refresh(request.refreshToken()));
+    public ResponseEntity<AccessTokenResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = extractRefreshCookie(request);
+        if (refreshToken == null) {
+            throw new ToneBridgeException(ErrorCode.INVALID_TOKEN);
+        }
+        TokenResponse tokens = refreshTokenUseCase.refresh(refreshToken);
+        setRefreshCookie(response, tokens.refreshToken());
+        return ResponseEntity.ok(new AccessTokenResponse(tokens.accessToken()));
     }
 
-    public record RefreshRequest(String refreshToken) {}
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = extractRefreshCookie(request);
+        if (refreshToken != null) {
+            try {
+                refreshTokenPort.delete(refreshToken);
+            } catch (Exception e) {
+                log.warn("Failed to delete refresh token from store during logout", e);
+            }
+        }
+        clearRefreshCookie(response);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Cookie helpers ────────────────────────────────────────────────────────
+
+    private void setRefreshCookie(HttpServletResponse response, String refreshToken) {
+        int maxAge = (int) (jwtProperties.getRefreshTokenTtlMinutes() * 60);
+        String header = String.format(
+                "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly; Secure; SameSite=Lax",
+                REFRESH_COOKIE, refreshToken, maxAge);
+        response.setHeader("Set-Cookie", header);
+    }
+
+    private void clearRefreshCookie(HttpServletResponse response) {
+        response.setHeader("Set-Cookie",
+                REFRESH_COOKIE + "=; Max-Age=0; Path=/api/auth; HttpOnly; Secure; SameSite=Lax");
+    }
+
+    private String extractRefreshCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+        return Arrays.stream(request.getCookies())
+                .filter(c -> REFRESH_COOKIE.equals(c.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
+    }
 }
