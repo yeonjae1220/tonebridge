@@ -138,6 +138,8 @@ spring:
 
   flyway:
     enabled: true
+    baseline-on-migrate: true
+    baseline-version: 6
 
   h2:
     console:
