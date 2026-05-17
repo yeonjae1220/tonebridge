@@ -47,7 +47,7 @@ public class CorrectionEntity {
     @Column(name = "tags", length = 512)
     private String tagsRaw;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "timestamp_comments", columnDefinition = "TEXT")
     private String timestampCommentsJson;
 
     private Integer pronunciationScore;
