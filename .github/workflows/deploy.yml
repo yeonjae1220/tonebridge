@@ -97,6 +97,9 @@ jobs:
           script: |
             set -e
 
+            # 네임스페이스 먼저 생성 (Secret 적용 전 필수)
+            sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
+
             # k8s Secret 동적 생성/업데이트 (민감 값은 GitHub Actions Secrets에서 주입)
             sudo kubectl create secret generic tonebridge-secret \
               --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
@@ -112,7 +115,7 @@ jobs:
               -n tonebridge \
               --dry-run=client -o yaml | sudo kubectl apply -f -
 
-            # 네임스페이스 및 인프라 적용
+            # 나머지 인프라 적용
             sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
             sudo kubectl apply -f /opt/tonebridge/k8s/network-policy.yaml
             sudo kubectl apply -f /opt/tonebridge/k8s/postgres.yaml
