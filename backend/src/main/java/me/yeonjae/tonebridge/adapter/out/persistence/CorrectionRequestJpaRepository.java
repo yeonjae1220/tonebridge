@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,4 +34,24 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
     @Modifying
     @Query("UPDATE CorrectionRequestEntity r SET r.status = :status WHERE r.id = :id")
     void updateStatus(@Param("id") UUID id, @Param("status") RequestStatus status);
+
+    long countByStatus(RequestStatus status);
+
+    @Query("""
+            SELECT r FROM CorrectionRequestEntity r
+            WHERE r.status = 'PENDING'
+              AND r.createdAt < :threshold
+              AND NOT EXISTS (
+                SELECT 1 FROM CorrectionEntity c WHERE c.requestId = r.id
+              )
+            """)
+    List<CorrectionRequestEntity> findPendingOlderThan(@Param("threshold") Instant threshold, Pageable pageable);
+
+    @Query("""
+            SELECT r.targetLanguage, COUNT(r)
+            FROM CorrectionRequestEntity r
+            WHERE r.status = 'PENDING'
+            GROUP BY r.targetLanguage
+            """)
+    List<Object[]> countPendingGroupedByLanguage();
 }

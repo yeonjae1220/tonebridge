@@ -16,9 +16,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 @Component
 @RequiredArgsConstructor
@@ -38,8 +40,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            UUID userId = jwtProvider.extractAccessUserId(token);
-            var auth = new UsernamePasswordAuthenticationToken(userId, null, List.of());
+            JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(token);
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+            if (claims.isAdmin()) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            }
+            var auth = new UsernamePasswordAuthenticationToken(claims.userId(), null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
             filterChain.doFilter(request, response);
         } catch (ToneBridgeException e) {

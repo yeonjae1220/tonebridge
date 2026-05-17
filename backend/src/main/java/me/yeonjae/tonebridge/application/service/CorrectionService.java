@@ -31,6 +31,7 @@ public class CorrectionService implements
     private final RatingPort ratingPort;
     private final AiQualityCheckPort aiQualityCheckPort;
     private final ToneBridgeProperties properties;
+    private final ReputationService reputationService;
 
     @Override
     public Correction submit(SubmitCorrectionUseCase.Command command) {
@@ -67,7 +68,7 @@ public class CorrectionService implements
         String correctedText = isAudio ? command.explanation() : command.correctedText();
         aiQualityCheckPort.checkQualityAsync(
                 correction.id(), command.correctorId(), request.requesterId(),
-                originalText, correctedText, command.explanation(), reward
+                originalText, correctedText, command.explanation(), reward, isAudio
         );
 
         return correction;
@@ -87,6 +88,10 @@ public class CorrectionService implements
             throw new ToneBridgeException(ErrorCode.ALREADY_RATED);
         }
         ratingPort.save(new Rating(null, command.correctionId(), command.raterId(), command.helpful(), null));
+
+        if (correction.correctorId() != null) {
+            reputationService.recalculate(correction.correctorId());
+        }
     }
 
     @Override

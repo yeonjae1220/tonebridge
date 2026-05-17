@@ -44,6 +44,9 @@ class CorrectionServiceTest {
     @Mock
     private AiQualityCheckPort aiQualityCheckPort;
 
+    @Mock
+    private ReputationService reputationService;
+
     private CorrectionService correctionService;
 
     @BeforeEach
@@ -53,7 +56,8 @@ class CorrectionServiceTest {
                 correctionPort,
                 ratingPort,
                 aiQualityCheckPort,
-                new ToneBridgeProperties()
+                new ToneBridgeProperties(),
+                reputationService
         );
     }
 

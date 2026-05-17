@@ -23,21 +23,38 @@ public class JwtProvider {
     private static final String TOKEN_TYPE_CLAIM = "token_type";
     private static final String ACCESS_TOKEN_TYPE = "access";
     private static final String REFRESH_TOKEN_TYPE = "refresh";
+    private static final String ADMIN_CLAIM = "admin";
 
     private final JwtProperties jwtProperties;
 
-    public String generateAccessToken(UUID userId) {
-        return buildToken(userId.toString(), jwtProperties.getAccessTokenTtlMinutes(), ACCESS_TOKEN_TYPE);
+    public String generateAccessToken(UUID userId, boolean isAdmin) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
+                .claim(ADMIN_CLAIM, isAdmin)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(jwtProperties.getAccessTokenTtlMinutes() * 60)))
+                .signWith(signingKey())
+                .compact();
     }
 
     public String generateRefreshToken(UUID userId) {
         return buildToken(userId.toString(), jwtProperties.getRefreshTokenTtlMinutes(), REFRESH_TOKEN_TYPE);
     }
 
-    public UUID extractAccessUserId(String token) {
+    public record AccessClaims(UUID userId, boolean isAdmin) {}
+
+    /**
+     * Parses an access token once and returns both userId and admin flag.
+     * Throws ToneBridgeException if the token is invalid, expired, or is not an access token.
+     */
+    public AccessClaims parseAccessClaims(String token) {
         Claims claims = parseClaims(token);
         validateTokenType(claims, ACCESS_TOKEN_TYPE);
-        return UUID.fromString(claims.getSubject());
+        UUID userId = UUID.fromString(claims.getSubject());
+        boolean isAdmin = Boolean.TRUE.equals(claims.get(ADMIN_CLAIM, Boolean.class));
+        return new AccessClaims(userId, isAdmin);
     }
 
     public UUID extractRefreshUserId(String token) {

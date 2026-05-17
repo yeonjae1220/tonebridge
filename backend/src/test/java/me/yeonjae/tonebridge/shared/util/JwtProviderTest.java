@@ -27,13 +27,26 @@ class JwtProviderTest {
     @Test
     void accessTokenCannotBeUsedAsRefreshToken() {
         UUID userId = UUID.randomUUID();
-        String accessToken = jwtProvider.generateAccessToken(userId);
+        String accessToken = jwtProvider.generateAccessToken(userId, false);
 
-        assertThat(jwtProvider.extractAccessUserId(accessToken)).isEqualTo(userId);
+        JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(accessToken);
+        assertThat(claims.userId()).isEqualTo(userId);
+        assertThat(claims.isAdmin()).isFalse();
+
         assertThatThrownBy(() -> jwtProvider.extractRefreshUserId(accessToken))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting(e -> ((ToneBridgeException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_TOKEN);
+    }
+
+    @Test
+    void adminFlagIsEmbeddedInAccessToken() {
+        UUID userId = UUID.randomUUID();
+        String adminToken = jwtProvider.generateAccessToken(userId, true);
+
+        JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(adminToken);
+        assertThat(claims.userId()).isEqualTo(userId);
+        assertThat(claims.isAdmin()).isTrue();
     }
 
     @Test
@@ -42,7 +55,7 @@ class JwtProviderTest {
         String refreshToken = jwtProvider.generateRefreshToken(userId);
 
         assertThat(jwtProvider.extractRefreshUserId(refreshToken)).isEqualTo(userId);
-        assertThatThrownBy(() -> jwtProvider.extractAccessUserId(refreshToken))
+        assertThatThrownBy(() -> jwtProvider.parseAccessClaims(refreshToken))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting(e -> ((ToneBridgeException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_TOKEN);

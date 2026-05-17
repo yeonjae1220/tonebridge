@@ -56,8 +56,14 @@ public class UserEntity {
 
     private LocalDate lastCorrectionDate;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(nullable = false)
+    private boolean isAdmin;
 
     @PrePersist
     void prePersist() {
@@ -69,7 +75,7 @@ public class UserEntity {
                 parseList(fluentLanguagesRaw),
                 parseList(learningLanguagesRaw),
                 credits, reputationScore, correctorLevel,
-                correctionStreak, lastCorrectionDate, createdAt);
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
     public static UserEntity fromDomain(User user) {
@@ -86,6 +92,7 @@ public class UserEntity {
                 .correctionStreak(user.correctionStreak())
                 .lastCorrectionDate(user.lastCorrectionDate())
                 .createdAt(user.createdAt())
+                .isAdmin(user.isAdmin())
                 .build();
     }
 

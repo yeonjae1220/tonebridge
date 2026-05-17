@@ -17,12 +17,25 @@ public record User(
         CorrectorLevel correctorLevel,
         int correctionStreak,
         LocalDate lastCorrectionDate,
-        Instant createdAt
+        Instant createdAt,
+        boolean isAdmin
 ) {
     public User withCredits(int newCredits) {
         return new User(id, email, username, nativeLanguage, fluentLanguages,
                 learningLanguages, newCredits, reputationScore, correctorLevel,
-                correctionStreak, lastCorrectionDate, createdAt);
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
+    }
+
+    public User withStreak(int newStreak, LocalDate newLastCorrectionDate) {
+        return new User(id, email, username, nativeLanguage, fluentLanguages,
+                learningLanguages, credits, reputationScore, correctorLevel,
+                newStreak, newLastCorrectionDate, createdAt, isAdmin);
+    }
+
+    public User withReputation(double newReputationScore) {
+        return new User(id, email, username, nativeLanguage, fluentLanguages,
+                learningLanguages, credits, newReputationScore, correctorLevel,
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
     public boolean hasEnoughCredits(int required) {

@@ -68,9 +68,10 @@ public class AuthService implements LoginWithGoogleUseCase, RefreshTokenUseCase 
         int signupBonus = properties.getCredit().getSignupBonus();
         String username = generateUsername(googleUser.email());
 
+        boolean isAdmin = properties.getAdmin().getEmails().contains(googleUser.email());
         User newUser = new User(
                 null, googleUser.email(), username, "", List.of(), List.of(),
-                signupBonus, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now()
+                signupBonus, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), isAdmin
         );
         User saved = userPort.save(newUser);
 
@@ -84,7 +85,8 @@ public class AuthService implements LoginWithGoogleUseCase, RefreshTokenUseCase 
     }
 
     private TokenResponse issueTokens(UUID userId) {
-        String accessToken = jwtProvider.generateAccessToken(userId);
+        boolean isAdmin = userPort.findById(userId).map(User::isAdmin).orElse(false);
+        String accessToken = jwtProvider.generateAccessToken(userId, isAdmin);
         String refreshToken = jwtProvider.generateRefreshToken(userId);
         long ttlSeconds = jwtProperties.getRefreshTokenTtlMinutes() * 60;
         refreshTokenPort.save(refreshToken, userId, ttlSeconds);

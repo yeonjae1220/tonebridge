@@ -78,9 +78,22 @@ tonebridge:
   correction:
     expiry-hours: 48
     ai-fallback-after-hours: 48
+    fallback-scheduler-interval-ms: ${FALLBACK_SCHEDULER_INTERVAL_MS:3600000}
+  fcm:
+    service-account-path: ${FCM_SERVICE_ACCOUNT_PATH:}
+    project-id: ${FCM_PROJECT_ID:}
+  gamification:
+    streak-enabled: true
+    reputation-enabled: true
+    badges-enabled: true
+    badge-fast-responder-count: 5
+    badge-audio-expert-count: 10
+    fast-responder-max-minutes: 60
   auth:
     frontend-url: ${FRONTEND_URL:http://localhost:3000}
     redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
+  admin:
+    emails: ${ADMIN_EMAILS:}  # required in production; set via ADMIN_EMAILS env var
 
 management:
   endpoints:
