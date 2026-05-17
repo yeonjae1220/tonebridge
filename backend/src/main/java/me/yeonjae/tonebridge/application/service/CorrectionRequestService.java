@@ -7,6 +7,7 @@ import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUse
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.CreditPort;
+import me.yeonjae.tonebridge.application.port.out.LanguageVariantPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
 import me.yeonjae.tonebridge.domain.correction.CorrectionRequest;
 import me.yeonjae.tonebridge.domain.correction.CorrectionType;
@@ -20,8 +21,13 @@ import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import me.yeonjae.tonebridge.shared.util.LanguageCodeUtils;
+
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -36,10 +42,22 @@ public class CorrectionRequestService implements
     private final CorrectionRequestPort correctionRequestPort;
     private final CreditPort creditPort;
     private final UserPort userPort;
+    private final LanguageVariantPort languageVariantPort;
     private final ToneBridgeProperties properties;
+
+    private void validateVariant(String targetLanguage, String targetVariant) {
+        if (targetVariant == null) return;
+        LanguageVariantPort.LanguageVariantDto variant = languageVariantPort.findActiveByCode(targetVariant)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.INVALID_INPUT));
+        String expectedBase = LanguageCodeUtils.baseCode(targetLanguage);
+        if (!expectedBase.equals(variant.parentCode())) {
+            throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
+        }
+    }
 
     @Override
     public CorrectionRequest submit(SubmitTextCorrectionRequestUseCase.Command command) {
+        validateVariant(command.targetLanguage(), command.targetVariant());
         int cost = properties.getCredit().getTextRequestCost();
         creditPort.adjustCredits(command.requesterId(), -cost);
         creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
@@ -47,7 +65,7 @@ public class CorrectionRequestService implements
 
         CorrectionRequest request = new CorrectionRequest(
                 null, command.requesterId(), CorrectionType.TEXT,
-                command.contentText(), null, command.targetLanguage(),
+                command.contentText(), null, command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
                 cost, RequestStatus.PENDING, null, null, null
@@ -57,6 +75,7 @@ public class CorrectionRequestService implements
 
     @Override
     public CorrectionRequest submit(SubmitAudioCorrectionRequestUseCase.Command command) {
+        validateVariant(command.targetLanguage(), command.targetVariant());
         int cost = properties.getCredit().getAudioRequestCost();
         creditPort.adjustCredits(command.requesterId(), -cost);
         creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
@@ -64,7 +83,7 @@ public class CorrectionRequestService implements
 
         CorrectionRequest request = new CorrectionRequest(
                 null, command.requesterId(), CorrectionType.AUDIO,
-                null, command.audioKey(), command.targetLanguage(),
+                null, command.audioKey(), command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
                 cost, RequestStatus.PENDING, null, null, null
@@ -78,12 +97,27 @@ public class CorrectionRequestService implements
         User corrector = userPort.findById(correctorId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 
-        List<String> languages = Stream.concat(
+        List<String> correctorVariants = Stream.concat(
                 corrector.fluentLanguages().stream(),
                 Stream.of(corrector.nativeLanguage())
-        ).toList();
+        ).filter(s -> s != null && !s.isBlank()).toList();
 
-        return correctionRequestPort.findFeed(correctorId, languages, limit);
+        List<String> baseLanguages = correctorVariants.stream()
+                .map(LanguageCodeUtils::baseCode)
+                .distinct()
+                .toList();
+
+        Set<String> variantSet = correctorVariants.stream()
+                .collect(Collectors.toUnmodifiableSet());
+
+        List<CorrectionRequest> feed = correctionRequestPort.findFeed(correctorId, baseLanguages, limit * 3);
+
+        return feed.stream()
+                .sorted(Comparator.comparingInt((CorrectionRequest r) ->
+                        r.targetVariant() != null && variantSet.contains(r.targetVariant()) ? 0 : 1)
+                        .thenComparing(CorrectionRequest::createdAt, Comparator.reverseOrder()))
+                .limit(limit)
+                .toList();
     }
 
     @Override

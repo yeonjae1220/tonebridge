@@ -37,6 +37,7 @@ export interface CorrectionRequest {
   contentText?: string
   audioUrl?: string
   targetLanguage: string
+  targetVariant?: string
   context?: string
   feedbackGoals: string[]
   creditCost: number
@@ -44,6 +45,15 @@ export interface CorrectionRequest {
   createdAt: string
   expiresAt: string
   availableCorrectors?: number
+}
+
+export interface LanguageVariant {
+  code: string
+  parentCode: string
+  label: string
+  labelNative: string
+  variantType: 'DIALECT' | 'ACCENT' | 'SCRIPT'
+  region: string
 }
 
 export interface Correction {
