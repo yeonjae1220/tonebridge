@@ -32,6 +32,7 @@ function isMulti(props: Props): props is LanguagePickerMultiProps {
 export function LanguagePicker(props: Props) {
   const [showOther, setShowOther] = useState(false)
   const [showDialect, setShowDialect] = useState(false)
+  const [dialectLanguageCode, setDialectLanguageCode] = useState<string | null>(null)
 
   const excludeCodes = props.excludeCodes ?? []
   const visiblePrimary = PRIMARY_LANGUAGES.filter((l) => !excludeCodes.includes(l.code))
@@ -60,6 +61,10 @@ export function LanguagePicker(props: Props) {
     } else {
       props.onLanguageChange(lang.code)
       if (props.onVariantChange) props.onVariantChange(null)
+      if (props.showVariantPicker !== false) {
+        setDialectLanguageCode(lang.code)
+        setShowDialect(true)
+      }
     }
   }
 
@@ -137,15 +142,19 @@ export function LanguagePicker(props: Props) {
         />
       )}
 
-      {showDialect && !isMulti(props) && selectedCode && (
+      {showDialect && !isMulti(props) && (dialectLanguageCode ?? selectedCode) && (
         <DialectSheet
-          languageCode={selectedCode}
-          selectedVariant={selectedVariant}
+          languageCode={(dialectLanguageCode ?? selectedCode)!}
+          selectedVariant={dialectLanguageCode ? null : selectedVariant}
           onSelect={(v) => {
             if (props.onVariantChange) props.onVariantChange(v)
+            setDialectLanguageCode(null)
             setShowDialect(false)
           }}
-          onClose={() => setShowDialect(false)}
+          onClose={() => {
+            setDialectLanguageCode(null)
+            setShowDialect(false)
+          }}
         />
       )}
     </div>

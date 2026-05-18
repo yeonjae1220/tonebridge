@@ -29,5 +29,5 @@ public class LanguageVariantEntity {
     private String region;
 
     @Column(nullable = false)
-    private boolean isActive;
+    private boolean active;
 }

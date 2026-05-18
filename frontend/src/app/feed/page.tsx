@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import { CorrectionRequest } from '@/types'
+import { CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 
@@ -24,9 +24,6 @@ function rewardLabel(req: CorrectionRequest) {
   return '+4'
 }
 
-function variantLabel(code: string) {
-  return ALL_LANG_LABELS[code] ?? code
-}
 
 export default function FeedPage() {
   const router = useRouter()
@@ -37,6 +34,24 @@ export default function FeedPage() {
   }, [accessToken, router])
 
   const { data: currentUser } = useCurrentUser()
+
+  const { data: variantsMap } = useQuery<Record<string, LanguageVariant[]>>({
+    queryKey: ['language-variants'],
+    queryFn: () => api.get('/languages/variants').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!accessToken,
+  })
+
+  const variantLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (variantsMap) {
+      Object.values(variantsMap).flat().forEach((v) => { map[v.code] = v.label })
+    }
+    return map
+  }, [variantsMap])
+
+  const variantLabel = (code: string) =>
+    variantLabels[code] ?? ALL_LANG_LABELS[code] ?? code
 
   const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],

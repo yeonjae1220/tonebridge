@@ -7,9 +7,9 @@ import java.util.Optional;
 
 public interface LanguageVariantJpaRepository extends JpaRepository<LanguageVariantEntity, String> {
 
-    List<LanguageVariantEntity> findByIsActiveTrueOrderByParentCodeAscLabelAsc();
+    List<LanguageVariantEntity> findByActiveTrueOrderByParentCodeAscLabelAsc();
 
-    List<LanguageVariantEntity> findByParentCodeAndIsActiveTrue(String parentCode);
+    List<LanguageVariantEntity> findByParentCodeAndActiveTrue(String parentCode);
 
-    Optional<LanguageVariantEntity> findByCodeAndIsActiveTrue(String code);
+    Optional<LanguageVariantEntity> findByCodeAndActiveTrue(String code);
 }
