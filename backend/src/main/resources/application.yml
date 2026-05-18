@@ -56,6 +56,7 @@ jwt:
 google:
   oauth2:
     client-id: ${GOOGLE_CLIENT_ID:}
+    ios-client-id: ${GOOGLE_IOS_CLIENT_ID:}
     client-secret: ${GOOGLE_CLIENT_SECRET:}
     token-uri: https://oauth2.googleapis.com/token
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
