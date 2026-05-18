@@ -13,6 +13,7 @@ public record CorrectionRequestResponse(
         String contentText,
         String audioUrl,
         String targetLanguage,
+        String targetVariant,
         String context,
         List<String> feedbackGoals,
         int creditCost,
@@ -23,7 +24,7 @@ public record CorrectionRequestResponse(
     public static CorrectionRequestResponse from(CorrectionRequest r) {
         return new CorrectionRequestResponse(
                 r.id(), r.requesterId(), r.type().name(), r.contentText(), r.audioUrl(),
-                r.targetLanguage(), r.context(), r.feedbackGoals(),
+                r.targetLanguage(), r.targetVariant(), r.context(), r.feedbackGoals(),
                 r.creditCost(), r.status().name(), r.createdAt(), r.expiresAt()
         );
     }

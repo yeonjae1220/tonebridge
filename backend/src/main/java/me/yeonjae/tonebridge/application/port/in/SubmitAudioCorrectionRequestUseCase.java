@@ -9,6 +9,7 @@ public interface SubmitAudioCorrectionRequestUseCase {
     record Command(
             UUID requesterId,
             String targetLanguage,
+            String targetVariant,
             String audioKey,
             String context,
             List<String> feedbackGoals

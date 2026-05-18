@@ -11,6 +11,7 @@ public record CorrectionRequest(
         String contentText,
         String audioUrl,
         String targetLanguage,
+        String targetVariant,
         String context,
         List<String> feedbackGoals,
         int creditCost,

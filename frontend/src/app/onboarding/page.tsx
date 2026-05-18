@@ -4,17 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-
-const LANGUAGES = [
-  { code: 'ko', label: '한국어' },
-  { code: 'ja', label: '일본어' },
-  { code: 'zh', label: '중국어' },
-  { code: 'en', label: '영어' },
-  { code: 'es', label: '스페인어' },
-  { code: 'fr', label: '프랑스어' },
-  { code: 'de', label: '독일어' },
-  { code: 'pt', label: '포르투갈어' },
-]
+import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 
 type Step = 'native' | 'fluent' | 'learning'
 
@@ -32,10 +22,6 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
-
-  const toggleMulti = (lang: string, list: string[], setList: (v: string[]) => void) => {
-    setList(list.includes(lang) ? list.filter((l) => l !== lang) : [...list, lang])
-  }
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -62,21 +48,11 @@ export default function OnboardingPage() {
       title: '모국어가 무엇인가요?',
       subtitle: '가장 능숙하게 말할 수 있는 언어',
       content: (
-        <div className="grid grid-cols-2 gap-3">
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setNativeLanguage(l.code)}
-              className={`py-4 rounded-xl border-2 font-medium transition-all ${
-                nativeLanguage === l.code
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
+        <LanguagePicker
+          value={nativeLanguage}
+          onLanguageChange={setNativeLanguage}
+          showVariantPicker={false}
+        />
       ),
       canNext: !!nativeLanguage,
       onNext: () => setStep('fluent'),
@@ -85,21 +61,12 @@ export default function OnboardingPage() {
       title: '구사할 수 있는 언어는?',
       subtitle: '다른 사람의 언어를 교정해줄 수 있는 언어 (복수 선택)',
       content: (
-        <div className="grid grid-cols-2 gap-3">
-          {LANGUAGES.filter((l) => l.code !== nativeLanguage).map((l) => (
-            <button
-              key={l.code}
-              onClick={() => toggleMulti(l.code, fluentLanguages, setFluentLanguages)}
-              className={`py-4 rounded-xl border-2 font-medium transition-all ${
-                fluentLanguages.includes(l.code)
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
+        <LanguagePicker
+          multiSelect
+          value={fluentLanguages}
+          onLanguageChange={setFluentLanguages}
+          excludeCodes={[nativeLanguage]}
+        />
       ),
       canNext: true,
       onNext: () => setStep('learning'),
@@ -108,21 +75,12 @@ export default function OnboardingPage() {
       title: '배우고 있는 언어는?',
       subtitle: '교정을 받고 싶은 언어 (복수 선택)',
       content: (
-        <div className="grid grid-cols-2 gap-3">
-          {LANGUAGES.filter((l) => l.code !== nativeLanguage).map((l) => (
-            <button
-              key={l.code}
-              onClick={() => toggleMulti(l.code, learningLanguages, setLearningLanguages)}
-              className={`py-4 rounded-xl border-2 font-medium transition-all ${
-                learningLanguages.includes(l.code)
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
+        <LanguagePicker
+          multiSelect
+          value={learningLanguages}
+          onLanguageChange={setLearningLanguages}
+          excludeCodes={[nativeLanguage]}
+        />
       ),
       canNext: learningLanguages.length > 0,
       onNext: handleSubmit,
