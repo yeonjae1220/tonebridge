@@ -29,7 +29,11 @@ void main() async {
     ErrorWidget.builder = (_) => const SizedBox.shrink();
   }
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Firebase is skipped when not yet configured (placeholder values).
+  const isFirebaseConfigured = String.fromEnvironment('FIREBASE_CONFIGURED') == 'true';
+  if (isFirebaseConfigured) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
 
   runApp(
     ProviderScope(
@@ -39,24 +43,15 @@ void main() async {
   );
 }
 
-class _AppProviderObserver extends ProviderObserver {
+base class _AppProviderObserver extends ProviderObserver {
   const _AppProviderObserver();
 
   @override
-  void didAddProvider(
-    ProviderBase<dynamic> provider,
-    Object? value,
-    ProviderContainer container,
-  ) {}
-
-  @override
   void providerDidFail(
-    ProviderBase<dynamic> provider,
+    ProviderObserverContext context,
     Object error,
     StackTrace stackTrace,
-    ProviderContainer container,
   ) {
-    debugPrint('[Provider] ${provider.name ?? provider.runtimeType} failed: $error');
-    // TODO: Forward to crash reporting.
+    debugPrint('[Provider] ${context.provider.name ?? context.provider.runtimeType} failed: $error');
   }
 }

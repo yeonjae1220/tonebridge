@@ -4,7 +4,7 @@ part 'user.freezed.dart';
 part 'user.g.dart';
 
 @freezed
-class User with _$User {
+abstract class User with _$User {
   const factory User({
     required String id,
     required String email,
@@ -21,7 +21,7 @@ class User with _$User {
 
 /// Lightweight session state passed through the app.
 @freezed
-class AuthSession with _$AuthSession {
+abstract class AuthSession with _$AuthSession {
   const factory AuthSession({
     required User user,
     required String accessToken,

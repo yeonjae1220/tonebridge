@@ -1,10 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
-import 'package:tonebridge/core/storage/secure_storage_service.dart';
 import 'package:tonebridge/features/auth/data/auth_repository_impl.dart';
-import 'package:tonebridge/features/auth/domain/auth_repository.dart';
 import 'package:tonebridge/features/auth/domain/model/user.dart';
 
 part 'auth_provider.g.dart';
@@ -78,7 +75,7 @@ class AuthState extends _$AuthState {
       fluentLanguages: fluentLanguages,
       learningLanguages: learningLanguages,
     );
-    final currentSession = state.valueOrNull;
+    final currentSession = state.value;
     if (currentSession != null) {
       state = AsyncData(currentSession.copyWith(needsOnboarding: false));
     }

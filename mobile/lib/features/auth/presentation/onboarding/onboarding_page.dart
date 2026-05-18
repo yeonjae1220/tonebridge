@@ -52,7 +52,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             learningLanguages: _learningLanguages,
           );
       if (!mounted) return;
-      context.go(AppRoute.home);
+      context.go(AppRoute.feed);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

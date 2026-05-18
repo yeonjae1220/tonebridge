@@ -25,7 +25,7 @@ class _ToneBridgeAppState extends ConsumerState<ToneBridgeApp> {
     _authSub = ref.listenManual<AsyncValue<AuthSession?>>(
       authStateProvider,
       (_, next) {
-        final session = next.valueOrNull;
+        final session = next.value;
         if (session?.isLoggedIn ?? false) {
           ref.read(notificationServiceProvider).init();
         }

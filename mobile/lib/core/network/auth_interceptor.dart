@@ -102,6 +102,7 @@ class AuthInterceptor extends Interceptor {
       err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
       final retryDio = _refreshDioFactory();
       final retryResponse = await retryDio.fetch<dynamic>(err.requestOptions);
+      _isRefreshing = false;
       handler.resolve(retryResponse);
     } catch (refreshError) {
       // Snapshot and clear the queue BEFORE awaiting clearAll so any requests

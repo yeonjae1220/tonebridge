@@ -7,8 +7,8 @@ class AppConfig {
   AppConfig._();
 
   static const String baseUrl = String.fromEnvironment(
-    'BASE_URL',
-    defaultValue: 'http://10.0.2.2:8080', // Android emulator → localhost
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8080',
   );
 
   // Web OAuth 2.0 client ID — used as serverClientId for google_sign_in

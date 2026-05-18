@@ -39,13 +39,19 @@ class AuthRepositoryImpl implements AuthRepository {
       'GOOGLE_CLIENT_ID is not set. Pass it via --dart-define=GOOGLE_CLIENT_ID=<web-client-id>',
     );
 
-    final googleSignIn = GoogleSignIn(
+    await GoogleSignIn.instance.initialize(
       serverClientId: AppConfig.googleClientId,
-      scopes: ['email', 'profile', 'openid'],
     );
 
-    final account = await googleSignIn.signIn();
-    if (account == null) return null; // User cancelled
+    final GoogleSignInAccount account;
+    try {
+      account = await GoogleSignIn.instance.authenticate(
+        scopeHint: ['email', 'profile', 'openid'],
+      );
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      rethrow;
+    }
 
     try {
       final auth = await account.authentication;
@@ -63,7 +69,7 @@ class AuthRepositoryImpl implements AuthRepository {
       // Don't cache the Google account state — each login should be explicit.
       // Swallow signOut errors so the original exception (if any) propagates.
       try {
-        await googleSignIn.signOut();
+        await GoogleSignIn.instance.signOut();
       } catch (_) {}
     }
   }
