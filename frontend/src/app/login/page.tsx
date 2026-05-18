@@ -1,7 +1,18 @@
 'use client'
 
-export default function LoginPage() {
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+
+function LoginInner() {
+  const searchParams = useSearchParams()
+
   const handleGoogleLogin = () => {
+    const redirect = searchParams.get('redirect')
+    // /로 시작하고 //가 아닌 경우만 허용 — open redirect 방지
+    const isSafeRedirect = (path: string) => /^\/(?!\/)/.test(path)
+    if (redirect && isSafeRedirect(redirect)) {
+      sessionStorage.setItem('auth_redirect', redirect)
+    }
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/auth/google`
   }
 
@@ -26,6 +37,22 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">ToneBridge</h1>
+          </div>
+        </div>
+      </main>
+    }>
+      <LoginInner />
+    </Suspense>
   )
 }
 
