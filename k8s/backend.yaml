@@ -69,6 +69,11 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: GOOGLE_CLIENT_SECRET
+            - name: GOOGLE_IOS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-secret
+                  key: GOOGLE_IOS_CLIENT_ID
             - name: CLAUDE_API_KEY
               valueFrom:
                 secretKeyRef:
