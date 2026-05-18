@@ -1,15 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import type { UserProfile } from '@/types'
-
-const LANG_LABELS: Record<string, string> = {
-  ko: '한국어', ja: '일본어', zh: '중국어', en: '영어', es: '스페인어', fr: '프랑스어',
-}
+import type { UserProfile, User } from '@/types'
+import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
+import { ALL_LANG_LABELS } from '@/constants/languages'
 
 const LEVEL_META: Record<string, { label: string; color: string; bg: string }> = {
   NATIVE: { label: '원어민', color: 'text-blue-700', bg: 'bg-blue-50' },
@@ -37,23 +35,124 @@ function ReputationBar({ score }: { score: number }) {
   )
 }
 
+function langLabel(code: string) {
+  return ALL_LANG_LABELS[code] ?? code
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
+  const queryClient = useQueryClient()
+
+  const [editingLanguages, setEditingLanguages] = useState(false)
+  const [nativeLang, setNativeLang] = useState('')
+  const [fluentLangs, setFluentLangs] = useState<string[]>([])
+  const [learningLangs, setLearningLangs] = useState<string[]>([])
+  const [langError, setLangError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: profile, isLoading } = useQuery<UserProfile>({
+  const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
     queryKey: ['profile'],
     queryFn: () => api.get('/users/me/profile').then((r) => r.data),
     enabled: !!accessToken,
   })
 
+  const { data: me } = useQuery<User>({
+    queryKey: ['me'],
+    queryFn: () => api.get('/users/me').then((r) => r.data),
+    enabled: !!accessToken && editingLanguages,
+  })
+
+  useEffect(() => {
+    if (me && editingLanguages) {
+      setNativeLang(me.nativeLanguage)
+      setFluentLangs(me.fluentLanguages)
+      setLearningLangs(me.learningLanguages)
+    }
+  }, [me, editingLanguages])
+
+  const updateLangMutation = useMutation({
+    mutationFn: () =>
+      api.patch('/users/me/languages', {
+        nativeLanguage: nativeLang,
+        fluentLanguages: fluentLangs,
+        learningLanguages: learningLangs,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setEditingLanguages(false)
+      setLangError(null)
+    },
+    onError: () => setLangError('저장에 실패했습니다. 다시 시도해주세요.'),
+  })
+
   if (!accessToken) return null
 
   const levelMeta = profile ? (LEVEL_META[profile.correctorLevel] ?? LEVEL_META.NATIVE) : null
+
+  if (editingLanguages) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <div className="max-w-lg mx-auto px-4 py-8">
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              onClick={() => setEditingLanguages(false)}
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
+              aria-label="취소"
+            >
+              ←
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">언어 설정 변경</h1>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">모국어</p>
+              <LanguagePicker
+                value={nativeLang}
+                onLanguageChange={setNativeLang}
+                showVariantPicker={false}
+              />
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">구사 언어 (복수 선택)</p>
+              <LanguagePicker
+                multiSelect
+                value={fluentLangs}
+                onLanguageChange={setFluentLangs}
+                excludeCodes={[nativeLang]}
+              />
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">학습 언어 (복수 선택)</p>
+              <LanguagePicker
+                multiSelect
+                value={learningLangs}
+                onLanguageChange={setLearningLangs}
+                excludeCodes={[nativeLang]}
+              />
+            </div>
+
+            {langError && <p className="text-sm text-red-500 text-center">{langError}</p>}
+
+            <button
+              onClick={() => updateLangMutation.mutate()}
+              disabled={!nativeLang || updateLangMutation.isPending}
+              className="w-full py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-colors disabled:opacity-40"
+            >
+              {updateLangMutation.isPending ? '저장 중...' : '저장하기'}
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -69,7 +168,7 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-bold text-gray-900">내 프로필</h1>
         </div>
 
-        {isLoading && (
+        {profileLoading && (
           <div className="flex flex-col gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-28 bg-gray-200 animate-pulse rounded-2xl" />
@@ -85,7 +184,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-xl font-bold text-gray-900">{profile.username}</p>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    {LANG_LABELS[profile.nativeLanguage] ?? profile.nativeLanguage} 원어민
+                    {langLabel(profile.nativeLanguage)} 원어민
                   </p>
                 </div>
                 {levelMeta && (
@@ -95,14 +194,20 @@ export default function ProfilePage() {
                 )}
               </div>
               {profile.fluentLanguages.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 mb-4">
                   {profile.fluentLanguages.map((lang) => (
                     <span key={lang} className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                      {LANG_LABELS[lang] ?? lang}
+                      {langLabel(lang)}
                     </span>
                   ))}
                 </div>
               )}
+              <button
+                onClick={() => setEditingLanguages(true)}
+                className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                언어 설정 변경
+              </button>
             </div>
 
             {/* 스트릭 */}

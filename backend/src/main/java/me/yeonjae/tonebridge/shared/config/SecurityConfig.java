@@ -33,6 +33,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/languages/variants").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         // H2 콘솔은 localhost 접근만 허용
                         .requestMatchers("/h2-console/**").access(

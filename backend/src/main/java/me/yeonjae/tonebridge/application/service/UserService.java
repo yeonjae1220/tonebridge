@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.application.service;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.CompleteOnboardingUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetCurrentUserUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateLanguagesUseCase;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
 import me.yeonjae.tonebridge.domain.user.User;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUseCase {
+public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUseCase, UpdateLanguagesUseCase {
 
     private final UserPort userPort;
 
@@ -26,7 +27,22 @@ public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUse
     }
 
     @Override
-    public void complete(Command command) {
+    public void complete(CompleteOnboardingUseCase.Command command) {
+        User user = get(command.userId());
+        User updated = new User(
+                user.id(), user.email(), user.username(),
+                command.nativeLanguage(),
+                command.fluentLanguages(),
+                command.learningLanguages(),
+                user.credits(), user.reputationScore(), user.correctorLevel(),
+                user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
+                user.isAdmin()
+        );
+        userPort.save(updated);
+    }
+
+    @Override
+    public void update(UpdateLanguagesUseCase.Command command) {
         User user = get(command.userId());
         User updated = new User(
                 user.id(), user.email(), user.username(),

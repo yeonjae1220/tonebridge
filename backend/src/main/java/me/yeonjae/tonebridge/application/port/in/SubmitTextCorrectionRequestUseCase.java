@@ -9,6 +9,7 @@ public interface SubmitTextCorrectionRequestUseCase {
     record Command(
             UUID requesterId,
             String targetLanguage,
+            String targetVariant,
             String contentText,
             String context,
             List<String> feedbackGoals
