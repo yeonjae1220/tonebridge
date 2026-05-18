@@ -18,15 +18,20 @@ function AuthCallbackInner() {
       return
     }
 
-    // 최소한의 JWT 형식 검증 (3개의 .으로 구분된 세그먼트)
-    const isJwt = (s: string) => /^[\w-]+\.[\w-]+\.[\w-]+$/.test(s)
+    // 최소한의 JWT 형식 검증 (Base64URL 세그먼트 3개)
+    const isJwt = (s: string) => /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(s)
     if (!isJwt(token)) {
       router.replace('/login?error=invalid_token_format')
       return
     }
 
+    // /로 시작하고 //가 아닌 경우만 허용 — open redirect 방지
+    const isSafeRedirect = (path: string) => /^\/(?!\/)/.test(path)
+
     setAccessToken(token)
-    router.replace('/onboarding')
+    const raw = sessionStorage.getItem('auth_redirect') ?? '/onboarding'
+    sessionStorage.removeItem('auth_redirect')
+    router.replace(isSafeRedirect(raw) ? raw : '/onboarding')
   }, [router, setAccessToken])
 
   return (
