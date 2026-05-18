@@ -1,0 +1,169 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/core/storage/secure_storage_service.dart';
+import 'package:tonebridge/features/auth/data/dto/auth_response.dart';
+import 'package:tonebridge/features/auth/domain/auth_repository.dart';
+import 'package:tonebridge/features/auth/domain/model/user.dart';
+
+part 'auth_repository_impl.g.dart';
+
+@Riverpod(keepAlive: true)
+AuthRepository authRepository(Ref ref) {
+  return AuthRepositoryImpl(
+    dio: ref.watch(dioProvider),
+    storage: ref.watch(secureStorageServiceProvider),
+  );
+}
+
+class AuthRepositoryImpl implements AuthRepository {
+  const AuthRepositoryImpl({
+    required Dio dio,
+    required SecureStorageService storage,
+  })  : _dio = dio,
+        _storage = storage;
+
+  final Dio _dio;
+  final SecureStorageService _storage;
+
+  @override
+  Future<AuthSession?> signInWithGoogle() async {
+    // serverClientId must be the "Web application" OAuth 2.0 Client ID from
+    // Google Cloud Console — NOT the Android/iOS client ID.
+    // A missing value causes idToken to be null at runtime.
+    assert(
+      AppConfig.googleClientId.isNotEmpty,
+      'GOOGLE_CLIENT_ID is not set. Pass it via --dart-define=GOOGLE_CLIENT_ID=<web-client-id>',
+    );
+
+    final googleSignIn = GoogleSignIn(
+      serverClientId: AppConfig.googleClientId,
+      scopes: ['email', 'profile', 'openid'],
+    );
+
+    final account = await googleSignIn.signIn();
+    if (account == null) return null; // User cancelled
+
+    try {
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        throw Exception('Google idToken을 받을 수 없습니다. serverClientId 설정을 확인하세요.');
+      }
+
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/auth/mobile/google/id-token',
+        data: {'idToken': idToken},
+      );
+      return _saveSession(TokenResponse.fromJson(response.data!));
+    } finally {
+      // Don't cache the Google account state — each login should be explicit.
+      // Swallow signOut errors so the original exception (if any) propagates.
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
+    }
+  }
+
+  @override
+  Future<AuthSession?> restoreSession() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null) return null;
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/auth/mobile/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+      return _saveSession(TokenResponse.fromJson(response.data!));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _storage.clearAll();
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<AuthSession> _saveSession(TokenResponse parsed) async {
+    final token = parsed.accessToken;
+    await _storage.saveAccessToken(token);
+    await _storage.saveRefreshToken(parsed.refreshToken);
+
+    final user = _toUser(parsed.user);
+    await _storage.saveUserId(user.id);
+    await _storage.saveUserEmail(user.email);
+
+    return AuthSession(
+      user: user,
+      accessToken: token,
+      needsOnboarding: parsed.needsOnboarding,
+    );
+  }
+
+  @override
+  Future<User> getCurrentUser() async {
+    final response = await _dio.get<Map<String, dynamic>>('/api/users/me');
+    final parsed = UserResponse.fromJson(response.data!);
+    return _toUser(
+      UserData(
+        id: parsed.id,
+        email: parsed.email,
+        username: parsed.username,
+        nativeLanguage: parsed.nativeLanguage,
+        fluentLanguages: parsed.fluentLanguages,
+        learningLanguages: parsed.learningLanguages,
+        credits: parsed.credits,
+        reputationScore: parsed.reputationScore,
+        onboardingCompleted: parsed.onboardingCompleted,
+      ),
+    );
+  }
+
+  User _toUser(UserData d) {
+    return User(
+      id: d.id,
+      email: d.email,
+      username: d.username,
+      nativeLanguage: d.nativeLanguage,
+      fluentLanguages: d.fluentLanguages,
+      learningLanguages: d.learningLanguages,
+      credits: d.credits,
+      reputationScore: d.reputationScore,
+    );
+  }
+
+  @override
+  Future<void> saveLanguagePreferences({
+    required String nativeLanguage,
+    required List<String> fluentLanguages,
+    required List<String> learningLanguages,
+  }) async {
+    await _dio.patch<void>(
+      '/api/users/me/onboarding',
+      data: {
+        'nativeLanguage': nativeLanguage,
+        'fluentLanguages': fluentLanguages,
+        'learningLanguages': learningLanguages,
+      },
+    );
+  }
+
+  @override
+  Future<void> signOut() async {
+    try {
+      final refreshToken = await _storage.readRefreshToken();
+      if (refreshToken != null) {
+        await _dio.post<void>(
+          '/api/auth/mobile/logout',
+          data: {'refreshToken': refreshToken},
+        );
+      }
+    } finally {
+      await _storage.clearAll();
+    }
+  }
+}
