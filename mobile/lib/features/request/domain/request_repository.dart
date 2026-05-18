@@ -1,0 +1,21 @@
+import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
+
+abstract interface class RequestRepository {
+  Future<CorrectionRequestItem> submitTextRequest({
+    required String targetLanguage,
+    String? targetVariant,
+    required String contentText,
+    String? context,
+    List<String> feedbackGoals = const [],
+  });
+
+  Future<CorrectionRequestItem> submitAudioRequest({
+    required String targetLanguage,
+    String? targetVariant,
+    required String audioKey,
+    String? context,
+    List<String> feedbackGoals = const [],
+  });
+
+  Future<String> getUploadUrl(String fileName);
+}
