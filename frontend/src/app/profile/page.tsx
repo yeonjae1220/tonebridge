@@ -41,7 +41,7 @@ function langLabel(code: string) {
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { accessToken } = useAuthStore()
+  const { accessToken, logout } = useAuthStore()
   const queryClient = useQueryClient()
 
   const [editingLanguages, setEditingLanguages] = useState(false)
@@ -286,10 +286,14 @@ export default function ProfilePage() {
             </div>
 
             <button
-              onClick={() => router.push('/feed')}
-              className="w-full py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-colors"
+              onClick={() => {
+                queryClient.clear()
+                logout()
+                router.replace('/login')
+              }}
+              className="w-full py-3 border border-red-200 text-red-500 text-sm font-semibold rounded-2xl hover:bg-red-50 transition-colors"
             >
-              첨삭 피드로 돌아가기
+              로그아웃
             </button>
           </div>
         )}

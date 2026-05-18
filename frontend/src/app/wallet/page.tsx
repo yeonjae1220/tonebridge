@@ -1,7 +1,10 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 
 interface Transaction {
@@ -21,6 +24,8 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export default function WalletPage() {
+  const router = useRouter()
+  const { accessToken } = useAuthStore()
   const { data: user } = useCurrentUser()
   const { data: transactions } = useQuery<Transaction[]>({
     queryKey: ['credit-transactions'],
@@ -28,9 +33,18 @@ export default function WalletPage() {
     enabled: !!user,
   })
 
+  useEffect(() => {
+    if (!accessToken) router.replace('/login')
+  }, [accessToken, router])
+
+  if (!accessToken) return null
+
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-lg mx-auto flex flex-col gap-6 pt-8">
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-2xl font-bold text-gray-900">내 지갑</h1>
+        </div>
         {/* Balance card */}
         <div className="bg-blue-500 rounded-2xl p-6 text-white">
           <p className="text-sm opacity-80">보유 크레딧</p>
