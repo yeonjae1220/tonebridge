@@ -19,7 +19,7 @@ public class LanguageVariantJpaAdapter implements LanguageVariantPort {
 
     @Override
     public List<LanguageVariantDto> findAllActive() {
-        return repository.findByIsActiveTrueOrderByParentCodeAscLabelAsc()
+        return repository.findByActiveTrueOrderByParentCodeAscLabelAsc()
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -33,7 +33,7 @@ public class LanguageVariantJpaAdapter implements LanguageVariantPort {
 
     @Override
     public Optional<LanguageVariantDto> findActiveByCode(String code) {
-        return repository.findByCodeAndIsActiveTrue(code).map(this::toDto);
+        return repository.findByCodeAndActiveTrue(code).map(this::toDto);
     }
 
     private LanguageVariantDto toDto(LanguageVariantEntity e) {
