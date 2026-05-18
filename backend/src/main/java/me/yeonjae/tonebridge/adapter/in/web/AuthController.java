@@ -32,6 +32,7 @@ import java.util.Arrays;
 public class AuthController {
 
     static final String REFRESH_COOKIE = "refresh_token";
+    static final String SESSION_COOKIE = "session";
 
     /** prod 프로파일에서 true — 로컬 개발(HTTP)에서는 false로 오버라이드 */
     @Value("${cookie.secure:true}")
@@ -119,6 +120,10 @@ public class AuthController {
         response.addHeader("Set-Cookie", String.format(
                 "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly%s; SameSite=Lax",
                 REFRESH_COOKIE, refreshToken, maxAge, secureFlag));
+        // middleware route-gating용 — 민감한 값 없음, Path=/로 모든 요청에 포함
+        response.addHeader("Set-Cookie", String.format(
+                "%s=1; Max-Age=%d; Path=/%s; SameSite=Lax",
+                SESSION_COOKIE, maxAge, secureFlag));
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
@@ -126,6 +131,9 @@ public class AuthController {
         response.addHeader("Set-Cookie", String.format(
                 "%s=; Max-Age=0; Path=/api/auth; HttpOnly%s; SameSite=Lax",
                 REFRESH_COOKIE, secureFlag));
+        response.addHeader("Set-Cookie", String.format(
+                "%s=; Max-Age=0; Path=/%s; SameSite=Lax",
+                SESSION_COOKIE, secureFlag));
     }
 
     private String extractRefreshCookie(HttpServletRequest request) {

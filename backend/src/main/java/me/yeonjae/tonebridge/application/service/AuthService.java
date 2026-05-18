@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.adapter.in.web.dto.TokenResponse;
 import me.yeonjae.tonebridge.adapter.out.ai.GoogleUserInfo;
 import me.yeonjae.tonebridge.application.port.in.LoginWithGoogleUseCase;
+import me.yeonjae.tonebridge.application.port.in.LoginWithIdTokenUseCase;
 import me.yeonjae.tonebridge.application.port.in.RefreshTokenUseCase;
 import me.yeonjae.tonebridge.application.port.out.CreditPort;
 import me.yeonjae.tonebridge.application.port.out.GoogleOAuthPort;
@@ -29,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuthService implements LoginWithGoogleUseCase, RefreshTokenUseCase {
+public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseCase, RefreshTokenUseCase {
 
     private final UserPort userPort;
     private final CreditPort creditPort;
@@ -42,11 +43,18 @@ public class AuthService implements LoginWithGoogleUseCase, RefreshTokenUseCase 
     @Override
     @Transactional
     public TokenResponse login(String code, String redirectUri) {
-        GoogleUserInfo googleUser = googleOAuthPort.exchangeCodeForUserInfo(code, redirectUri);
+        return loginWithGoogleUser(googleOAuthPort.exchangeCodeForUserInfo(code, redirectUri));
+    }
 
+    @Override
+    @Transactional
+    public TokenResponse loginWithIdToken(String idToken) {
+        return loginWithGoogleUser(googleOAuthPort.verifyIdToken(idToken));
+    }
+
+    private TokenResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
         User user = userPort.findByEmail(googleUser.email())
                 .orElseGet(() -> registerNewUser(googleUser));
-
         return issueTokens(user.id());
     }
 

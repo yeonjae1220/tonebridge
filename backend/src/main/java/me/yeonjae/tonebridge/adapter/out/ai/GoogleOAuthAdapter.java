@@ -107,6 +107,47 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
         }
     }
 
+    @Override
+    public GoogleUserInfo verifyIdToken(String idToken) {
+        HttpUrl url = HttpUrl.parse("https://oauth2.googleapis.com/tokeninfo")
+                .newBuilder()
+                .addQueryParameter("id_token", idToken)
+                .build();
+
+        Request request = new Request.Builder().url(url).get().build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "(no body)";
+            if (!response.isSuccessful()) {
+                log.error("Google tokeninfo verification failed: HTTP {} - {}", response.code(), responseBody);
+                throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
+            }
+            JsonNode json = objectMapper.readTree(responseBody);
+
+            // Verify the token was issued for this app — prevents token substitution attacks
+            String aud = json.path("aud").asText("");
+            if (!clientId.equals(aud)) {
+                log.warn("idToken aud mismatch: expected={} got={}", clientId, aud);
+                throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
+            }
+
+            // Reject tokens where Google has not yet verified the email address
+            if (!"true".equals(json.path("email_verified").asText("false"))) {
+                log.warn("idToken email not verified for sub={}", json.path("sub").asText());
+                throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
+            }
+
+            return new GoogleUserInfo(
+                    json.path("sub").asText(),
+                    json.path("email").asText(),
+                    json.path("name").asText(""),
+                    json.path("picture").asText("")
+            );
+        } catch (IOException e) {
+            log.error("Google idToken verification failed", e);
+            throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
+        }
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }

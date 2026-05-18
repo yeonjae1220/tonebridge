@@ -68,6 +68,7 @@ public class ToneBridgeProperties {
     public static class Auth {
         private String frontendUrl = "http://localhost:3000";
         private String redirectUri = "http://localhost:8080/api/auth/google/callback";
+        private String mobileRedirectUri = "tonebridge://oauth/callback";
     }
 
     private Gamification gamification = new Gamification();
