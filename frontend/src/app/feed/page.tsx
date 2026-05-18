@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,23 +26,52 @@ function rewardLabel(req: CorrectionRequest) {
   return '+4'
 }
 
+function GuestBanner() {
+  const router = useRouter()
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-blue-800">로그인하면 실시간 교정 피드를 볼 수 있습니다</p>
+        <p className="text-xs text-blue-600 mt-0.5">교정에 참여하고 크레딧을 벌어보세요</p>
+      </div>
+      <button
+        onClick={() => router.push('/login?redirect=/feed')}
+        className="shrink-0 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+      >
+        로그인하기
+      </button>
+    </div>
+  )
+}
+
 export default function FeedPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
-
-  useEffect(() => {
-    if (!accessToken) router.replace('/login')
-  }, [accessToken, router])
+  const isGuest = !accessToken
 
   const { data: currentUser } = useCurrentUser()
 
   const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],
     queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
-    enabled: !!accessToken,
+    enabled: !isGuest,
   })
 
-  if (!accessToken) return null
+  const handleCardClick = (req: CorrectionRequest) => {
+    if (isGuest) {
+      router.push(`/login?redirect=/correct/${req.id}`)
+      return
+    }
+    router.push(`/correct/${req.id}`)
+  }
+
+  const handleRequestClick = () => {
+    if (isGuest) {
+      router.push('/login?redirect=/request')
+      return
+    }
+    router.push('/request')
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -63,7 +91,7 @@ export default function FeedPage() {
               </button>
             )}
             <button
-              onClick={() => router.push('/request')}
+              onClick={handleRequestClick}
               className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
             >
               요청하기
@@ -71,7 +99,9 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {isLoading && (
+        {isGuest && <GuestBanner />}
+
+        {!isGuest && isLoading && (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-2xl" />
@@ -79,7 +109,7 @@ export default function FeedPage() {
           </div>
         )}
 
-        {!isLoading && (!requests || requests.length === 0) && (
+        {!isGuest && !isLoading && (!requests || requests.length === 0) && (
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">📭</p>
             <p className="text-sm">현재 내 언어 능력으로 교정할 수 있는 요청이 없습니다</p>
@@ -91,7 +121,7 @@ export default function FeedPage() {
             <div
               key={req.id}
               className="bg-white rounded-2xl border border-gray-100 p-5 hover:border-blue-200 transition-colors cursor-pointer"
-              onClick={() => router.push(`/correct/${req.id}`)}
+              onClick={() => handleCardClick(req)}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
