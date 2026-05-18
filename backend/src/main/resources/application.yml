@@ -96,6 +96,7 @@ tonebridge:
   auth:
     frontend-url: ${FRONTEND_URL:http://localhost:3000}
     redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
+    mobile-redirect-uri: ${GOOGLE_MOBILE_REDIRECT_URI:tonebridge://oauth/callback}
   admin:
     emails: ${ADMIN_EMAILS:}  # required in production; set via ADMIN_EMAILS env var
 
