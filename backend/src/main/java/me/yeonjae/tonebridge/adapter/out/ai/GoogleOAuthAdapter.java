@@ -22,6 +22,10 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
     @Value("${google.oauth2.client-id}")
     private String clientId;
 
+    // iOS google_sign_in SDK sets aud = iOS client ID (not serverClientId)
+    @Value("${google.oauth2.ios-client-id:}")
+    private String iosClientId;
+
     @Value("${google.oauth2.client-secret}")
     private String clientSecret;
 
@@ -123,10 +127,12 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
             }
             JsonNode json = objectMapper.readTree(responseBody);
 
-            // Verify the token was issued for this app — prevents token substitution attacks
+            // Verify the token was issued for this app — prevents token substitution attacks.
+            // iOS google_sign_in SDK sets aud = iOS client ID; Android sets aud = web client ID.
             String aud = json.path("aud").asText("");
-            if (!clientId.equals(aud)) {
-                log.warn("idToken aud mismatch: expected={} got={}", clientId, aud);
+            boolean audValid = clientId.equals(aud) || (!iosClientId.isEmpty() && iosClientId.equals(aud));
+            if (!audValid) {
+                log.warn("idToken aud mismatch: expected={} or={} got={}", clientId, iosClientId, aud);
                 throw new ToneBridgeException(ErrorCode.GOOGLE_AUTH_FAILED);
             }
 
