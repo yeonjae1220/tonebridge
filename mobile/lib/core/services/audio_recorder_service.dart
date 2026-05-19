@@ -8,8 +8,37 @@ import 'package:permission_handler/permission_handler.dart';
 
 enum RecorderState { idle, recording, stopped }
 
+/// Narrow interface over [FlutterSoundRecorder] — used for injection in tests.
+abstract interface class SoundRecorder {
+  Future<void> openRecorder();
+  Future<void> startRecorder({String? toFile, Codec codec});
+  Future<void> stopRecorder();
+  Future<void> closeRecorder();
+}
+
+/// Production adapter wrapping [FlutterSoundRecorder].
+class _FlutterSoundAdapter implements SoundRecorder {
+  final _inner = FlutterSoundRecorder();
+
+  @override
+  Future<void> openRecorder() => _inner.openRecorder();
+
+  @override
+  Future<void> startRecorder({String? toFile, Codec codec = Codec.defaultCodec}) =>
+      _inner.startRecorder(toFile: toFile, codec: codec);
+
+  @override
+  Future<void> stopRecorder() => _inner.stopRecorder();
+
+  @override
+  Future<void> closeRecorder() => _inner.closeRecorder();
+}
+
 class AudioRecorderService extends ChangeNotifier {
-  final _recorder = FlutterSoundRecorder();
+  AudioRecorderService({SoundRecorder? recorder})
+      : _recorder = recorder ?? _FlutterSoundAdapter();
+
+  final SoundRecorder _recorder;
 
   RecorderState _state = RecorderState.idle;
   String? _filePath;

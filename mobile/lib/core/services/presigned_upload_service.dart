@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 class PresignedUploadService {
-  const PresignedUploadService({required Dio dio}) : _dio = dio;
+  PresignedUploadService({required Dio dio, Dio? uploadDio})
+      : _dio = dio,
+        _uploadDio = uploadDio;
 
   final Dio _dio;
+  final Dio? _uploadDio;
 
   /// Uploads [file] to S3 via a presigned URL and returns the storage key.
   Future<String> upload({
@@ -22,13 +25,13 @@ class PresignedUploadService {
 
     // 2. PUT file directly to S3
     final bytes = await file.readAsBytes();
-    final uploadDio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      sendTimeout: const Duration(minutes: 2),
-      receiveTimeout: const Duration(minutes: 2),
-      // Treat any non-2xx as an error.
-      validateStatus: (status) => status != null && status < 300,
-    ));
+    final uploadDio = _uploadDio ??
+        Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(minutes: 2),
+          receiveTimeout: const Duration(minutes: 2),
+          validateStatus: (status) => status != null && status < 300,
+        ));
 
     await uploadDio.put<void>(
       uploadUrl,
