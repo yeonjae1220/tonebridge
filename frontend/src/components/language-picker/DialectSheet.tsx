@@ -19,7 +19,7 @@ const VARIANT_TYPE_LABELS: Record<string, string> = {
 }
 
 export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose }: DialectSheetProps) {
-  const { data: variantsMap, isLoading } = useQuery<Record<string, LanguageVariant[]>>({
+  const { data: variantsMap, isLoading, isError } = useQuery<Record<string, LanguageVariant[]>>({
     queryKey: ['language-variants'],
     queryFn: () => api.get('/languages/variants').then((r) => r.data),
     staleTime: 5 * 60 * 1000,
@@ -70,7 +70,13 @@ export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose 
             <div className="py-8 text-center text-sm text-gray-400">불러오는 중...</div>
           )}
 
-          {!isLoading && variants.length === 0 && (
+          {isError && (
+            <p className="text-sm text-red-400 text-center py-4">
+              방언/변형 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+            </p>
+          )}
+
+          {!isLoading && !isError && variants.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">
               등록된 방언/변형 정보가 없습니다
             </p>
