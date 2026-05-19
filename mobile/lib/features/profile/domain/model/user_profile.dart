@@ -10,6 +10,7 @@ abstract class UserProfile with _$UserProfile {
     required String username,
     required String nativeLanguage,
     required List<String> fluentLanguages,
+    @Default([]) List<String> learningLanguages,
     required int correctionStreak,
     required double reputationScore,
     required String correctorLevel,

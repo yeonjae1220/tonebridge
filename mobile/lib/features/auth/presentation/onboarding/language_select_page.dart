@@ -19,6 +19,7 @@ class LanguageSelectPage extends StatefulWidget {
     required this.singleSelect,
     required this.onChanged,
     required this.onNext,
+    this.initialValues = const [],
     this.nextLabel = '다음',
     this.isLoading = false,
     super.key,
@@ -29,6 +30,7 @@ class LanguageSelectPage extends StatefulWidget {
   final bool singleSelect;
   final ValueChanged<List<String>> onChanged;
   final VoidCallback onNext;
+  final List<String> initialValues;
   final String nextLabel;
   final bool isLoading;
 
@@ -37,23 +39,22 @@ class LanguageSelectPage extends StatefulWidget {
 }
 
 class _LanguageSelectPageState extends State<LanguageSelectPage> {
-  final Set<String> _selected = {};
+  Set<String> _selected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.of(widget.initialValues);
+  }
 
   void _toggle(String code) {
-    setState(() {
-      if (widget.singleSelect) {
-        _selected
-          ..clear()
-          ..add(code);
-      } else {
-        if (_selected.contains(code)) {
-          _selected.remove(code);
-        } else {
-          _selected.add(code);
-        }
-      }
-    });
-    widget.onChanged(_selected.toList());
+    final next = widget.singleSelect
+        ? {code}
+        : (_selected.contains(code)
+            ? (_selected.toSet()..remove(code))
+            : {..._selected, code});
+    setState(() => _selected = next);
+    widget.onChanged(next.toList());
   }
 
   @override

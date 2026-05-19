@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/presentation/profile_provider.dart';
@@ -16,6 +18,15 @@ class ProfilePage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('프로필'),
         actions: [
+          if (profileAsync.hasValue)
+            IconButton(
+              icon: const Icon(Icons.language_rounded),
+              tooltip: '언어 설정',
+              onPressed: () => context.push(
+                AppRoute.languageEdit,
+                extra: profileAsync.value,
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () =>
@@ -247,54 +258,46 @@ class _LanguageSection extends StatelessWidget {
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        _LanguageRow(
-          label: '모국어',
-          languages: [profile.nativeLanguage],
-          theme: theme,
-        ),
+        _LanguageRow(label: '모국어', languages: [profile.nativeLanguage]),
         const SizedBox(height: 8),
-        _LanguageRow(
-          label: '구사 가능',
-          languages: profile.fluentLanguages,
-          theme: theme,
-        ),
+        _LanguageRow(label: '구사 가능', languages: profile.fluentLanguages),
+        const SizedBox(height: 8),
+        _LanguageRow(label: '학습 중', languages: profile.learningLanguages),
       ],
     );
   }
 }
 
 class _LanguageRow extends StatelessWidget {
-  const _LanguageRow(
-      {required this.label,
-      required this.languages,
-      required this.theme});
+  const _LanguageRow({required this.label, required this.languages});
   final String label;
   final List<String> languages;
-  final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 72,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.outline)),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(label,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline)),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            children: languages
+                .map((l) => Chip(
+                      label: Text(l),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ))
+                .toList(),
           ),
-          Expanded(
-            child: Wrap(
-              spacing: 6,
-              children: languages
-                  .map((l) => Chip(
-                        label: Text(l),
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ))
-                  .toList(),
-            ),
-          ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
