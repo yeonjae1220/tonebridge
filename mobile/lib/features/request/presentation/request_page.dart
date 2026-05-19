@@ -152,6 +152,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                     _AudioRecorderWidget(
                       recorder: _recorder,
                       onPlayback: _startPlayback,
+                      onReset: _resetRecorder,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -267,6 +268,15 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     await _playbackPlayer!.setFilePath(path);
     await _playbackPlayer!.play();
   }
+
+  /// Stops and disposes the playback player before resetting the recorder,
+  /// preventing a crash when the file is deleted while the player reads it.
+  void _resetRecorder() {
+    _playbackPlayer?.stop();
+    _playbackPlayer?.dispose();
+    _playbackPlayer = null;
+    _recorder.reset();
+  }
 }
 
 // ── Sub-widgets ─────────────────────────────────────────────────────────────
@@ -356,10 +366,12 @@ class _AudioRecorderWidget extends StatelessWidget {
   const _AudioRecorderWidget({
     required this.recorder,
     required this.onPlayback,
+    required this.onReset,
   });
 
   final AudioRecorderService recorder;
   final VoidCallback onPlayback;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +379,17 @@ class _AudioRecorderWidget extends StatelessWidget {
 
     return switch (recorder.state) {
       RecorderState.idle => _RecordButton(
-          onTap: () => recorder.start(),
+          onTap: () async {
+            try {
+              await recorder.start();
+            } on Exception catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e.toString())),
+                );
+              }
+            }
+          },
           theme: theme,
         ),
       RecorderState.recording => _RecordingIndicator(
@@ -378,7 +400,7 @@ class _AudioRecorderWidget extends StatelessWidget {
       RecorderState.stopped => _RecordingStopped(
           duration: recorder.formattedDuration,
           onPlayback: onPlayback,
-          onReset: () => recorder.reset(),
+          onReset: onReset,
           theme: theme,
         ),
     };
@@ -387,7 +409,7 @@ class _AudioRecorderWidget extends StatelessWidget {
 
 class _RecordButton extends StatelessWidget {
   const _RecordButton({required this.onTap, required this.theme});
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
   final ThemeData theme;
 
   @override

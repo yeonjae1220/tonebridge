@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 enum RecorderState { idle, recording, stopped }
 
@@ -26,8 +27,20 @@ class AudioRecorderService extends ChangeNotifier {
     _initialized = true;
   }
 
+  Future<bool> _requestPermission() async {
+    final status = await Permission.microphone.request();
+    return status.isGranted;
+  }
+
   Future<void> start() async {
     if (_state == RecorderState.recording) return;
+
+    final granted = await _requestPermission();
+    if (!granted) {
+      // Surface as an exception so the caller can show an appropriate error.
+      throw Exception('마이크 권한이 필요합니다. 설정에서 권한을 허용해주세요.');
+    }
+
     await _ensureInitialized();
 
     final dir = await getTemporaryDirectory();
@@ -79,7 +92,12 @@ class AudioRecorderService extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
-    _recorder.closeRecorder();
+    // Stop recorder if still active before closing to avoid native resource leak.
+    if (_state == RecorderState.recording) {
+      unawaited(_recorder.stopRecorder().then((_) => _recorder.closeRecorder()));
+    } else {
+      unawaited(_recorder.closeRecorder());
+    }
     super.dispose();
   }
 }

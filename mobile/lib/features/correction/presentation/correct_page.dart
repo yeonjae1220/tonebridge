@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,8 +41,14 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   AudioPlayer? _originalPlayer;
   bool _originalReady = false;
   bool _originalPlaying = false;
+  bool _originalError = false;
   Duration _originalPosition = Duration.zero;
   Duration _originalDuration = Duration.zero;
+
+  // Stream subscriptions for original player — cancelled in dispose
+  StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
 
   // Reference re-recording by native speaker
   late final AudioRecorderService _refRecorder;
@@ -53,6 +61,32 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     _refRecorder.addListener(_onRefRecorderChange);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeLoadAudio();
+  }
+
+  void _maybeLoadAudio() {
+    if (_originalPlayer != null) return;
+
+    // Resolve request from the feed/my-requests cache once deps are ready.
+    final feedAsync = ref.read(feedStateProvider);
+    final myAsync = ref.read(myRequestsStateProvider);
+
+    CorrectionRequestItem? request;
+    feedAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    myAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+
+    if (request?.type == 'AUDIO' && request?.audioUrl != null) {
+      _loadAudio(request!.audioUrl!);
+    }
+  }
+
   void _onRefRecorderChange() => setState(() {});
 
   @override
@@ -60,6 +94,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     _correctedTextController.dispose();
     _explanationController.dispose();
     _timestampCommentController.dispose();
+    _durationSub?.cancel();
+    _positionSub?.cancel();
+    _playingSub?.cancel();
     _originalPlayer?.dispose();
     _refRecorder.removeListener(_onRefRecorderChange);
     _refRecorder.dispose();
@@ -75,21 +112,23 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
         queryParameters: {'key': audioKey},
       );
       final url = res.data!['downloadUrl'] as String;
-      _originalPlayer = AudioPlayer();
-      await _originalPlayer!.setUrl(url);
-      _originalPlayer!.durationStream.listen((d) {
-        if (mounted && d != null) {
-          setState(() => _originalDuration = d);
-        }
+      final player = AudioPlayer();
+      _durationSub = player.durationStream.listen((d) {
+        if (mounted && d != null) setState(() => _originalDuration = d);
       });
-      _originalPlayer!.positionStream.listen((p) {
+      _positionSub = player.positionStream.listen((p) {
         if (mounted) setState(() => _originalPosition = p);
       });
-      _originalPlayer!.playingStream.listen((playing) {
+      _playingSub = player.playingStream.listen((playing) {
         if (mounted) setState(() => _originalPlaying = playing);
       });
+      await player.setUrl(url);
+      _originalPlayer = player;
       if (mounted) setState(() => _originalReady = true);
-    } catch (_) {}
+    } on Exception catch (e) {
+      debugPrint('CorrectPage: failed to load audio — $e');
+      if (mounted) setState(() => _originalError = true);
+    }
   }
 
   @override
@@ -98,23 +137,22 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     final submitAsync = ref.watch(submitCorrectionStateProvider);
     final isLoading = submitAsync.isLoading || _uploading;
 
-    // Fetch the request from the feed cache
+    // Resolve request from cache (read-only; side-effects happen in didChangeDependencies)
     final feedAsync = ref.watch(feedStateProvider);
     final myAsync = ref.watch(myRequestsStateProvider);
 
     CorrectionRequestItem? request;
     feedAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??=
-          items.where((i) => i.id == widget.requestId).firstOrNull;
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
     });
     myAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??=
-          items.where((i) => i.id == widget.requestId).firstOrNull;
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
     });
 
     final isAudio = request?.type == 'AUDIO';
 
-    if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
+    // Trigger audio load if item just became available but player not yet created.
+    if (isAudio && request?.audioUrl != null && _originalPlayer == null && !_originalError) {
       _loadAudio(request!.audioUrl!);
     }
 
@@ -169,6 +207,7 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
               isAudio: isAudio,
               ready: _originalReady,
               playing: _originalPlaying,
+              audioError: _originalError,
               position: _originalPosition,
               duration: _originalDuration,
               onTogglePlay: _togglePlay,
@@ -217,6 +256,7 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
               _RefRecordingSection(
                 recorder: _refRecorder,
                 onPlayback: _startRefPlayback,
+                onReset: _resetRefRecorder,
               ),
               const SizedBox(height: 20),
             ],
@@ -346,6 +386,14 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     await _refPlaybackPlayer!.play();
   }
 
+  void _resetRefRecorder() {
+    // Stop playback before deleting the file the player may be reading.
+    _refPlaybackPlayer?.stop();
+    _refPlaybackPlayer?.dispose();
+    _refPlaybackPlayer = null;
+    _refRecorder.reset();
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -360,15 +408,34 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
           file: _refRecorder.file!,
           fileName: 'ref_${DateTime.now().millisecondsSinceEpoch}.aac',
         );
-      } finally {
+      } on Exception catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('파일 업로드 실패: $e'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
         if (mounted) setState(() => _uploading = false);
+        return;
       }
+      if (mounted) setState(() => _uploading = false);
     }
 
-    final isAudio =
-        _timestampComments.isNotEmpty || _pronunciationScore != 5;
+    // Determine audio type from the actual request, not from local state heuristics.
+    final feedAsync = ref.read(feedStateProvider);
+    final myAsync = ref.read(myRequestsStateProvider);
+    CorrectionRequestItem? request;
+    feedAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    myAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    final isAudio = request?.type == 'AUDIO';
 
-    ref.read(submitCorrectionStateProvider.notifier).submit(
+    await ref.read(submitCorrectionStateProvider.notifier).submit(
           requestId: widget.requestId,
           correctedText: _correctedTextController.text.trim().isEmpty
               ? null
@@ -423,6 +490,7 @@ class _OriginalSection extends StatelessWidget {
     required this.isAudio,
     required this.ready,
     required this.playing,
+    required this.audioError,
     required this.position,
     required this.duration,
     required this.onTogglePlay,
@@ -432,6 +500,7 @@ class _OriginalSection extends StatelessWidget {
   final bool isAudio;
   final bool ready;
   final bool playing;
+  final bool audioError;
   final Duration position;
   final Duration duration;
   final VoidCallback onTogglePlay;
@@ -445,8 +514,7 @@ class _OriginalSection extends StatelessWidget {
         color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color:
-              theme.colorScheme.tertiary.withValues(alpha: 0.2),
+          color: theme.colorScheme.tertiary.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -481,14 +549,21 @@ class _OriginalSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           if (isAudio) ...[
-            _AudioPlayerBar(
-              ready: ready,
-              playing: playing,
-              position: position,
-              duration: duration,
-              onToggle: onTogglePlay,
-              color: theme.colorScheme.tertiary,
-            ),
+            if (audioError)
+              Text(
+                '음성을 불러올 수 없습니다.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
+              )
+            else
+              _AudioPlayerBar(
+                ready: ready,
+                playing: playing,
+                position: position,
+                duration: duration,
+                onToggle: onTogglePlay,
+                color: theme.colorScheme.tertiary,
+              ),
           ] else ...[
             Text(
               request?.contentText ?? '...',
@@ -550,10 +625,14 @@ class _AudioPlayerBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        FilledButton.tonal(
-          onPressed: ready ? onToggle : null,
-          child: Icon(
-            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        Semantics(
+          label: playing ? '일시정지' : '재생',
+          button: true,
+          child: FilledButton.tonal(
+            onPressed: ready ? onToggle : null,
+            child: Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -682,8 +761,7 @@ class _TimestampSection extends StatelessWidget {
                         style: theme.textTheme.bodySmall),
                   ),
                   IconButton(
-                    icon:
-                        const Icon(Icons.close_rounded, size: 18),
+                    icon: const Icon(Icons.close_rounded, size: 18),
                     onPressed: () => onRemove(i),
                     color: theme.colorScheme.outline,
                     visualDensity: VisualDensity.compact,
@@ -750,10 +828,12 @@ class _RefRecordingSection extends StatelessWidget {
   const _RefRecordingSection({
     required this.recorder,
     required this.onPlayback,
+    required this.onReset,
   });
 
   final AudioRecorderService recorder;
   final VoidCallback onPlayback;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -768,7 +848,7 @@ class _RefRecordingSection extends StatelessWidget {
             Text(
               '+4 추가 크레딧',
               style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.green.shade600,
+                  color: theme.colorScheme.tertiary,
                   fontWeight: FontWeight.w600),
             ),
           ],
@@ -833,7 +913,7 @@ class _RefRecordingSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed: () => recorder.reset(),
+                  onPressed: onReset,
                   child: const Text('다시 녹음'),
                 ),
               ],

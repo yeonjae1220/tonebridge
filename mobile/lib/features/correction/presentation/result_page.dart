@@ -25,8 +25,14 @@ class _ResultPageState extends ConsumerState<ResultPage> {
   AudioPlayer? _originalPlayer;
   bool _originalReady = false;
   bool _originalPlaying = false;
+  bool _originalError = false;
   Duration _originalPosition = Duration.zero;
   Duration _originalDuration = Duration.zero;
+
+  // Stream subscriptions — cancelled in dispose
+  StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
 
   @override
   void initState() {
@@ -34,15 +40,36 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     _connectSse();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeLoadAudio();
+  }
+
   void _connectSse() {
     final sseService = ref.read(sseNotificationServiceProvider);
     _sseSub = sseService.stream.listen((event) {
       if (event.type == 'correction-ready') {
-        // Invalidate to trigger refetch
         ref.invalidate(correctionResultProvider(widget.requestId));
         ref.invalidate(myRequestsStateProvider);
       }
     });
+  }
+
+  void _maybeLoadAudio() {
+    if (_originalPlayer != null) return;
+    final feedAsync = ref.read(feedStateProvider);
+    final myAsync = ref.read(myRequestsStateProvider);
+    CorrectionRequestItem? request;
+    feedAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    myAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    if (request?.type == 'AUDIO' && request?.audioUrl != null) {
+      _loadOriginalAudio(request!.audioUrl!);
+    }
   }
 
   Future<void> _loadOriginalAudio(String audioKey) async {
@@ -53,24 +80,31 @@ class _ResultPageState extends ConsumerState<ResultPage> {
         queryParameters: {'key': audioKey},
       );
       final url = res.data!['downloadUrl'] as String;
-      _originalPlayer = AudioPlayer();
-      await _originalPlayer!.setUrl(url);
-      _originalPlayer!.durationStream.listen((d) {
+      final player = AudioPlayer();
+      _durationSub = player.durationStream.listen((d) {
         if (mounted && d != null) setState(() => _originalDuration = d);
       });
-      _originalPlayer!.positionStream.listen((p) {
+      _positionSub = player.positionStream.listen((p) {
         if (mounted) setState(() => _originalPosition = p);
       });
-      _originalPlayer!.playingStream.listen((playing) {
+      _playingSub = player.playingStream.listen((playing) {
         if (mounted) setState(() => _originalPlaying = playing);
       });
+      await player.setUrl(url);
+      _originalPlayer = player;
       if (mounted) setState(() => _originalReady = true);
-    } catch (_) {}
+    } on Exception catch (e) {
+      debugPrint('ResultPage: failed to load audio — $e');
+      if (mounted) setState(() => _originalError = true);
+    }
   }
 
   @override
   void dispose() {
     _sseSub?.cancel();
+    _durationSub?.cancel();
+    _positionSub?.cancel();
+    _playingSub?.cancel();
     _originalPlayer?.dispose();
     super.dispose();
   }
@@ -80,7 +114,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     final theme = Theme.of(context);
     final resultAsync = ref.watch(correctionResultProvider(widget.requestId));
 
-    // Resolve the original request from feed/my-requests
+    // Resolve the original request from feed/my-requests (read-only in build)
     final feedAsync = ref.watch(feedStateProvider);
     final myAsync = ref.watch(myRequestsStateProvider);
     CorrectionRequestItem? request;
@@ -92,7 +126,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     });
 
     final isAudio = request?.type == 'AUDIO';
-    if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
+    // Trigger load if item became available after initial didChangeDependencies.
+    if (isAudio && request?.audioUrl != null && _originalPlayer == null && !_originalError) {
       _loadOriginalAudio(request!.audioUrl!);
     }
 
@@ -129,6 +164,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
               playing: _originalPlaying,
               position: _originalPosition,
               duration: _originalDuration,
+              audioError: _originalError,
               onToggle: () {
                 if (_originalPlaying) {
                   _originalPlayer?.pause();
@@ -141,7 +177,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
 
             // ── 교정 결과 목록 ──
             if (corrections.isEmpty) ...[
-              _EmptyWaitCard(theme: theme),
+              const _EmptyWaitCard(),
             ] else ...[
               ...corrections.map((c) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -169,6 +205,7 @@ class _OriginalCard extends StatelessWidget {
     required this.isAudio,
     required this.ready,
     required this.playing,
+    required this.audioError,
     required this.position,
     required this.duration,
     required this.onToggle,
@@ -178,6 +215,7 @@ class _OriginalCard extends StatelessWidget {
   final bool isAudio;
   final bool ready;
   final bool playing;
+  final bool audioError;
   final Duration position;
   final Duration duration;
   final VoidCallback onToggle;
@@ -230,25 +268,36 @@ class _OriginalCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (isAudio) ...[
-            Row(
-              children: [
-                FilledButton.tonal(
-                  onPressed: ready ? onToggle : null,
-                  child: Icon(
-                    playing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+            if (audioError)
+              Text(
+                '음성을 불러올 수 없습니다.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
+              )
+            else
+              Row(
+                children: [
+                  Semantics(
+                    label: playing ? '일시정지' : '재생',
+                    button: true,
+                    child: FilledButton.tonal(
+                      onPressed: ready ? onToggle : null,
+                      child: Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${_fmt(position)} / ${_fmt(duration)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_fmt(position)} / ${_fmt(duration)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
           ] else ...[
             Text(
               request?.contentText ?? '...',
@@ -262,33 +311,35 @@ class _OriginalCard extends StatelessWidget {
 }
 
 class _EmptyWaitCard extends StatelessWidget {
-  const _EmptyWaitCard({required this.theme});
-  final ThemeData theme;
+  const _EmptyWaitCard();
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.hourglass_top_rounded,
-                size: 48, color: theme.colorScheme.outline),
-            const SizedBox(height: 12),
-            Text('첨삭 대기 중',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text('원어민이 첨삭하면 알림이 옵니다',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.outline)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.hourglass_top_rounded,
+              size: 48, color: theme.colorScheme.outline),
+          const SizedBox(height: 12),
+          Text('첨삭 대기 중',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('원어민이 첨삭하면 알림이 옵니다',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline)),
+        ],
+      ),
+    );
+  }
 }
 
 class _CorrectionCard extends StatefulWidget {
@@ -310,14 +361,29 @@ class _CorrectionCardState extends State<_CorrectionCard> {
   AudioPlayer? _refPlayer;
   bool _refReady = false;
   bool _refPlaying = false;
+  bool _refError = false;
+  StreamSubscription<bool>? _refPlayingSub;
+
+  @override
+  void initState() {
+    super.initState();
+    final key = widget.correction.referenceAudioUrl;
+    if (key != null) {
+      // Defer until after first build so context is available.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadRefAudio(key);
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _refPlayingSub?.cancel();
     _refPlayer?.dispose();
     super.dispose();
   }
 
-  Future<void> _loadRefAudio(BuildContext context, String key) async {
+  Future<void> _loadRefAudio(String key) async {
     if (_refPlayer != null) return;
     try {
       final dio = ProviderScope.containerOf(context).read(dioProvider);
@@ -326,23 +392,23 @@ class _CorrectionCardState extends State<_CorrectionCard> {
         queryParameters: {'key': key},
       );
       final url = res.data!['downloadUrl'] as String;
-      _refPlayer = AudioPlayer();
-      await _refPlayer!.setUrl(url);
-      _refPlayer!.playingStream.listen((p) {
+      final player = AudioPlayer();
+      _refPlayingSub = player.playingStream.listen((p) {
         if (mounted) setState(() => _refPlaying = p);
       });
+      await player.setUrl(url);
+      _refPlayer = player;
       if (mounted) setState(() => _refReady = true);
-    } catch (_) {}
+    } on Exception catch (e) {
+      debugPrint('_CorrectionCard: failed to load ref audio — $e');
+      if (mounted) setState(() => _refError = true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final c = widget.correction;
-
-    if (c.referenceAudioUrl != null && _refPlayer == null) {
-      _loadRefAudio(context, c.referenceAudioUrl!);
-    }
 
     final (statusLabel, statusColor) = switch (c.status) {
       'APPROVED' => ('승인됨', theme.colorScheme.primary),
@@ -433,15 +499,16 @@ class _CorrectionCardState extends State<_CorrectionCard> {
             // Corrected text (text requests)
             if (!widget.isAudioRequest && c.correctedText != null) ...[
               Text('수정 문장',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600)),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                      fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: theme.colorScheme.tertiaryContainer
+                      .withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(c.correctedText!,
