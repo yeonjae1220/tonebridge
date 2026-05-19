@@ -18,6 +18,24 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<UserProfile> getProfile() async {
     final response =
         await _dio.get<Map<String, dynamic>>('/api/users/me/profile');
-    return UserProfile.fromJson(response.data!);
+    final data = response.data;
+    if (data == null) throw StateError('Profile response contained no data');
+    return UserProfile.fromJson(data);
+  }
+
+  @override
+  Future<void> updateLanguages({
+    required String nativeLanguage,
+    required List<String> fluentLanguages,
+    required List<String> learningLanguages,
+  }) async {
+    await _dio.patch<void>(
+      '/api/users/me/languages',
+      data: {
+        'nativeLanguage': nativeLanguage,
+        'fluentLanguages': fluentLanguages,
+        'learningLanguages': learningLanguages,
+      },
+    );
   }
 }

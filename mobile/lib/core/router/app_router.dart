@@ -10,6 +10,8 @@ import 'package:tonebridge/features/auth/presentation/onboarding/onboarding_page
 import 'package:tonebridge/features/correction/presentation/correct_page.dart';
 import 'package:tonebridge/features/correction/presentation/result_page.dart';
 import 'package:tonebridge/features/feed/presentation/feed_page.dart';
+import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
+import 'package:tonebridge/features/profile/presentation/language_edit_page.dart';
 import 'package:tonebridge/features/profile/presentation/profile_page.dart';
 import 'package:tonebridge/features/request/presentation/request_page.dart';
 import 'package:tonebridge/features/wallet/presentation/wallet_page.dart';
@@ -22,6 +24,7 @@ abstract final class AppRoute {
   static const String feed = '/feed';
   static const String request = '/request';
   static const String profile = '/profile';
+  static const String languageEdit = '/profile/language-edit';
   static const String wallet = '/wallet';
 
   static String correct(String requestId) => '/correct/$requestId';
@@ -119,6 +122,21 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoute.profile,
                 builder: (context, state) => const ProfilePage(),
+                routes: [
+                  GoRoute(
+                    path: 'language-edit',
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      if (extra is! UserProfile) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => GoRouter.of(context).go(AppRoute.profile),
+                        );
+                        return const SizedBox.shrink();
+                      }
+                      return LanguageEditPage(profile: extra);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
