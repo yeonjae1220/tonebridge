@@ -63,12 +63,17 @@ google:
 
 tonebridge:
   storage:
-    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    # Blank = AWS S3 (SDK resolves endpoint automatically).
+    # Non-blank = S3-compatible (MinIO / local): uses forcePathStyle + endpointOverride.
+    endpoint: ${STORAGE_ENDPOINT:}
     public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:}  # mobile/browser-accessible URL for presigned URLs; defaults to endpoint
     access-key: ${STORAGE_ACCESS_KEY:minioadmin}
     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
     bucket: ${STORAGE_BUCKET:tonebridge-audio}
     region: ${STORAGE_REGION:us-east-1}
+    upload-ttl-minutes: ${STORAGE_UPLOAD_TTL_MINUTES:15}
+    download-ttl-minutes: ${STORAGE_DOWNLOAD_TTL_MINUTES:15}
+    rate-limit-per-minute: ${STORAGE_RATE_LIMIT_PER_MINUTE:20}
   ai:
     claude-api-key: ${CLAUDE_API_KEY:}
     claude-model: ${CLAUDE_MODEL:claude-sonnet-4-6}

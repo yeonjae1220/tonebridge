@@ -39,6 +39,12 @@ public class ToneBridgeProperties {
         private String secretKey;
         private String bucket;
         private String region;
+        /** Presigned upload URL TTL in minutes (default 15). */
+        private int uploadTtlMinutes = 15;
+        /** Presigned download URL TTL in minutes (default 15). */
+        private int downloadTtlMinutes = 15;
+        /** Max presigned URL requests per user per 60-second window (default 20). */
+        private int rateLimitPerMinute = 20;
     }
 
     @Getter @Setter
