@@ -41,7 +41,7 @@ void main() {
       when(() => mockRepo.getFriends()).thenThrow(Exception('network error'));
 
       final container = makeContainer();
-      final state = await container
+      await container
           .read(friendListStateProvider.future)
           .then((_) => null)
           .onError((_, __) => null);
@@ -83,13 +83,15 @@ void main() {
       );
     });
 
-    test('acceptRequest() calls repository, invalidates pendingFriendRequests, and refreshes friends',
+    test(
+        'acceptRequest() calls repository, invalidates pendingFriendRequests, and refreshes friends',
         () async {
       final friends = [makeFriend()];
       final pending = [makeFriendRequest()];
 
       when(() => mockRepo.getFriends()).thenAnswer((_) async => friends);
-      when(() => mockRepo.getPendingRequests()).thenAnswer((_) async => pending);
+      when(() => mockRepo.getPendingRequests())
+          .thenAnswer((_) async => pending);
       when(() => mockRepo.acceptRequest(any()))
           .thenAnswer((_) async => makeFriendRequest(status: 'ACCEPTED'));
 
@@ -115,8 +117,12 @@ void main() {
 
   group('pendingFriendRequestsProvider', () {
     test('loads pending requests from repository', () async {
-      final requests = [makeFriendRequest(), makeFriendRequest(id: 'req-2', senderId: 'sender-2')];
-      when(() => mockRepo.getPendingRequests()).thenAnswer((_) async => requests);
+      final requests = [
+        makeFriendRequest(),
+        makeFriendRequest(id: 'req-2', senderId: 'sender-2')
+      ];
+      when(() => mockRepo.getPendingRequests())
+          .thenAnswer((_) async => requests);
 
       final container = makeContainer();
       final result = await container.read(pendingFriendRequestsProvider.future);
@@ -135,8 +141,7 @@ void main() {
           .then((_) => null)
           .onError((_, __) => null);
 
-      expect(
-          container.read(pendingFriendRequestsProvider).hasError, isTrue);
+      expect(container.read(pendingFriendRequestsProvider).hasError, isTrue);
     });
 
     test('returns empty list when no pending requests', () async {

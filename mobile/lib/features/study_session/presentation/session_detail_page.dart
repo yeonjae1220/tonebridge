@@ -55,9 +55,12 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('오류: $e')),
         data: (cards) {
-          final noAudio = cards.where((c) => c.cardStatus == CardStatus.noAudio).length;
-          final recorded = cards.where((c) => c.cardStatus == CardStatus.recorded).length;
-          final corrected = cards.where((c) => c.cardStatus == CardStatus.corrected).length;
+          final noAudio =
+              cards.where((c) => c.cardStatus == CardStatus.noAudio).length;
+          final recorded =
+              cards.where((c) => c.cardStatus == CardStatus.recorded).length;
+          final corrected =
+              cards.where((c) => c.cardStatus == CardStatus.corrected).length;
 
           return CustomScrollView(
             slivers: [
@@ -120,19 +123,20 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref
           .read(studySessionListStateProvider.notifier)
           .endSession(widget.sessionId);
-      if (!mounted) return;
+      if (!context.mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('세션이 종료되었습니다')),
       );
       context.pop();
     } on Exception catch (e) {
+      if (!context.mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text('오류: $e')),
       );
@@ -190,9 +194,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
                   if (phrase.isEmpty) return;
                   final contextText = contextController.text.trim();
                   try {
-                    await ref
-                        .read(studySessionRepositoryProvider)
-                        .createCard(
+                    await ref.read(studySessionRepositoryProvider).createCard(
                           sessionId: widget.sessionId,
                           phrase: phrase,
                           context: contextText.isEmpty ? null : contextText,
@@ -307,7 +309,9 @@ class _StatusChip extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text('$label $count', style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+          Text('$label $count',
+              style: TextStyle(
+                  fontSize: 12, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -324,9 +328,17 @@ class _CardListItem extends StatelessWidget {
     final theme = Theme.of(context);
 
     final (statusIcon, statusColor, statusLabel) = switch (card.cardStatus) {
-      CardStatus.corrected => (Icons.check_circle_rounded, Colors.green, '교정완료'),
+      CardStatus.corrected => (
+          Icons.check_circle_rounded,
+          Colors.green,
+          '교정완료'
+        ),
       CardStatus.recorded => (Icons.mic_rounded, Colors.orange, '녹음완료'),
-      CardStatus.noAudio => (Icons.radio_button_unchecked_rounded, Colors.grey, '미녹음'),
+      CardStatus.noAudio => (
+          Icons.radio_button_unchecked_rounded,
+          Colors.grey,
+          '미녹음'
+        ),
     };
 
     return Card(
@@ -341,7 +353,8 @@ class _CardListItem extends StatelessWidget {
         subtitle: card.context != null
             ? Text(
                 card.context!,
-                style: TextStyle(color: theme.colorScheme.outline, fontSize: 13),
+                style:
+                    TextStyle(color: theme.colorScheme.outline, fontSize: 13),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               )
