@@ -61,10 +61,11 @@ public class FirebaseAdminAdapter implements FcmNotificationPort {
     }
 
     @Override
-    public void sendCorrectionNoteAdded(UUID userId, UUID cardId, String senderUsername) {
+    public void sendCorrectionNoteAdded(UUID userId, UUID sessionId, UUID cardId, String senderUsername) {
         if (firebaseApp == null) return;
         sendToUser(userId, builder -> builder
                 .putData("type", "CORRECTION_NOTE_ADDED")
+                .putData("sessionId", sessionId.toString())
                 .putData("cardId", cardId.toString())
                 .putData("senderUsername", senderUsername));
     }

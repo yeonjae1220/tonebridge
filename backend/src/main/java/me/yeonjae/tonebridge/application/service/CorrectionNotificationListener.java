@@ -21,7 +21,7 @@ public class CorrectionNotificationListener {
     public void onCorrectionNoteAdded(CorrectionNoteAddedEvent event) {
         try {
             fcmNotificationPort.sendCorrectionNoteAdded(
-                    event.learnerId(), event.cardId(), event.reviewerUsername());
+                    event.learnerId(), event.sessionId(), event.cardId(), event.reviewerUsername());
         } catch (Exception e) {
             log.warn("FCM notification failed for correction note: cardId={}, learnerId={}",
                     event.cardId(), event.learnerId(), e);

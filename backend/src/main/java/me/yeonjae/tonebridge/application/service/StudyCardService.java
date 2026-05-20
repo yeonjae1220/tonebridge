@@ -156,7 +156,7 @@ public class StudyCardService implements
         String reviewerUsername = userPort.findById(command.reviewerId())
                 .map(u -> u.username()).orElse("파트너");
         eventPublisher.publishEvent(
-                new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), reviewerUsername));
+                new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername));
 
         return updated;
     }
