@@ -32,8 +32,13 @@ public class StorageConfig {
     @Bean
     public S3Presigner s3Presigner() {
         ToneBridgeProperties.Storage s = properties.getStorage();
+        // Use publicEndpoint so presigned URLs contain the host reachable by mobile/browser clients.
+        // Falls back to endpoint when STORAGE_PUBLIC_ENDPOINT is not configured.
+        String publicEndpoint = (s.getPublicEndpoint() != null && !s.getPublicEndpoint().isBlank())
+                ? s.getPublicEndpoint()
+                : s.getEndpoint();
         return S3Presigner.builder()
-                .endpointOverride(URI.create(s.getEndpoint()))
+                .endpointOverride(URI.create(publicEndpoint))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(s.getAccessKey(), s.getSecretKey())))
                 .region(Region.of(s.getRegion()))

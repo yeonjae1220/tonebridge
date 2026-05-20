@@ -49,4 +49,16 @@ public class FriendJpaAdapter implements FriendPort {
         return repository.findBySenderIdAndReceiverId(senderId, receiverId)
                 .map(FriendRequestEntity::toDomain);
     }
+
+    @Override
+    public void deleteById(UUID id) {
+        repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<FriendRequest> findAcceptedBetween(UUID userId1, UUID userId2) {
+        return repository.findAcceptedBetween(userId1, userId2)
+                .map(FriendRequestEntity::toDomain);
+    }
 }

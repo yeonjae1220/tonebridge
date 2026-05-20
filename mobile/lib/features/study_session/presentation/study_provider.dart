@@ -24,6 +24,14 @@ class StudySessionListState extends _$StudySessionListState {
     await refresh();
     return session;
   }
+
+  Future<StudySession> endSession(String sessionId) async {
+    final session = await ref
+        .read(studySessionRepositoryProvider)
+        .endSession(sessionId);
+    await refresh();
+    return session;
+  }
 }
 
 @riverpod

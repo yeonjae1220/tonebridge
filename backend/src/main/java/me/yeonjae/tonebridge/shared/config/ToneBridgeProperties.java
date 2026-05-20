@@ -32,6 +32,9 @@ public class ToneBridgeProperties {
     @Getter @Setter
     public static class Storage {
         private String endpoint;
+        /** Public-facing endpoint for presigned URLs (mobile/browser-accessible).
+         *  Falls back to {@code endpoint} when not set. */
+        private String publicEndpoint;
         private String accessKey;
         private String secretKey;
         private String bucket;

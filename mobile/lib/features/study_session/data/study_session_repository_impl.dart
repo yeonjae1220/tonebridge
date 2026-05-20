@@ -44,6 +44,14 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   }
 
   @override
+  Future<StudySession> endSession(String sessionId) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/sessions/$sessionId/end',
+    );
+    return StudySession.fromJson(response.data!);
+  }
+
+  @override
   Future<StudyCard> getCard(String cardId) async {
     final response =
         await _dio.get<Map<String, dynamic>>('/api/cards/$cardId');
@@ -97,6 +105,14 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
       data: {'audioKey': audioKey},
     );
     return StudyCard.fromJson(response.data!);
+  }
+
+  @override
+  Future<String> getNativeAudioDownloadUrl(String cardId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/cards/$cardId/native-audio',
+    );
+    return response.data!['downloadUrl'] as String;
   }
 
   @override

@@ -25,6 +25,16 @@ class FriendListState extends _$FriendListState {
     ref.invalidate(pendingFriendRequestsProvider);
     await refresh();
   }
+
+  Future<void> declineRequest(String requestId) async {
+    await ref.read(friendRepositoryProvider).declineRequest(requestId);
+    ref.invalidate(pendingFriendRequestsProvider);
+  }
+
+  Future<void> removeFriend(String friendId) async {
+    await ref.read(friendRepositoryProvider).removeFriend(friendId);
+    await refresh();
+  }
 }
 
 @riverpod

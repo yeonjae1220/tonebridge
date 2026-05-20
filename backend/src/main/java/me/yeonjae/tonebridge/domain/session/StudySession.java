@@ -19,4 +19,8 @@ public record StudySession(
     public boolean isActive() {
         return status == SessionStatus.ACTIVE;
     }
+
+    public StudySession withStatus(SessionStatus newStatus) {
+        return new StudySession(id, title, createdBy, memberIds, newStatus, createdAt);
+    }
 }

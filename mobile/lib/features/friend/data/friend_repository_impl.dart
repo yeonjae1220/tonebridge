@@ -46,4 +46,14 @@ class FriendRepositoryImpl implements FriendRepository {
     );
     return FriendRequestItem.fromJson(response.data!);
   }
+
+  @override
+  Future<void> declineRequest(String requestId) async {
+    await _dio.delete<void>('/api/friends/requests/$requestId');
+  }
+
+  @override
+  Future<void> removeFriend(String friendId) async {
+    await _dio.delete<void>('/api/friends/$friendId');
+  }
 }

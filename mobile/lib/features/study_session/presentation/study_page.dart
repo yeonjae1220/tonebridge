@@ -72,6 +72,7 @@ class _PendingRequestTile extends ConsumerStatefulWidget {
 
 class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
   bool _accepting = false;
+  bool _declining = false;
 
   @override
   Widget build(BuildContext context) {
@@ -103,50 +104,86 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-          if (_accepting)
+          if (_accepting || _declining)
             const SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                minimumSize: const Size(0, 44),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  onPressed: () async {
+                    setState(() => _declining = true);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final errorColor = theme.colorScheme.error;
+                    try {
+                      await ref
+                          .read(friendListStateProvider.notifier)
+                          .declineRequest(widget.request.id);
+                    } on Exception {
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: const Text('요청 거절에 실패했어요. 다시 시도해 주세요.'),
+                            backgroundColor: errorColor,
+                          ),
+                        );
+                        setState(() => _declining = false);
+                      }
+                    }
+                  },
+                  child: const Text('거절', style: TextStyle(fontSize: 13)),
                 ),
-              ),
-              onPressed: () async {
-                setState(() => _accepting = true);
-                // Cache before async gap.
-                final messenger = ScaffoldMessenger.of(context);
-                final errorColor = theme.colorScheme.error;
-                try {
-                  await ref
-                      .read(friendListStateProvider.notifier)
-                      .acceptRequest(widget.request.id);
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('$displayName 님과 친구가 되었어요!')),
-                    );
-                  }
-                } on Exception {
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: const Text('요청 수락에 실패했어요. 다시 시도해 주세요.'),
-                        backgroundColor: errorColor,
-                      ),
-                    );
-                    setState(() => _accepting = false);
-                  }
-                }
-              },
-              child: const Text('수락', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    minimumSize: const Size(0, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  onPressed: () async {
+                    setState(() => _accepting = true);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final errorColor = theme.colorScheme.error;
+                    try {
+                      await ref
+                          .read(friendListStateProvider.notifier)
+                          .acceptRequest(widget.request.id);
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('$displayName 님과 친구가 되었어요!')),
+                        );
+                      }
+                    } on Exception {
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: const Text('요청 수락에 실패했어요. 다시 시도해 주세요.'),
+                            backgroundColor: errorColor,
+                          ),
+                        );
+                        setState(() => _accepting = false);
+                      }
+                    }
+                  },
+                  child: const Text('수락', style: TextStyle(fontSize: 13)),
+                ),
+              ],
             ),
         ],
       ),
@@ -421,36 +458,80 @@ class _FriendAvatarRow extends StatelessWidget {
   }
 }
 
-class _FriendAvatar extends StatelessWidget {
+class _FriendAvatar extends ConsumerWidget {
   const _FriendAvatar({required this.friend});
   final Friend friend;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: Text(
-            friend.username.isNotEmpty ? friend.username[0].toUpperCase() : '?',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onPrimaryContainer,
+    return GestureDetector(
+      onLongPress: () => _confirmRemove(context, ref),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            child: Text(
+              friend.username.isNotEmpty ? friend.username[0].toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          friend.username,
-          style: const TextStyle(fontSize: 12),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            friend.username,
+            style: const TextStyle(fontSize: 12),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('친구 삭제'),
+        content: Text('${friend.username} 님을 친구 목록에서 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(friendListStateProvider.notifier)
+          .removeFriend(friend.id);
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('${friend.username} 님을 친구 목록에서 삭제했어요.')),
+        );
+      }
+    } on Exception {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('친구 삭제에 실패했어요. 다시 시도해 주세요.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 

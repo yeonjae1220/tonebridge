@@ -2,7 +2,9 @@ package me.yeonjae.tonebridge.application.service;
 
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.AcceptFriendRequestUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeclineFriendRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetFriendsUseCase;
+import me.yeonjae.tonebridge.application.port.in.RemoveFriendUseCase;
 import me.yeonjae.tonebridge.application.port.in.SendFriendRequestUseCase;
 import me.yeonjae.tonebridge.application.port.out.FriendPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
@@ -24,7 +26,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequestUseCase, GetFriendsUseCase {
+public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequestUseCase, GetFriendsUseCase,
+        DeclineFriendRequestUseCase, RemoveFriendUseCase {
 
     private final FriendPort friendPort;
     private final UserPort userPort;
@@ -90,5 +93,25 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
                 .map(r -> new GetFriendsUseCase.PendingRequestView(r,
                         usernameMap.getOrDefault(r.senderId(), "알 수 없음")))
                 .toList();
+    }
+
+    @Override
+    public void decline(DeclineFriendRequestUseCase.Command command) {
+        FriendRequest request = friendPort.findById(command.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
+
+        if (!request.receiverId().equals(command.declinerId())) {
+            throw new ToneBridgeException(ErrorCode.NOT_FRIEND_REQUEST_RECEIVER);
+        }
+
+        friendPort.deleteById(request.id());
+    }
+
+    @Override
+    public void remove(RemoveFriendUseCase.Command command) {
+        FriendRequest relationship = friendPort.findAcceptedBetween(command.requesterId(), command.friendId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
+
+        friendPort.deleteById(relationship.id());
     }
 }

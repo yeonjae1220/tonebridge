@@ -24,6 +24,7 @@ public class StudyCardService implements
         GetStudyCardUseCase,
         CreateStudyCardUseCase,
         UploadNativeAudioUseCase,
+        GetNativeAudioDownloadUrlUseCase,
         SubmitLearnerAttemptUseCase,
         AddCorrectionNoteUseCase {
 
@@ -104,6 +105,20 @@ public class StudyCardService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireMember(card.sessionId(), command.uploaderId());
         return cardPort.save(card.withNativeAudio(command.audioKey()));
+    }
+
+    // ─── GetNativeAudioDownloadUrlUseCase ─────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getDownloadUrl(UUID cardId, UUID requesterId) {
+        StudyCard card = cardPort.findById(cardId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
+        requireMember(card.sessionId(), requesterId);
+        if (!card.hasNativeAudio()) {
+            throw new ToneBridgeException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return storagePort.generatePresignedDownloadUrl(card.nativeAudioUrl(), Duration.ofMinutes(15));
     }
 
     // ─── SubmitLearnerAttemptUseCase ───────────────────────────────────────

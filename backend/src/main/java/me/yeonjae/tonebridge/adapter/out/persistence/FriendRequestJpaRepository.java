@@ -20,4 +20,12 @@ public interface FriendRequestJpaRepository extends JpaRepository<FriendRequestE
     List<FriendRequestEntity> findByReceiverIdAndStatus(UUID receiverId, FriendStatus status);
 
     Optional<FriendRequestEntity> findBySenderIdAndReceiverId(UUID senderId, UUID receiverId);
+
+    @Query("""
+            SELECT f FROM FriendRequestEntity f
+            WHERE (f.senderId = :userId1 AND f.receiverId = :userId2
+                OR f.senderId = :userId2 AND f.receiverId = :userId1)
+              AND f.status = 'ACCEPTED'
+            """)
+    Optional<FriendRequestEntity> findAcceptedBetween(UUID userId1, UUID userId2);
 }

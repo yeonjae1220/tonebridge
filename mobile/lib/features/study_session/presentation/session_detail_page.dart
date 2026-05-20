@@ -6,6 +6,8 @@ import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
+enum _SessionMenu { endSession }
+
 class SessionDetailPage extends ConsumerStatefulWidget {
   const SessionDetailPage({super.key, required this.sessionId});
   final String sessionId;
@@ -27,6 +29,25 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
             icon: const Icon(Icons.refresh),
             onPressed: () =>
                 ref.invalidate(sessionCardsProvider(widget.sessionId)),
+          ),
+          PopupMenuButton<_SessionMenu>(
+            onSelected: (item) {
+              if (item == _SessionMenu.endSession) {
+                _confirmEndSession(context);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _SessionMenu.endSession,
+                child: Row(
+                  children: [
+                    Icon(Icons.stop_circle_outlined),
+                    SizedBox(width: 8),
+                    Text('세션 종료'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -79,6 +100,43 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
         label: const Text('카드 추가'),
       ),
     );
+  }
+
+  Future<void> _confirmEndSession(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('세션 종료'),
+        content: const Text('세션을 종료하면 더 이상 카드를 추가하거나 수정할 수 없습니다.\n종료하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('종료'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(studySessionListStateProvider.notifier)
+          .endSession(widget.sessionId);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('세션이 종료되었습니다')),
+      );
+      context.pop();
+    } on Exception catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('오류: $e')),
+      );
+    }
   }
 
   void _showAddCardSheet(BuildContext context) {

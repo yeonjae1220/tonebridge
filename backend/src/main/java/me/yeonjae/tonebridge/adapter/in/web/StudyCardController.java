@@ -25,6 +25,7 @@ public class StudyCardController {
     private final GetStudyCardUseCase getCardUseCase;
     private final CreateStudyCardUseCase createCardUseCase;
     private final UploadNativeAudioUseCase uploadNativeAudioUseCase;
+    private final GetNativeAudioDownloadUrlUseCase getNativeAudioDownloadUrlUseCase;
     private final SubmitLearnerAttemptUseCase submitAttemptUseCase;
     private final AddCorrectionNoteUseCase addNoteUseCase;
 
@@ -54,6 +55,14 @@ public class StudyCardController {
         var result = uploadNativeAudioUseCase.getUploadUrl(
                 new UploadNativeAudioUseCase.GetUrlCommand(cardId, userId, dto.fileName()));
         return ResponseEntity.ok(Map.of("uploadUrl", result.uploadUrl(), "audioKey", result.audioKey()));
+    }
+
+    @GetMapping("/cards/{cardId}/native-audio")
+    public ResponseEntity<Map<String, String>> getNativeAudioDownloadUrl(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId) {
+        String downloadUrl = getNativeAudioDownloadUrlUseCase.getDownloadUrl(cardId, userId);
+        return ResponseEntity.ok(Map.of("downloadUrl", downloadUrl));
     }
 
     @PatchMapping("/cards/{cardId}/native-audio")

@@ -79,11 +79,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
   }
 
   Future<void> _playNativeAudio(StudyCard card) async {
-    final url = card.nativeAudioUrl;
-    if (url == null) return;
+    if (card.nativeAudioUrl == null) return;
     _nativePlayer ??= AudioPlayer();
     try {
-      await _nativePlayer!.setUrl(url);
+      final repo = ref.read(studySessionRepositoryProvider);
+      final downloadUrl = await repo.getNativeAudioDownloadUrl(card.id);
+      await _nativePlayer!.setUrl(downloadUrl);
       await _nativePlayer!.play();
     } catch (_) {}
   }

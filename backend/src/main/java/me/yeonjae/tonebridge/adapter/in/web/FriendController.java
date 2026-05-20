@@ -6,7 +6,9 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.FriendRequestResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.FriendResponse;
 import me.yeonjae.tonebridge.application.port.in.AcceptFriendRequestUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeclineFriendRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetFriendsUseCase;
+import me.yeonjae.tonebridge.application.port.in.RemoveFriendUseCase;
 import me.yeonjae.tonebridge.application.port.in.SendFriendRequestUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,8 @@ public class FriendController {
 
     private final SendFriendRequestUseCase sendUseCase;
     private final AcceptFriendRequestUseCase acceptUseCase;
+    private final DeclineFriendRequestUseCase declineUseCase;
+    private final RemoveFriendUseCase removeUseCase;
     private final GetFriendsUseCase getUseCase;
 
     @PostMapping("/request")
@@ -53,6 +57,22 @@ public class FriendController {
     public ResponseEntity<List<FriendRequestResponse>> getPending(@AuthenticationPrincipal UUID userId) {
         var pending = getUseCase.getPendingRequests(userId);
         return ResponseEntity.ok(pending.stream().map(FriendRequestResponse::fromPending).toList());
+    }
+
+    @DeleteMapping("/requests/{requestId}")
+    public ResponseEntity<Void> declineRequest(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID requestId) {
+        declineUseCase.decline(new DeclineFriendRequestUseCase.Command(requestId, userId));
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{friendId}")
+    public ResponseEntity<Void> removeFriend(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID friendId) {
+        removeUseCase.remove(new RemoveFriendUseCase.Command(userId, friendId));
+        return ResponseEntity.noContent().build();
     }
 
     record SendRequestDto(@NotBlank String receiverUsername) {}

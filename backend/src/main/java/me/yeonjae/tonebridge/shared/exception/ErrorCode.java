@@ -45,6 +45,7 @@ public enum ErrorCode {
     // Study Session
     SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "SESSION_001", "스터디 세션을 찾을 수 없습니다"),
     NOT_SESSION_MEMBER(HttpStatus.FORBIDDEN, "SESSION_002", "세션 멤버가 아닙니다"),
+    SESSION_ALREADY_ENDED(HttpStatus.CONFLICT, "SESSION_003", "이미 종료된 세션입니다"),
 
     // Study Card
     CARD_NOT_FOUND(HttpStatus.NOT_FOUND, "CARD_001", "학습 카드를 찾을 수 없습니다"),

@@ -12,4 +12,10 @@ public interface FriendPort {
     List<FriendRequest> findAcceptedByUserId(UUID userId);
     List<FriendRequest> findPendingByReceiverId(UUID receiverId);
     Optional<FriendRequest> findBySenderAndReceiver(UUID senderId, UUID receiverId);
+
+    /** Delete a friend request/relationship by its ID. */
+    void deleteById(UUID id);
+
+    /** Find the ACCEPTED relationship between two users (either direction). */
+    Optional<FriendRequest> findAcceptedBetween(UUID userId1, UUID userId2);
 }

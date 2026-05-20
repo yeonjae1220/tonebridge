@@ -5,4 +5,6 @@ abstract interface class FriendRepository {
   Future<List<FriendRequestItem>> getPendingRequests();
   Future<FriendRequestItem> sendRequest(String receiverUsername);
   Future<FriendRequestItem> acceptRequest(String requestId);
+  Future<void> declineRequest(String requestId);
+  Future<void> removeFriend(String friendId);
 }

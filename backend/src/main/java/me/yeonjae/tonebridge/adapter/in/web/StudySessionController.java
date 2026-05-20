@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudySessionResponse;
 import me.yeonjae.tonebridge.application.port.in.CreateStudySessionUseCase;
+import me.yeonjae.tonebridge.application.port.in.EndStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudyCardUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudySessionsUseCase;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ public class StudySessionController {
 
     private final CreateStudySessionUseCase createUseCase;
     private final GetStudySessionsUseCase getUseCase;
+    private final EndStudySessionUseCase endUseCase;
     private final GetStudyCardUseCase getCardUseCase;
 
     @PostMapping
@@ -46,6 +48,14 @@ public class StudySessionController {
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID sessionId) {
         var session = getUseCase.getSession(sessionId, userId);
+        return ResponseEntity.ok(StudySessionResponse.from(session));
+    }
+
+    @PatchMapping("/{sessionId}/end")
+    public ResponseEntity<StudySessionResponse> endSession(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID sessionId) {
+        var session = endUseCase.end(sessionId, userId);
         return ResponseEntity.ok(StudySessionResponse.from(session));
     }
 
