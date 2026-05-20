@@ -6,10 +6,12 @@ class CorrectionRequestCard extends StatelessWidget {
     super.key,
     required this.item,
     required this.onTap,
+    this.isVariantMatch = false,
   });
 
   final CorrectionRequestItem item;
   final VoidCallback onTap;
+  final bool isVariantMatch;
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +20,14 @@ class CorrectionRequestCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      shape: isVariantMatch
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                  width: 1.5),
+            )
+          : null,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

@@ -33,6 +33,11 @@ class AppShell extends StatelessWidget {
             selectedIcon: Icon(Icons.account_balance_wallet_rounded),
             label: '지갑',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline_rounded),
+            selectedIcon: Icon(Icons.people_rounded),
+            label: '스터디',
+          ),
         ],
       ),
     );

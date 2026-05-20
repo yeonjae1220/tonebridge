@@ -51,6 +51,39 @@ public class FirebaseAdminAdapter implements FcmNotificationPort {
         });
     }
 
+    @Override
+    public void sendNewStudyCard(UUID userId, UUID sessionId, String phrase) {
+        if (firebaseApp == null) return;
+        sendToUser(userId, builder -> builder
+                .putData("type", "NEW_STUDY_CARD")
+                .putData("sessionId", sessionId.toString())
+                .putData("phrase", phrase));
+    }
+
+    @Override
+    public void sendCorrectionNoteAdded(UUID userId, UUID cardId, String senderUsername) {
+        if (firebaseApp == null) return;
+        sendToUser(userId, builder -> builder
+                .putData("type", "CORRECTION_NOTE_ADDED")
+                .putData("cardId", cardId.toString())
+                .putData("senderUsername", senderUsername));
+    }
+
+    private void sendToUser(UUID userId, java.util.function.Consumer<Message.Builder> configurer) {
+        fcmTokenPort.findByUserId(userId).ifPresent(fcmToken -> {
+            Message.Builder builder = Message.builder().setToken(fcmToken.token());
+            configurer.accept(builder);
+            try {
+                FirebaseMessaging.getInstance(firebaseApp).send(builder.build());
+            } catch (FirebaseMessagingException e) {
+                log.warn("FCM send failed for userId={}: {}", userId, e.getMessage());
+                if (isTokenInvalid(e)) {
+                    fcmTokenPort.deleteByToken(fcmToken.token());
+                }
+            }
+        });
+    }
+
     private boolean isTokenInvalid(FirebaseMessagingException e) {
         MessagingErrorCode code = e.getMessagingErrorCode();
         return code == MessagingErrorCode.UNREGISTERED

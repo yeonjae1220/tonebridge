@@ -1,16 +1,100 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/features/correction/domain/model/correction_item.dart';
 import 'package:tonebridge/features/correction/presentation/correction_provider.dart';
+import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
+import 'package:tonebridge/features/feed/presentation/feed_provider.dart';
+import 'package:tonebridge/features/notification/sse_notification_service.dart';
 
-class ResultPage extends ConsumerWidget {
+class ResultPage extends ConsumerStatefulWidget {
   const ResultPage({super.key, required this.requestId});
   final String requestId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final resultAsync = ref.watch(correctionResultProvider(requestId));
+  ConsumerState<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends ConsumerState<ResultPage> {
+  StreamSubscription<SseEvent>? _sseSub;
+
+  // Original audio playback
+  AudioPlayer? _originalPlayer;
+  bool _originalReady = false;
+  bool _originalPlaying = false;
+  Duration _originalPosition = Duration.zero;
+  Duration _originalDuration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectSse();
+  }
+
+  void _connectSse() {
+    final sseService = ref.read(sseNotificationServiceProvider);
+    _sseSub = sseService.stream.listen((event) {
+      if (event.type == 'correction-ready') {
+        // Invalidate to trigger refetch
+        ref.invalidate(correctionResultProvider(widget.requestId));
+        ref.invalidate(myRequestsStateProvider);
+      }
+    });
+  }
+
+  Future<void> _loadOriginalAudio(String audioKey) async {
+    if (_originalPlayer != null) return;
+    try {
+      final res = await ref.read(dioProvider).get<Map<String, dynamic>>(
+        '/api/storage/presigned-download',
+        queryParameters: {'key': audioKey},
+      );
+      final url = res.data!['downloadUrl'] as String;
+      _originalPlayer = AudioPlayer();
+      await _originalPlayer!.setUrl(url);
+      _originalPlayer!.durationStream.listen((d) {
+        if (mounted && d != null) setState(() => _originalDuration = d);
+      });
+      _originalPlayer!.positionStream.listen((p) {
+        if (mounted) setState(() => _originalPosition = p);
+      });
+      _originalPlayer!.playingStream.listen((playing) {
+        if (mounted) setState(() => _originalPlaying = playing);
+      });
+      if (mounted) setState(() => _originalReady = true);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _sseSub?.cancel();
+    _originalPlayer?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final resultAsync = ref.watch(correctionResultProvider(widget.requestId));
+
+    // Resolve the original request from feed/my-requests
+    final feedAsync = ref.watch(feedStateProvider);
+    final myAsync = ref.watch(myRequestsStateProvider);
+    CorrectionRequestItem? request;
+    feedAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+    myAsync.whenData((List<CorrectionRequestItem> items) {
+      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
+    });
+
+    final isAudio = request?.type == 'AUDIO';
+    if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
+      _loadOriginalAudio(request!.audioUrl!);
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('교정 결과')),
@@ -27,55 +111,240 @@ class ResultPage extends ConsumerWidget {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () =>
-                    ref.invalidate(correctionResultProvider(requestId)),
+                    ref.invalidate(correctionResultProvider(widget.requestId)),
                 child: const Text('다시 시도'),
               ),
             ],
           ),
         ),
-        data: (corrections) {
-          if (corrections.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.hourglass_top_rounded,
-                      size: 56, color: theme.colorScheme.outline),
-                  const SizedBox(height: 16),
-                  Text(
-                    '아직 교정 결과가 없습니다.\n교정자가 답변을 준비 중입니다.',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: corrections.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _CorrectionCard(
-              correction: corrections[index],
+        data: (corrections) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // ── 원문 ──
+            _OriginalCard(
+              request: request,
+              isAudio: isAudio,
+              ready: _originalReady,
+              playing: _originalPlaying,
+              position: _originalPosition,
+              duration: _originalDuration,
+              onToggle: () {
+                if (_originalPlaying) {
+                  _originalPlayer?.pause();
+                } else {
+                  _originalPlayer?.play();
+                }
+              },
             ),
-          );
-        },
+            const SizedBox(height: 16),
+
+            // ── 교정 결과 목록 ──
+            if (corrections.isEmpty) ...[
+              _EmptyWaitCard(theme: theme),
+            ] else ...[
+              ...corrections.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CorrectionCard(
+                      correction: c,
+                      isAudioRequest: isAudio,
+                      onRate: (helpful) => ref
+                          .read(ratingStateProvider(c.id).notifier)
+                          .rate(helpful: helpful),
+                    ),
+                  )),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CorrectionCard extends ConsumerWidget {
-  const _CorrectionCard({required this.correction});
-  final CorrectionItem correction;
+// ── Sub-widgets ──────────────────────────────────────────────────────────────
+
+class _OriginalCard extends StatelessWidget {
+  const _OriginalCard({
+    required this.request,
+    required this.isAudio,
+    required this.ready,
+    required this.playing,
+    required this.position,
+    required this.duration,
+    required this.onToggle,
+  });
+
+  final CorrectionRequestItem? request;
+  final bool isAudio;
+  final bool ready;
+  final bool playing;
+  final Duration position;
+  final Duration duration;
+  final VoidCallback onToggle;
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ratingAsync = ref.watch(ratingStateProvider(correction.id));
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: theme.colorScheme.tertiary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '내 원문',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.tertiary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (isAudio) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('음성',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.tertiary)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (isAudio) ...[
+            Row(
+              children: [
+                FilledButton.tonal(
+                  onPressed: ready ? onToggle : null,
+                  child: Icon(
+                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${_fmt(position)} / ${_fmt(duration)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Text(
+              request?.contentText ?? '...',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyWaitCard extends StatelessWidget {
+  const _EmptyWaitCard({required this.theme});
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.hourglass_top_rounded,
+                size: 48, color: theme.colorScheme.outline),
+            const SizedBox(height: 12),
+            Text('첨삭 대기 중',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('원어민이 첨삭하면 알림이 옵니다',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.outline)),
+          ],
+        ),
+      );
+}
+
+class _CorrectionCard extends StatefulWidget {
+  const _CorrectionCard({
+    required this.correction,
+    required this.isAudioRequest,
+    required this.onRate,
+  });
+
+  final CorrectionItem correction;
+  final bool isAudioRequest;
+  final ValueChanged<bool> onRate;
+
+  @override
+  State<_CorrectionCard> createState() => _CorrectionCardState();
+}
+
+class _CorrectionCardState extends State<_CorrectionCard> {
+  AudioPlayer? _refPlayer;
+  bool _refReady = false;
+  bool _refPlaying = false;
+
+  @override
+  void dispose() {
+    _refPlayer?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRefAudio(BuildContext context, String key) async {
+    if (_refPlayer != null) return;
+    try {
+      final dio = ProviderScope.containerOf(context).read(dioProvider);
+      final res = await dio.get<Map<String, dynamic>>(
+        '/api/storage/presigned-download',
+        queryParameters: {'key': key},
+      );
+      final url = res.data!['downloadUrl'] as String;
+      _refPlayer = AudioPlayer();
+      await _refPlayer!.setUrl(url);
+      _refPlayer!.playingStream.listen((p) {
+        if (mounted) setState(() => _refPlaying = p);
+      });
+      if (mounted) setState(() => _refReady = true);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = widget.correction;
+
+    if (c.referenceAudioUrl != null && _refPlayer == null) {
+      _loadRefAudio(context, c.referenceAudioUrl!);
+    }
+
+    final (statusLabel, statusColor) = switch (c.status) {
+      'APPROVED' => ('승인됨', theme.colorScheme.primary),
+      'REJECTED' => ('반려됨', theme.colorScheme.error),
+      _ => ('검토중', theme.colorScheme.outline),
+    };
 
     return Card(
       child: Padding(
@@ -83,9 +352,10 @@ class _CorrectionCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
               children: [
-                if (correction.isAi)
+                if (c.isAi)
                   _Badge(
                     label: 'AI 교정',
                     color: theme.colorScheme.tertiaryContainer,
@@ -98,39 +368,101 @@ class _CorrectionCard extends ConsumerWidget {
                     textColor: theme.colorScheme.onPrimaryContainer,
                   ),
                 const Spacer(),
-                _StatusBadge(status: correction.status),
+                Text(statusLabel,
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: statusColor)),
               ],
             ),
-            if (correction.correctedText != null) ...[
-              const SizedBox(height: 12),
-              Text('교정된 표현',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: theme.colorScheme.outline)),
-              const SizedBox(height: 4),
-              Text(correction.correctedText!,
-                  style: theme.textTheme.bodyMedium),
-            ],
-            if (correction.explanation?.isNotEmpty ?? false) ...[
-              const SizedBox(height: 12),
-              Text('설명',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: theme.colorScheme.outline)),
-              const SizedBox(height: 4),
-              Text(correction.explanation!, style: theme.textTheme.bodyMedium),
-            ],
-            if (_hasScores(correction)) ...[
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
+
+            // Scores (audio)
+            if (_hasScores(c)) ...[
               _ScoreRow(
-                pronunciation: correction.pronunciationScore,
-                intonation: correction.intonationScore,
-                fluency: correction.fluencyScore,
+                pronunciation: c.pronunciationScore,
+                intonation: c.intonationScore,
+                fluency: c.fluencyScore,
               ),
+              const SizedBox(height: 12),
             ],
-            if (correction.tags.isNotEmpty) ...[
-              const SizedBox(height: 10),
+
+            // Timestamp comments (audio)
+            if (c.timestampComments.isNotEmpty) ...[
+              Text('구간 코멘트',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(color: theme.colorScheme.outline)),
+              const SizedBox(height: 6),
+              ...c.timestampComments.map((tc) => _TimestampRow(tc: tc)),
+              const SizedBox(height: 12),
+            ],
+
+            // Reference audio
+            if (c.referenceAudioUrl != null) ...[
+              Text('원어민 재녹음',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              FilledButton.tonal(
+                onPressed: _refReady
+                    ? () {
+                        if (_refPlaying) {
+                          _refPlayer?.pause();
+                        } else {
+                          _refPlayer?.play();
+                        }
+                      }
+                    : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_refPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded),
+                    const SizedBox(width: 8),
+                    Text(_refPlaying ? '일시정지' : '재생'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Corrected text (text requests)
+            if (!widget.isAudioRequest && c.correctedText != null) ...[
+              Text('수정 문장',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child:
+                    Text(c.correctedText!, style: theme.textTheme.bodyMedium),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Explanation
+            if (c.explanation?.isNotEmpty ?? false) ...[
+              Text('설명',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(c.explanation!, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 12),
+            ],
+
+            // Tags
+            if (c.tags.isNotEmpty) ...[
               Wrap(
                 spacing: 6,
-                children: correction.tags
+                runSpacing: 4,
+                children: c.tags
                     .map((t) => Chip(
                           label: Text(t),
                           materialTapTargetSize:
@@ -139,33 +471,27 @@ class _CorrectionCard extends ConsumerWidget {
                         ))
                     .toList(),
               ),
+              const SizedBox(height: 12),
             ],
-            if (correction.status == 'APPROVED') ...[
-              const SizedBox(height: 16),
+
+            // Rating
+            if (c.status == 'APPROVED') ...[
               const Divider(),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('이 교정이 도움이 됐나요?',
-                      style: theme.textTheme.bodySmall),
-                  const SizedBox(width: 12),
+                  Text('이 첨삭이 도움이 됐나요?', style: theme.textTheme.bodySmall),
+                  const Spacer(),
                   IconButton.filledTonal(
-                    onPressed: ratingAsync.isLoading
-                        ? null
-                        : () => ref
-                            .read(ratingStateProvider(correction.id).notifier)
-                            .rate(helpful: true),
-                    icon: const Icon(Icons.thumb_up_rounded, size: 20),
+                    onPressed: () => widget.onRate(true),
+                    icon: const Icon(Icons.thumb_up_rounded, size: 18),
+                    visualDensity: VisualDensity.compact,
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed: ratingAsync.isLoading
-                        ? null
-                        : () => ref
-                            .read(ratingStateProvider(correction.id).notifier)
-                            .rate(helpful: false),
-                    icon: const Icon(Icons.thumb_down_rounded, size: 20),
+                    onPressed: () => widget.onRate(false),
+                    icon: const Icon(Icons.thumb_down_rounded, size: 18),
+                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
@@ -182,11 +508,52 @@ class _CorrectionCard extends ConsumerWidget {
       c.fluencyScore != null;
 }
 
+class _TimestampRow extends StatelessWidget {
+  const _TimestampRow({required this.tc});
+  final TimestampComment tc;
+
+  String _fmt(int ms) {
+    final d = Duration(milliseconds: ms);
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _fmt(tc.offsetMs),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (tc.category.isNotEmpty)
+            Chip(
+              label: Text(tc.category),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(tc.comment, style: theme.textTheme.bodySmall),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Badge extends StatelessWidget {
   const _Badge(
-      {required this.label,
-      required this.color,
-      required this.textColor});
+      {required this.label, required this.color, required this.textColor});
   final String label;
   final Color color;
   final Color textColor;
@@ -208,26 +575,6 @@ class _Badge extends StatelessWidget {
       );
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (label, color) = switch (status) {
-      'APPROVED' => ('승인됨', theme.colorScheme.primary),
-      'REJECTED' => ('반려됨', theme.colorScheme.error),
-      _ => ('검토중', theme.colorScheme.outline),
-    };
-    return Text(
-      label,
-      style:
-          theme.textTheme.labelSmall?.copyWith(color: color),
-    );
-  }
-}
-
 class _ScoreRow extends StatelessWidget {
   const _ScoreRow({this.pronunciation, this.intonation, this.fluency});
   final int? pronunciation;
@@ -240,18 +587,18 @@ class _ScoreRow extends StatelessWidget {
     return Row(
       children: [
         if (pronunciation != null)
-          _ScoreItem(label: '발음', score: pronunciation!, theme: theme),
+          _ScoreChip(label: '발음', score: pronunciation!, theme: theme),
         if (intonation != null)
-          _ScoreItem(label: '억양', score: intonation!, theme: theme),
+          _ScoreChip(label: '억양', score: intonation!, theme: theme),
         if (fluency != null)
-          _ScoreItem(label: '유창성', score: fluency!, theme: theme),
+          _ScoreChip(label: '이해도', score: fluency!, theme: theme),
       ],
     );
   }
 }
 
-class _ScoreItem extends StatelessWidget {
-  const _ScoreItem(
+class _ScoreChip extends StatelessWidget {
+  const _ScoreChip(
       {required this.label, required this.score, required this.theme});
   final String label;
   final int score;
@@ -259,13 +606,15 @@ class _ScoreItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.only(right: 12),
         child: Column(
           children: [
-            Text('$score/10',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold)),
+            Text(
+              '$score/10',
+              style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold),
+            ),
             Text(label, style: theme.textTheme.labelSmall),
           ],
         ),

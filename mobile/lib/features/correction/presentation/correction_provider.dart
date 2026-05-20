@@ -4,6 +4,24 @@ import 'package:tonebridge/features/correction/domain/model/correction_item.dart
 
 part 'correction_provider.g.dart';
 
+class TimestampCommentInput {
+  const TimestampCommentInput({
+    required this.offsetMs,
+    required this.comment,
+    required this.category,
+  });
+
+  final int offsetMs;
+  final String comment;
+  final String category;
+
+  TimestampComment toModel() => TimestampComment(
+        offsetMs: offsetMs,
+        comment: comment,
+        category: category,
+      );
+}
+
 @riverpod
 Future<List<CorrectionItem>> correctionResult(
   Ref ref,
@@ -21,9 +39,11 @@ class SubmitCorrectionState extends _$SubmitCorrectionState {
     String? correctedText,
     required String explanation,
     List<String> tags = const [],
+    List<TimestampCommentInput> timestampComments = const [],
     int? pronunciationScore,
     int? intonationScore,
     int? fluencyScore,
+    String? referenceAudioUrl,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
@@ -32,9 +52,12 @@ class SubmitCorrectionState extends _$SubmitCorrectionState {
             correctedText: correctedText,
             explanation: explanation,
             tags: tags,
+            timestampComments:
+                timestampComments.map((t) => t.toModel()).toList(),
             pronunciationScore: pronunciationScore,
             intonationScore: intonationScore,
             fluencyScore: fluencyScore,
+            referenceAudioUrl: referenceAudioUrl,
           ),
     );
   }

@@ -14,6 +14,10 @@ import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/presentation/language_edit_page.dart';
 import 'package:tonebridge/features/profile/presentation/profile_page.dart';
 import 'package:tonebridge/features/request/presentation/request_page.dart';
+import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
+import 'package:tonebridge/features/study_session/presentation/card_detail_page.dart';
+import 'package:tonebridge/features/study_session/presentation/session_detail_page.dart';
+import 'package:tonebridge/features/study_session/presentation/study_page.dart';
 import 'package:tonebridge/features/wallet/presentation/wallet_page.dart';
 
 part 'app_router.g.dart';
@@ -26,9 +30,13 @@ abstract final class AppRoute {
   static const String profile = '/profile';
   static const String languageEdit = '/profile/language-edit';
   static const String wallet = '/wallet';
+  static const String study = '/study';
 
   static String correct(String requestId) => '/correct/$requestId';
   static String result(String requestId) => '/result/$requestId';
+  static String sessionDetail(String sessionId) => '/study/$sessionId';
+  static String cardDetail(String sessionId, String cardId) =>
+      '/study/$sessionId/cards/$cardId';
 }
 
 class _AuthStateListenable extends ChangeNotifier {
@@ -145,6 +153,34 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoute.wallet,
                 builder: (context, state) => const WalletPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.study,
+                builder: (context, state) => const StudyPage(),
+                routes: [
+                  GoRoute(
+                    path: ':sessionId',
+                    builder: (context, state) => SessionDetailPage(
+                      sessionId: state.pathParameters['sessionId']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'cards/:cardId',
+                        builder: (context, state) => CardDetailPage(
+                          cardId: state.pathParameters['cardId']!,
+                          sessionId: state.pathParameters['sessionId']!,
+                          initialCard: state.extra is StudyCard
+                              ? state.extra as StudyCard
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

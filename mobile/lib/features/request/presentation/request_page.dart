@@ -2,8 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/router/app_router.dart';
+import 'package:tonebridge/core/services/audio_recorder_service.dart';
+import 'package:tonebridge/core/services/presigned_upload_service.dart';
+import 'package:tonebridge/core/widgets/language_picker/language_picker.dart';
 import 'package:tonebridge/features/request/presentation/request_provider.dart';
+import 'package:just_audio/just_audio.dart';
+
+const _kFeedbackGoals = [
+  '발음',
+  '문법',
+  '자연스러움',
+  '억양',
+  '캐주얼',
+  '비즈니스',
+];
 
 class RequestPage extends ConsumerStatefulWidget {
   const RequestPage({super.key});
@@ -17,25 +31,31 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   final _textController = TextEditingController();
   final _contextController = TextEditingController();
 
-  String _targetLanguage = 'English';
+  String _targetLanguage = '';
   String? _targetVariant;
   final List<String> _feedbackGoals = [];
   bool _isAudio = false;
+  bool _uploading = false;
 
-  static const _languages = [
-    'English', 'Japanese', 'Chinese', 'French', 'Spanish',
-    'German', 'Korean', 'Portuguese',
-  ];
+  late final AudioRecorderService _recorder;
+  AudioPlayer? _playbackPlayer;
 
-  static const _goals = [
-    '자연스러운 표현', '문법 교정', '발음 피드백',
-    '억양 교정', '어휘 선택', '격식체/비격식체',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _recorder = AudioRecorderService();
+    _recorder.addListener(_onRecorderChange);
+  }
+
+  void _onRecorderChange() => setState(() {});
 
   @override
   void dispose() {
     _textController.dispose();
     _contextController.dispose();
+    _recorder.removeListener(_onRecorderChange);
+    _recorder.dispose();
+    _playbackPlayer?.dispose();
     super.dispose();
   }
 
@@ -43,13 +63,13 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final requestAsync = ref.watch(requestStateProvider);
-    final isLoading = requestAsync.isLoading;
+    final isLoading = requestAsync.isLoading || _uploading;
 
     ref.listen(requestStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('요청 제출에 실패했습니다.'),
+            content: Text(next.error.toString()),
             backgroundColor: theme.colorScheme.error,
           ),
         );
@@ -72,158 +92,262 @@ class _RequestPageState extends ConsumerState<RequestPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _SectionLabel(label: '언어 선택'),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _targetLanguage,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: '교정받을 언어',
+            // ── 요청 유형 탭 ──
+            _SegmentRow(
+              isAudio: _isAudio,
+              onChanged: (v) => setState(() {
+                _isAudio = v;
+                _recorder.reset();
+              }),
+            ),
+            const SizedBox(height: 24),
+
+            // ── 언어 선택 ──
+            _SectionCard(
+              label: '교정 언어',
+              child: LanguagePicker(
+                value: _targetLanguage,
+                variant: _targetVariant,
+                onChanged: (code) => setState(() {
+                  _targetLanguage = code;
+                  _targetVariant = null;
+                }),
+                onVariantChanged: (v) => setState(() => _targetVariant = v),
+                showDialect: true,
+                dio: ref.read(dioProvider),
               ),
-              items: _languages
-                  .map((l) => DropdownMenuItem(value: l, child: Text(l)))
-                  .toList(),
-              onChanged: (v) => setState(() => _targetLanguage = v!),
             ),
-            const SizedBox(height: 24),
-            _SectionLabel(label: '요청 유형'),
-            const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                  value: false,
-                  icon: Icon(Icons.text_fields_rounded),
-                  label: Text('텍스트'),
-                ),
-                ButtonSegment(
-                  value: true,
-                  icon: Icon(Icons.mic_rounded),
-                  label: Text('음성'),
-                ),
-              ],
-              selected: {_isAudio},
-              onSelectionChanged: (s) => setState(() => _isAudio = s.first),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // ── 내용 ──
             if (!_isAudio) ...[
-              _SectionLabel(label: '교정받을 내용'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _textController,
-                minLines: 4,
-                maxLines: 8,
-                maxLength: 1000,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: '교정받고 싶은 문장을 입력하세요',
+              _SectionCard(
+                label: '교정받을 내용',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _textController,
+                      minLines: 4,
+                      maxLines: 8,
+                      maxLength: 1000,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '교정받고 싶은 문장을 입력하세요',
+                      ),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? '내용을 입력해주세요' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _contextController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '문맥 (선택) — 예: 일본 회사에 이메일을 보낼 때...',
+                      ),
+                    ),
+                  ],
                 ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return '내용을 입력해주세요';
-                  return null;
-                },
               ),
             ] else ...[
-              _AudioRecordSection(),
+              _SectionCard(
+                label: '음성 녹음',
+                child: Column(
+                  children: [
+                    _AudioRecorderWidget(
+                      recorder: _recorder,
+                      onStart: _startRecording,
+                      onPlayback: _startPlayback,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _contextController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '문맥 (선택) — 예: 일본 친구에게 전화할 때...',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
-            const SizedBox(height: 24),
-            _SectionLabel(label: '컨텍스트 (선택)'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _contextController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: '상황이나 배경을 설명해주세요 (선택사항)',
+            const SizedBox(height: 16),
+
+            // ── 피드백 목표 ──
+            _SectionCard(
+              label: '피드백 목표 (선택)',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _kFeedbackGoals.map((g) {
+                  final selected = _feedbackGoals.contains(g);
+                  return FilterChip(
+                    label: Text(g),
+                    selected: selected,
+                    onSelected: (v) => setState(() {
+                      if (v) {
+                        _feedbackGoals.add(g);
+                      } else {
+                        _feedbackGoals.remove(g);
+                      }
+                    }),
+                  );
+                }).toList(),
               ),
             ),
-            const SizedBox(height: 24),
-            _SectionLabel(label: '피드백 목표 (선택)'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _goals.map((g) {
-                final selected = _feedbackGoals.contains(g);
-                return FilterChip(
-                  label: Text(g),
-                  selected: selected,
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _feedbackGoals.add(g);
-                    } else {
-                      _feedbackGoals.remove(g);
-                    }
-                  }),
-                );
-              }).toList(),
+            const SizedBox(height: 16),
+
+            // ── 크레딧 비용 ──
+            _CreditBanner(isAudio: _isAudio),
+            const SizedBox(height: 20),
+
+            // ── 제출 ──
+            FilledButton(
+              onPressed: isLoading
+                  ? null
+                  : _canSubmit
+                      ? _submit
+                      : null,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('교정 요청 제출'),
             ),
             const SizedBox(height: 32),
-            _CreditCostBanner(isAudio: _isAudio),
-            const SizedBox(height: 16),
-            if (_isAudio)
-              OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.mic_off_rounded),
-                label: const Text('음성 요청 기능 준비 중'),
-              )
-            else
-              FilledButton(
-                onPressed: isLoading ? null : _submit,
-                child: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('교정 요청 제출'),
-              ),
           ],
         ),
       ),
     );
   }
 
-  void _submit() {
+  bool get _canSubmit {
+    if (_targetLanguage.isEmpty) return false;
+    if (_isAudio) return _recorder.state == RecorderState.stopped;
+    return _textController.text.trim().isNotEmpty;
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final context = _contextController.text.trim();
+
     if (_isAudio) {
-      // 음성 요청은 AudioRecordSection에서 직접 처리
-      return;
-    }
-    ref.read(requestStateProvider.notifier).submitText(
-          targetLanguage: _targetLanguage,
-          targetVariant: _targetVariant,
-          contentText: _textController.text.trim(),
-          context: _contextController.text.trim().isEmpty
-              ? null
-              : _contextController.text.trim(),
-          feedbackGoals: List.from(_feedbackGoals),
+      final file = _recorder.file;
+      if (file == null) return;
+      setState(() => _uploading = true);
+      try {
+        final uploader = PresignedUploadService(dio: ref.read(dioProvider));
+        final key = await uploader.upload(
+          file: file,
+          fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.aac',
         );
+        await ref.read(requestStateProvider.notifier).submitAudio(
+              targetLanguage: _targetLanguage,
+              targetVariant: _targetVariant,
+              audioKey: key,
+              context: context.isEmpty ? null : context,
+              feedbackGoals: List.from(_feedbackGoals),
+            );
+      } finally {
+        if (mounted) setState(() => _uploading = false);
+      }
+    } else {
+      ref.read(requestStateProvider.notifier).submitText(
+            targetLanguage: _targetLanguage,
+            targetVariant: _targetVariant,
+            contentText: _textController.text.trim(),
+            context: context.isEmpty ? null : context,
+            feedbackGoals: List.from(_feedbackGoals),
+          );
+    }
+  }
+
+  Future<void> _startPlayback() async {
+    final path = _recorder.filePath;
+    if (path == null) return;
+    _playbackPlayer?.dispose();
+    _playbackPlayer = AudioPlayer();
+    await _playbackPlayer!.setFilePath(path);
+    await _playbackPlayer!.play();
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      await _recorder.start();
+    } on RecorderPermissionException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
+// ── Sub-widgets ─────────────────────────────────────────────────────────────
+
+class _SegmentRow extends StatelessWidget {
+  const _SegmentRow({required this.isAudio, required this.onChanged});
+  final bool isAudio;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+    return SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment(
+          value: false,
+          icon: Icon(Icons.text_fields_rounded),
+          label: Text('텍스트'),
+        ),
+        ButtonSegment(
+          value: true,
+          icon: Icon(Icons.mic_rounded),
+          label: Text('음성'),
+        ),
+      ],
+      selected: {isAudio},
+      onSelectionChanged: (s) => onChanged(s.first),
     );
   }
 }
 
-class _CreditCostBanner extends StatelessWidget {
-  const _CreditCostBanner({required this.isAudio});
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        child,
+      ],
+    );
+  }
+}
+
+class _CreditBanner extends StatelessWidget {
+  const _CreditBanner({required this.isAudio});
   final bool isAudio;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cost = isAudio ? AppConfig.audioRequestCost : AppConfig.textRequestCost;
+    final cost =
+        isAudio ? AppConfig.audioRequestCost : AppConfig.textRequestCost;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -247,26 +371,169 @@ class _CreditCostBanner extends StatelessWidget {
   }
 }
 
-class _AudioRecordSection extends StatelessWidget {
+class _AudioRecorderWidget extends StatelessWidget {
+  const _AudioRecorderWidget({
+    required this.recorder,
+    required this.onStart,
+    required this.onPlayback,
+  });
+
+  final AudioRecorderService recorder;
+  final Future<void> Function() onStart;
+  final VoidCallback onPlayback;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.mic_rounded, size: 40, color: theme.colorScheme.primary),
-            const SizedBox(height: 8),
-            Text('음성 녹음 기능 준비 중', style: theme.textTheme.bodyMedium),
-          ],
+
+    return switch (recorder.state) {
+      RecorderState.idle => _RecordButton(
+          onTap: onStart,
+          theme: theme,
         ),
-      ),
-    );
+      RecorderState.recording => _RecordingIndicator(
+          duration: recorder.formattedDuration,
+          onStop: () => recorder.stop(),
+          theme: theme,
+        ),
+      RecorderState.stopped => _RecordingStopped(
+          duration: recorder.formattedDuration,
+          onPlayback: onPlayback,
+          onReset: () => recorder.reset(),
+          theme: theme,
+        ),
+    };
   }
+}
+
+class _RecordButton extends StatelessWidget {
+  const _RecordButton({required this.onTap, required this.theme});
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.error,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.error.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(Icons.mic_rounded,
+                color: theme.colorScheme.onError, size: 32),
+          ),
+        ),
+      );
+}
+
+class _RecordingIndicator extends StatelessWidget {
+  const _RecordingIndicator({
+    required this.duration,
+    required this.onStop,
+    required this.theme,
+  });
+  final String duration;
+  final VoidCallback onStop;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          GestureDetector(
+            onTap: onStop,
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.stop_rounded,
+                  color: theme.colorScheme.onError, size: 32),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(duration,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text('녹음 중',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+            ],
+          ),
+        ],
+      );
+}
+
+class _RecordingStopped extends StatelessWidget {
+  const _RecordingStopped({
+    required this.duration,
+    required this.onPlayback,
+    required this.onReset,
+    required this.theme,
+  });
+  final String duration;
+  final VoidCallback onPlayback;
+  final VoidCallback onReset;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.audio_file_rounded,
+                    color: theme.colorScheme.secondary),
+                const SizedBox(width: 12),
+                Text(duration,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    )),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  onPressed: onPlayback,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onReset,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('다시 녹음'),
+          ),
+        ],
+      );
 }

@@ -32,6 +32,7 @@ abstract class TimestampComment with _$TimestampComment {
   const factory TimestampComment({
     required int offsetMs,
     required String comment,
+    @Default('') String category,
   }) = _TimestampComment;
 
   factory TimestampComment.fromJson(Map<String, dynamic> json) =>
