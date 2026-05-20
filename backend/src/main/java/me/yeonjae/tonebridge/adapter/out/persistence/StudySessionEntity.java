@@ -44,6 +44,11 @@ public class StudySessionEntity {
         if (status == null) status = SessionStatus.ACTIVE;
     }
 
+    /** Mutate status in-place for update operations (preserves the members collection). */
+    public void updateStatus(SessionStatus newStatus) {
+        this.status = newStatus;
+    }
+
     public StudySession toDomain() {
         List<UUID> memberIds = members.stream().map(SessionMemberEntity::getUserId).toList();
         return new StudySession(id, title, createdBy, memberIds, status, createdAt);

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.CreateStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.EndStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudySessionsUseCase;
+import me.yeonjae.tonebridge.application.port.out.FriendPort;
 import me.yeonjae.tonebridge.application.port.out.StudySessionPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
 import me.yeonjae.tonebridge.domain.session.SessionStatus;
@@ -23,11 +24,16 @@ public class StudySessionService implements CreateStudySessionUseCase, GetStudyS
 
     private final StudySessionPort sessionPort;
     private final UserPort userPort;
+    private final FriendPort friendPort;
 
     @Override
     public StudySession create(CreateStudySessionUseCase.Command command) {
         userPort.findById(command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
+
+        // Ensure the two users are actually friends before creating a shared session
+        friendPort.findAcceptedBetween(command.creatorId(), command.friendId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.NOT_FRIENDS));
 
         StudySession newSession = new StudySession(
                 null,

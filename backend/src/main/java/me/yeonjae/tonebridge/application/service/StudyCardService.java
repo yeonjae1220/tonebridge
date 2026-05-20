@@ -6,6 +6,7 @@ import me.yeonjae.tonebridge.application.port.out.*;
 import me.yeonjae.tonebridge.domain.session.StudySession;
 import me.yeonjae.tonebridge.domain.studycard.LearnerAttempt;
 import me.yeonjae.tonebridge.domain.studycard.StudyCard;
+import me.yeonjae.tonebridge.domain.user.User;
 import me.yeonjae.tonebridge.shared.event.CorrectionNoteAddedEvent;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
@@ -15,7 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -51,11 +55,14 @@ public class StudyCardService implements
     @Transactional(readOnly = true)
     public List<StudyCard> getCards(UUID sessionId, UUID requesterId) {
         requireMember(sessionId, requesterId);
-        return cardPort.findBySessionId(sessionId).stream()
-                .map(card -> {
-                    LearnerAttempt latest = attemptPort.findLatestByCardId(card.id()).orElse(null);
-                    return card.withLatestAttempt(latest);
-                })
+        List<StudyCard> cards = cardPort.findBySessionId(sessionId);
+
+        // Batch-fetch the latest attempt for all cards in a single query (avoids N+1)
+        Set<UUID> cardIds = cards.stream().map(StudyCard::id).collect(Collectors.toSet());
+        Map<UUID, LearnerAttempt> latestAttempts = attemptPort.findLatestByCardIds(cardIds);
+
+        return cards.stream()
+                .map(card -> card.withLatestAttempt(latestAttempts.get(card.id())))
                 .toList();
     }
 
@@ -154,7 +161,7 @@ public class StudyCardService implements
         LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score()));
 
         String reviewerUsername = userPort.findById(command.reviewerId())
-                .map(u -> u.username()).orElse("파트너");
+                .map(User::username).orElse("파트너");
         eventPublisher.publishEvent(
                 new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername));
 

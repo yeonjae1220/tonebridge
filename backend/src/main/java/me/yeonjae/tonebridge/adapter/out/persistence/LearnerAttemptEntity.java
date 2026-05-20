@@ -1,7 +1,10 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import me.yeonjae.tonebridge.domain.studycard.LearnerAttempt;
 
 import java.time.Instant;
@@ -10,7 +13,6 @@ import java.util.UUID;
 @Entity
 @Table(name = "learner_attempts")
 @Getter
-@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

@@ -8,6 +8,7 @@ import me.yeonjae.tonebridge.application.port.out.StoragePort;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/storage")
+@Validated
 @RequiredArgsConstructor
 public class StorageController {
 
@@ -59,7 +61,7 @@ public class StorageController {
     @GetMapping("/presigned-download")
     public ResponseEntity<PresignedDownloadResponse> presignedDownload(
             @AuthenticationPrincipal UUID userId,
-            @RequestParam String key) {
+            @RequestParam @NotBlank String key) {
         validateAccessUseCase.validate(userId, key);
         Duration ttl = Duration.ofMinutes(properties.getStorage().getDownloadTtlMinutes());
         String downloadUrl = storagePort.generatePresignedDownloadUrl(key, ttl);

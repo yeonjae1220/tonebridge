@@ -14,17 +14,34 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class CorrectionNotificationListener {
 
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 1_000;
+
     private final FcmNotificationPort fcmNotificationPort;
 
-    @Async
+    @Async("fcmNotificationExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCorrectionNoteAdded(CorrectionNoteAddedEvent event) {
-        try {
-            fcmNotificationPort.sendCorrectionNoteAdded(
-                    event.learnerId(), event.sessionId(), event.cardId(), event.reviewerUsername());
-        } catch (Exception e) {
-            log.warn("FCM notification failed for correction note: cardId={}, learnerId={}",
-                    event.cardId(), event.learnerId(), e);
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                fcmNotificationPort.sendCorrectionNoteAdded(
+                        event.learnerId(), event.sessionId(), event.cardId(), event.reviewerUsername());
+                return; // success
+            } catch (Exception e) {
+                log.warn("FCM notification attempt {}/{} failed: cardId={}, learnerId={}",
+                        attempt, MAX_ATTEMPTS, event.cardId(), event.learnerId(), e);
+                if (attempt < MAX_ATTEMPTS) {
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS * attempt); // linear back-off
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("FCM retry interrupted for cardId={}", event.cardId());
+                        return;
+                    }
+                }
+            }
         }
+        log.error("FCM notification permanently failed after {} attempts: cardId={}, learnerId={}",
+                MAX_ATTEMPTS, event.cardId(), event.learnerId());
     }
 }

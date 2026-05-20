@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -25,12 +27,27 @@ public class StorageConfig {
         return s.getEndpoint() != null && !s.getEndpoint().isBlank();
     }
 
+    /**
+     * Returns credentials for the configured storage backend.
+     * <ul>
+     *   <li>Custom endpoint (MinIO / S3-compatible): static key/secret from config.</li>
+     *   <li>AWS S3 (no custom endpoint): DefaultCredentialsProvider — honours env vars,
+     *       instance profile, ECS task role, etc. Never embed IAM keys in config for AWS.</li>
+     * </ul>
+     */
+    private AwsCredentialsProvider credentialsProvider(ToneBridgeProperties.Storage s) {
+        if (hasCustomEndpoint(s)) {
+            return StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(s.getAccessKey(), s.getSecretKey()));
+        }
+        return DefaultCredentialsProvider.create();
+    }
+
     @Bean
     public S3Client s3Client() {
         ToneBridgeProperties.Storage s = properties.getStorage();
         var builder = S3Client.builder()
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(s.getAccessKey(), s.getSecretKey())))
+                .credentialsProvider(credentialsProvider(s))
                 .region(Region.of(s.getRegion()));
 
         if (hasCustomEndpoint(s)) {
@@ -45,8 +62,7 @@ public class StorageConfig {
     public S3Presigner s3Presigner() {
         ToneBridgeProperties.Storage s = properties.getStorage();
         var builder = S3Presigner.builder()
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(s.getAccessKey(), s.getSecretKey())))
+                .credentialsProvider(credentialsProvider(s))
                 .region(Region.of(s.getRegion()));
 
         if (hasCustomEndpoint(s)) {

@@ -7,8 +7,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -39,6 +42,17 @@ public class LearnerAttemptJpaAdapter implements LearnerAttemptPort {
     public List<LearnerAttempt> findByCardId(UUID cardId) {
         return repository.findByCardIdOrderByAttemptedAtDesc(cardId)
                 .stream().map(LearnerAttemptEntity::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, LearnerAttempt> findLatestByCardIds(Set<UUID> cardIds) {
+        if (cardIds.isEmpty()) {
+            return Map.of();
+        }
+        return repository.findLatestByCardIdIn(cardIds).stream()
+                .map(LearnerAttemptEntity::toDomain)
+                .collect(Collectors.toMap(LearnerAttempt::cardId, attempt -> attempt));
     }
 
     @Override

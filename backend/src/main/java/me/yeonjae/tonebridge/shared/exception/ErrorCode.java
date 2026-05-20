@@ -41,6 +41,7 @@ public enum ErrorCode {
     FRIEND_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "FRIEND_002", "이미 친구 요청을 보냈습니다"),
     CANNOT_ADD_SELF(HttpStatus.BAD_REQUEST, "FRIEND_003", "자신에게 친구 요청을 보낼 수 없습니다"),
     NOT_FRIEND_REQUEST_RECEIVER(HttpStatus.FORBIDDEN, "FRIEND_004", "해당 요청의 수신자가 아닙니다"),
+    NOT_FRIENDS(HttpStatus.FORBIDDEN, "FRIEND_005", "친구 관계가 아닙니다"),
 
     // Study Session
     SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "SESSION_001", "스터디 세션을 찾을 수 없습니다"),

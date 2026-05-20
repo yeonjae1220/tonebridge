@@ -20,6 +20,10 @@ public record FriendRequest(
     }
 
     public FriendRequest accept() {
+        if (!isPending()) {
+            throw new IllegalStateException(
+                    "Cannot accept a friend request that is not PENDING (current status: " + status + ")");
+        }
         return new FriendRequest(id, senderId, receiverId, FriendStatus.ACCEPTED, createdAt, Instant.now());
     }
 }

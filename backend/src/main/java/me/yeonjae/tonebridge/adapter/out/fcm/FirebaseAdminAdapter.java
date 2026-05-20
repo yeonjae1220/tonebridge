@@ -85,9 +85,12 @@ public class FirebaseAdminAdapter implements FcmNotificationPort {
         });
     }
 
+    /**
+     * Only UNREGISTERED is a reliable signal that a token is permanently invalid.
+     * INVALID_ARGUMENT can occur for other reasons (bad payload, wrong project) and
+     * must NOT be used to silently delete tokens.
+     */
     private boolean isTokenInvalid(FirebaseMessagingException e) {
-        MessagingErrorCode code = e.getMessagingErrorCode();
-        return code == MessagingErrorCode.UNREGISTERED
-                || code == MessagingErrorCode.INVALID_ARGUMENT;
+        return e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED;
     }
 }

@@ -19,6 +19,17 @@ public class StudySessionJpaAdapter implements StudySessionPort {
 
     @Override
     public StudySession save(StudySession session) {
+        if (session.id() != null) {
+            return update(session);
+        }
+        return create(session);
+    }
+
+    /**
+     * Create path: persist a new session entity, then attach members.
+     * Members are added to the in-memory collection and flushed in the second save.
+     */
+    private StudySession create(StudySession session) {
         StudySessionEntity entity = StudySessionEntity.fromDomain(session);
         StudySessionEntity saved = sessionRepository.save(entity);
 
@@ -31,6 +42,19 @@ public class StudySessionJpaAdapter implements StudySessionPort {
         }
 
         return sessionRepository.save(saved).toDomain();
+    }
+
+    /**
+     * Update path: load existing entity with members eagerly fetched, then mutate only
+     * the status field. This prevents orphanRemoval from deleting and re-inserting all
+     * SessionMemberEntity rows on every save.
+     */
+    private StudySession update(StudySession session) {
+        StudySessionEntity existing = sessionRepository.findByIdWithMembers(session.id())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Session not found for update: id=" + session.id()));
+        existing.updateStatus(session.status());
+        return sessionRepository.save(existing).toDomain();
     }
 
     @Override

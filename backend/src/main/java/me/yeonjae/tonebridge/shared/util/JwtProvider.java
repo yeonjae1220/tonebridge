@@ -2,6 +2,7 @@ package me.yeonjae.tonebridge.shared.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.shared.config.JwtProperties;
@@ -25,7 +26,24 @@ public class JwtProvider {
     private static final String REFRESH_TOKEN_TYPE = "refresh";
     private static final String ADMIN_CLAIM = "admin";
 
+    /** Minimum secret length for HMAC-SHA256 (256 bits = 32 bytes). */
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final JwtProperties jwtProperties;
+
+    @PostConstruct
+    void validateSecret() {
+        String secret = jwtProperties.getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "[Security] JWT_SECRET is not configured. Set the JWT_SECRET environment variable.");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "[Security] JWT_SECRET is too short. Minimum " + MIN_SECRET_BYTES
+                            + " bytes required for HMAC-SHA256.");
+        }
+    }
 
     public String generateAccessToken(UUID userId, boolean isAdmin) {
         Instant now = Instant.now();
