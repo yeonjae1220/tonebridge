@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.adapter.in.web.dto;
 import me.yeonjae.tonebridge.domain.user.User;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record UserResponse(
@@ -12,6 +13,9 @@ public record UserResponse(
         String nativeLanguage,
         List<String> fluentLanguages,
         List<String> learningLanguages,
+        String nativeDialect,
+        Map<String, String> fluentLanguageVariants,
+        Map<String, String> learningLanguageVariants,
         int credits,
         double reputationScore,
         String correctorLevel,
@@ -26,6 +30,9 @@ public record UserResponse(
                 user.nativeLanguage(),
                 user.fluentLanguages(),
                 user.learningLanguages(),
+                user.nativeDialect(),
+                user.fluentLanguageVariants(),
+                user.learningLanguageVariants(),
                 user.credits(),
                 user.reputationScore(),
                 user.correctorLevel().name(),

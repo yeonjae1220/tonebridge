@@ -29,6 +29,7 @@ public class UserProfileService implements GetUserProfileUseCase {
                 user.id(),
                 user.username(),
                 user.nativeLanguage(),
+                user.nativeDialect(),
                 user.fluentLanguages(),
                 user.correctionStreak(),
                 user.reputationScore(),

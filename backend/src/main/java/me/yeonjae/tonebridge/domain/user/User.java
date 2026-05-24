@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.domain.user;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record User(
@@ -12,6 +13,9 @@ public record User(
         String nativeLanguage,
         List<String> fluentLanguages,
         List<String> learningLanguages,
+        String nativeDialect,
+        Map<String, String> fluentLanguageVariants,
+        Map<String, String> learningLanguageVariants,
         int credits,
         double reputationScore,
         CorrectorLevel correctorLevel,
@@ -22,19 +26,22 @@ public record User(
 ) {
     public User withCredits(int newCredits) {
         return new User(id, email, username, nativeLanguage, fluentLanguages,
-                learningLanguages, newCredits, reputationScore, correctorLevel,
+                learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
+                newCredits, reputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
     public User withStreak(int newStreak, LocalDate newLastCorrectionDate) {
         return new User(id, email, username, nativeLanguage, fluentLanguages,
-                learningLanguages, credits, reputationScore, correctorLevel,
+                learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
+                credits, reputationScore, correctorLevel,
                 newStreak, newLastCorrectionDate, createdAt, isAdmin);
     }
 
     public User withReputation(double newReputationScore) {
         return new User(id, email, username, nativeLanguage, fluentLanguages,
-                learningLanguages, credits, newReputationScore, correctorLevel,
+                learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
+                credits, newReputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 

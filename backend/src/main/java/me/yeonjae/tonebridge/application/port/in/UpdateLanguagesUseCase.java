@@ -1,6 +1,7 @@
 package me.yeonjae.tonebridge.application.port.in;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface UpdateLanguagesUseCase {
@@ -8,7 +9,10 @@ public interface UpdateLanguagesUseCase {
             UUID userId,
             String nativeLanguage,
             List<String> fluentLanguages,
-            List<String> learningLanguages
+            List<String> learningLanguages,
+            String nativeDialect,
+            Map<String, String> fluentLanguageVariants,
+            Map<String, String> learningLanguageVariants
     ) {}
 
     void update(Command command);

@@ -6,7 +6,7 @@ import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/auth/presentation/onboarding/language_select_page.dart';
 
 /// Multi-step onboarding wizard:
-///   Step 1 — Select native language
+///   Step 1 — Select native language (+ optional dialect)
 ///   Step 2 — Select fluent languages
 ///   Step 3 — Select languages to learn
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -21,6 +21,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   int _currentStep = 0;
 
   String? _nativeLanguage;
+  String? _nativeDialect;
   List<String> _fluentLanguages = [];
   List<String> _learningLanguages = [];
 
@@ -50,6 +51,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             nativeLanguage: _nativeLanguage!,
             fluentLanguages: _fluentLanguages,
             learningLanguages: _learningLanguages,
+            nativeDialect: _nativeDialect,
           );
       if (!mounted) return;
       context.go(AppRoute.feed);
@@ -78,9 +80,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             title: '모국어를 선택하세요',
             subtitle: '가장 자신 있는 언어 하나를 골라주세요.',
             singleSelect: true,
+            showDialect: true,
             onChanged: (langs) {
               _nativeLanguage = langs.firstOrNull;
             },
+            onDialectChanged: (dialect) => _nativeDialect = dialect,
             onNext: _nextStep,
           ),
           LanguageSelectPage(

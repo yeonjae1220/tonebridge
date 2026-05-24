@@ -15,6 +15,7 @@ class LanguageEdit extends _$LanguageEdit {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -22,6 +23,7 @@ class LanguageEdit extends _$LanguageEdit {
             nativeLanguage: nativeLanguage,
             fluentLanguages: fluentLanguages,
             learningLanguages: learningLanguages,
+            nativeDialect: nativeDialect,
           );
     });
     if (state.hasError) return false;

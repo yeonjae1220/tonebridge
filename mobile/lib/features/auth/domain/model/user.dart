@@ -14,6 +14,9 @@ abstract class User with _$User {
     required List<String> learningLanguages,
     required int credits,
     @Default(5.0) double reputationScore,
+    String? nativeDialect,
+    @Default(<String, String>{}) Map<String, String> fluentLanguageVariants,
+    @Default(<String, String>{}) Map<String, String> learningLanguageVariants,
   }) = _User;
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);

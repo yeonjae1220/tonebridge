@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -39,7 +40,10 @@ public class UserController {
                 userId,
                 request.nativeLanguage(),
                 request.fluentLanguages(),
-                request.learningLanguages()
+                request.learningLanguages(),
+                request.nativeDialect(),
+                request.fluentLanguageVariants() != null ? request.fluentLanguageVariants() : Map.of(),
+                request.learningLanguageVariants() != null ? request.learningLanguageVariants() : Map.of()
         );
         completeOnboardingUseCase.complete(command);
         return ResponseEntity.ok(UserResponse.from(getCurrentUserUseCase.get(userId)));
@@ -54,7 +58,10 @@ public class UserController {
                 userId,
                 request.nativeLanguage(),
                 request.fluentLanguages(),
-                request.learningLanguages()
+                request.learningLanguages(),
+                request.nativeDialect(),
+                request.fluentLanguageVariants() != null ? request.fluentLanguageVariants() : Map.of(),
+                request.learningLanguageVariants() != null ? request.learningLanguageVariants() : Map.of()
         ));
         return ResponseEntity.ok(UserResponse.from(getCurrentUserUseCase.get(userId)));
     }

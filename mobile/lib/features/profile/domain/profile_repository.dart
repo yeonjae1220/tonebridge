@@ -6,5 +6,8 @@ abstract interface class ProfileRepository {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
+    Map<String, String> fluentLanguageVariants,
+    Map<String, String> learningLanguageVariants,
   });
 }

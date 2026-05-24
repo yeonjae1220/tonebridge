@@ -15,6 +15,7 @@ abstract class UserProfile with _$UserProfile {
     required double reputationScore,
     required String correctorLevel,
     @Default([]) List<UserBadge> badges,
+    String? nativeDialect,
   }) = _UserProfile;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) =>

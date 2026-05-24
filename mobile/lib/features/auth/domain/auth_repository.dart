@@ -18,6 +18,9 @@ abstract interface class AuthRepository {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
+    Map<String, String> fluentLanguageVariants,
+    Map<String, String> learningLanguageVariants,
   });
 
   /// Revokes all tokens and clears local storage.

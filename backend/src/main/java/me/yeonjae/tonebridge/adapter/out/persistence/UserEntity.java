@@ -1,5 +1,8 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
 import lombok.*;
 import me.yeonjae.tonebridge.domain.user.CorrectorLevel;
@@ -9,7 +12,9 @@ import java.time.LocalDate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -21,6 +26,8 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserEntity {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -40,6 +47,15 @@ public class UserEntity {
 
     @Column(name = "learning_languages", length = 1024)
     private String learningLanguagesRaw;
+
+    @Column(name = "native_dialect", length = 30)
+    private String nativeDialect;
+
+    @Column(name = "fluent_lang_variants")
+    private String fluentLangVariantsRaw;
+
+    @Column(name = "learning_lang_variants")
+    private String learningLangVariantsRaw;
 
     @Column(nullable = false)
     private int credits;
@@ -74,6 +90,9 @@ public class UserEntity {
         return new User(id, email, username, nativeLanguage,
                 parseList(fluentLanguagesRaw),
                 parseList(learningLanguagesRaw),
+                nativeDialect,
+                parseMap(fluentLangVariantsRaw),
+                parseMap(learningLangVariantsRaw),
                 credits, reputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
@@ -86,6 +105,9 @@ public class UserEntity {
                 .nativeLanguage(user.nativeLanguage())
                 .fluentLanguagesRaw(joinList(user.fluentLanguages()))
                 .learningLanguagesRaw(joinList(user.learningLanguages()))
+                .nativeDialect(user.nativeDialect())
+                .fluentLangVariantsRaw(writeMap(user.fluentLanguageVariants()))
+                .learningLangVariantsRaw(writeMap(user.learningLanguageVariants()))
                 .credits(user.credits())
                 .reputationScore(user.reputationScore())
                 .correctorLevel(user.correctorLevel())
@@ -100,6 +122,9 @@ public class UserEntity {
         this.nativeLanguage = user.nativeLanguage();
         this.fluentLanguagesRaw = joinList(user.fluentLanguages());
         this.learningLanguagesRaw = joinList(user.learningLanguages());
+        this.nativeDialect = user.nativeDialect();
+        this.fluentLangVariantsRaw = writeMap(user.fluentLanguageVariants());
+        this.learningLangVariantsRaw = writeMap(user.learningLanguageVariants());
         this.credits = user.credits();
         this.reputationScore = user.reputationScore();
         this.correctorLevel = user.correctorLevel();
@@ -119,5 +144,23 @@ public class UserEntity {
     private static String joinList(List<String> list) {
         if (list == null || list.isEmpty()) return "";
         return String.join(",", list);
+    }
+
+    private static Map<String, String> parseMap(String raw) {
+        if (raw == null || raw.isBlank()) return new HashMap<>();
+        try {
+            return MAPPER.readValue(raw, new TypeReference<Map<String, String>>() {});
+        } catch (JsonProcessingException e) {
+            return new HashMap<>();
+        }
+    }
+
+    private static String writeMap(Map<String, String> map) {
+        if (map == null || map.isEmpty()) return null;
+        try {
+            return MAPPER.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
     }
 }

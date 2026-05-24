@@ -34,6 +34,9 @@ public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUse
                 command.nativeLanguage(),
                 command.fluentLanguages(),
                 command.learningLanguages(),
+                command.nativeDialect(),
+                command.fluentLanguageVariants(),
+                command.learningLanguageVariants(),
                 user.credits(), user.reputationScore(), user.correctorLevel(),
                 user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
                 user.isAdmin()
@@ -49,6 +52,9 @@ public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUse
                 command.nativeLanguage(),
                 command.fluentLanguages(),
                 command.learningLanguages(),
+                command.nativeDialect(),
+                command.fluentLanguageVariants(),
+                command.learningLanguageVariants(),
                 user.credits(), user.reputationScore(), user.correctorLevel(),
                 user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
                 user.isAdmin()

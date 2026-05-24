@@ -28,6 +28,9 @@ abstract class UserResponse with _$UserResponse {
     required int credits,
     @Default(5.0) double reputationScore,
     @Default(false) bool onboardingCompleted,
+    String? nativeDialect,
+    @Default(<String, String>{}) Map<String, String> fluentLanguageVariants,
+    @Default(<String, String>{}) Map<String, String> learningLanguageVariants,
   }) = _UserResponse;
 
   factory UserResponse.fromJson(Map<String, dynamic> json) =>
@@ -46,6 +49,9 @@ abstract class UserData with _$UserData {
     required int credits,
     @Default(5.0) double reputationScore,
     @Default(false) bool onboardingCompleted,
+    String? nativeDialect,
+    @Default(<String, String>{}) Map<String, String> fluentLanguageVariants,
+    @Default(<String, String>{}) Map<String, String> learningLanguageVariants,
   }) = _UserData;
 
   factory UserData.fromJson(Map<String, dynamic> json) =>

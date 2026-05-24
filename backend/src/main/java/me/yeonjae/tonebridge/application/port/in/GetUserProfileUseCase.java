@@ -14,6 +14,7 @@ public interface GetUserProfileUseCase {
             UUID id,
             String username,
             String nativeLanguage,
+            String nativeDialect,
             List<String> fluentLanguages,
             int correctionStreak,
             double reputationScore,

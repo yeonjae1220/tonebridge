@@ -28,6 +28,9 @@ class ProfileRepositoryImpl implements ProfileRepository {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
+    Map<String, String> fluentLanguageVariants = const {},
+    Map<String, String> learningLanguageVariants = const {},
   }) async {
     await _dio.patch<void>(
       '/api/users/me/languages',
@@ -35,6 +38,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
         'nativeLanguage': nativeLanguage,
         'fluentLanguages': fluentLanguages,
         'learningLanguages': learningLanguages,
+        if (nativeDialect != null) 'nativeDialect': nativeDialect,
+        if (fluentLanguageVariants.isNotEmpty)
+          'fluentLanguageVariants': fluentLanguageVariants,
+        if (learningLanguageVariants.isNotEmpty)
+          'learningLanguageVariants': learningLanguageVariants,
       },
     );
   }

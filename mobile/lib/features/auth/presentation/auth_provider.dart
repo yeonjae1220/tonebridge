@@ -68,12 +68,14 @@ class AuthState extends _$AuthState {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
   }) async {
     final repo = ref.read(authRepositoryProvider);
     await repo.saveLanguagePreferences(
       nativeLanguage: nativeLanguage,
       fluentLanguages: fluentLanguages,
       learningLanguages: learningLanguages,
+      nativeDialect: nativeDialect,
     );
     final currentSession = state.value;
     if (currentSession != null) {

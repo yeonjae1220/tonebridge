@@ -18,6 +18,7 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
   late String _nativeLanguage;
   late List<String> _fluentLanguages;
   late List<String> _learningLanguages;
+  String? _nativeDialect;
 
   int _step = 0; // 0: native, 1: fluent, 2: learning
 
@@ -27,6 +28,7 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
     _nativeLanguage = widget.profile.nativeLanguage;
     _fluentLanguages = List.of(widget.profile.fluentLanguages);
     _learningLanguages = List.of(widget.profile.learningLanguages);
+    _nativeDialect = widget.profile.nativeDialect;
   }
 
   Future<void> _save() async {
@@ -34,6 +36,7 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
           nativeLanguage: _nativeLanguage,
           fluentLanguages: _fluentLanguages,
           learningLanguages: _learningLanguages,
+          nativeDialect: _nativeDialect,
         );
     if (!mounted) return;
     if (success) {
@@ -61,10 +64,13 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
             title: '모국어',
             subtitle: '모국어를 선택하세요.',
             singleSelect: true,
+            showDialect: true,
             initialValues: [_nativeLanguage],
+            initialDialect: _nativeDialect,
             onChanged: (langs) {
               if (langs.isNotEmpty) _nativeLanguage = langs.first;
             },
+            onDialectChanged: (dialect) => _nativeDialect = dialect,
             onNext: () => setState(() => _step = 1),
           ),
         1 => LanguageSelectPage(

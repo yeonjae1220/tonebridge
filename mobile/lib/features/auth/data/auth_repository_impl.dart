@@ -125,6 +125,9 @@ class AuthRepositoryImpl implements AuthRepository {
         credits: parsed.credits,
         reputationScore: parsed.reputationScore,
         onboardingCompleted: parsed.onboardingCompleted,
+        nativeDialect: parsed.nativeDialect,
+        fluentLanguageVariants: parsed.fluentLanguageVariants,
+        learningLanguageVariants: parsed.learningLanguageVariants,
       ),
     );
   }
@@ -139,6 +142,9 @@ class AuthRepositoryImpl implements AuthRepository {
       learningLanguages: d.learningLanguages,
       credits: d.credits,
       reputationScore: d.reputationScore,
+      nativeDialect: d.nativeDialect,
+      fluentLanguageVariants: d.fluentLanguageVariants,
+      learningLanguageVariants: d.learningLanguageVariants,
     );
   }
 
@@ -147,6 +153,9 @@ class AuthRepositoryImpl implements AuthRepository {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? nativeDialect,
+    Map<String, String> fluentLanguageVariants = const {},
+    Map<String, String> learningLanguageVariants = const {},
   }) async {
     await _dio.patch<void>(
       '/api/users/me/onboarding',
@@ -154,6 +163,11 @@ class AuthRepositoryImpl implements AuthRepository {
         'nativeLanguage': nativeLanguage,
         'fluentLanguages': fluentLanguages,
         'learningLanguages': learningLanguages,
+        if (nativeDialect != null) 'nativeDialect': nativeDialect,
+        if (fluentLanguageVariants.isNotEmpty)
+          'fluentLanguageVariants': fluentLanguageVariants,
+        if (learningLanguageVariants.isNotEmpty)
+          'learningLanguageVariants': learningLanguageVariants,
       },
     );
   }
