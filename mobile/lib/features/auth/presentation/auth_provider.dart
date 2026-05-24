@@ -82,8 +82,13 @@ class AuthState extends _$AuthState {
       learningLanguageVariants: learningLanguageVariants,
     );
     final currentSession = state.value;
-    if (currentSession != null) {
-      state = AsyncData(currentSession.copyWith(needsOnboarding: false));
-    }
+    if (currentSession == null) return;
+    // Re-fetch the user so the in-memory session reflects the new language
+    // fields immediately, rather than keeping them stale until the next cold start.
+    final updatedUser = await repo.getCurrentUser();
+    state = AsyncData(currentSession.copyWith(
+      user: updatedUser,
+      needsOnboarding: false,
+    ));
   }
 }

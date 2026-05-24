@@ -174,9 +174,9 @@ Future<LanguageEntry?> showOtherLanguagesSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => OtherLanguagesSheet(
+    builder: (sheetCtx) => OtherLanguagesSheet(
       excludeCodes: excludeCodes,
-      onSelect: (lang) => Navigator.of(context).pop(lang),
+      onSelect: (lang) => Navigator.of(sheetCtx).pop(lang),
     ),
   );
 }

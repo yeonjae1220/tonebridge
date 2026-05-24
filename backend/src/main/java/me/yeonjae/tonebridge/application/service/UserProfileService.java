@@ -10,6 +10,7 @@ import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -32,8 +33,8 @@ public class UserProfileService implements GetUserProfileUseCase {
                 user.nativeDialect(),
                 user.fluentLanguages(),
                 user.learningLanguages(),
-                user.fluentLanguageVariants(),
-                user.learningLanguageVariants(),
+                user.fluentLanguageVariants() != null ? Map.copyOf(user.fluentLanguageVariants()) : Map.of(),
+                user.learningLanguageVariants() != null ? Map.copyOf(user.learningLanguageVariants()) : Map.of(),
                 user.correctionStreak(),
                 user.reputationScore(),
                 user.correctorLevel(),

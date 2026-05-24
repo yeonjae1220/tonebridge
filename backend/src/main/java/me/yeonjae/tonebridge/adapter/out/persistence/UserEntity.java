@@ -61,10 +61,10 @@ public class UserEntity {
     @Column(name = "native_dialect", length = 30)
     private String nativeDialect;
 
-    @Column(name = "fluent_lang_variants")
+    @Column(name = "fluent_lang_variants", length = 2048)
     private String fluentLangVariantsRaw;
 
-    @Column(name = "learning_lang_variants")
+    @Column(name = "learning_lang_variants", length = 2048)
     private String learningLangVariantsRaw;
 
     @Column(nullable = false)

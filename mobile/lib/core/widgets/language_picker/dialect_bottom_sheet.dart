@@ -65,10 +65,23 @@ class DialectBottomSheet extends ConsumerWidget {
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
               error: (_, __) => Center(
-                child: Text(
-                  '방언 정보를 불러오지 못했습니다',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.error),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '방언 정보를 불러오지 못했습니다',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                    const SizedBox(height: 12),
+                    // Provider is keepAlive — invalidate to allow a fresh fetch.
+                    FilledButton.icon(
+                      onPressed: () =>
+                          ref.invalidate(languageVariantsProvider),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('다시 시도'),
+                    ),
+                  ],
                 ),
               ),
               data: (allVariants) {

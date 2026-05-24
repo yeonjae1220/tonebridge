@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
@@ -54,7 +53,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     try {
-      final auth = await account.authentication;
+      final auth = account.authentication;
       final idToken = auth.idToken;
       if (idToken == null) {
         throw Exception('Google idToken을 받을 수 없습니다. serverClientId 설정을 확인하세요.');

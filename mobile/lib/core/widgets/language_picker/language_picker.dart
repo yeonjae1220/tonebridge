@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tonebridge/core/constants/languages.dart';
+import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/core/widgets/language_picker/dialect_bottom_sheet.dart';
 import 'package:tonebridge/core/widgets/language_picker/other_languages_sheet.dart';
 
@@ -43,16 +45,12 @@ class LanguagePicker extends StatelessWidget {
   final String? variant;
   final ValueChanged<String?>? onVariantChanged;
   final bool showDialect;
-  final Dio? dio;
 
   // Multi-select fields
   final List<String> values;
   final ValueChanged<List<String>>? onMultiChanged;
 
   final List<String> excludeCodes;
-
-  // Note: `dio` is intentionally absent — DialectBottomSheet retrieves its
-  // own Dio instance via Riverpod, so the caller no longer needs to supply one.
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +230,7 @@ class _MoreButton extends StatelessWidget {
   }
 }
 
-class _DialectRow extends StatelessWidget {
+class _DialectRow extends ConsumerWidget {
   const _DialectRow({
     required this.languageCode,
     required this.variant,
@@ -244,14 +242,31 @@ class _DialectRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final lang = kAllLanguages.where((l) => l.code == languageCode).firstOrNull;
+
+    // Resolve variant code → human-readable label.
+    // Falls back to the raw code while provider is loading or on error.
+    final variantsAsync = ref.watch(languageVariantsProvider);
+    final dialectLabel = switch (variant) {
+      null => '표준어 (지역 무관)',
+      final vc => variantsAsync.whenOrNull(
+              data: (all) => all[languageCode]
+                  ?.where((v) => v.code == vc)
+                  .firstOrNull
+                  ?.label,
+            ) ??
+            vc,
+    };
+
     return Row(
       children: [
-        Text('방언/변형',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.outline)),
+        Text(
+          '방언/변형',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.outline),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: GestureDetector(
@@ -260,7 +275,8 @@ class _DialectRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 border: Border.all(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.4)),
+                  color: theme.colorScheme.outline.withValues(alpha: 0.4),
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -271,13 +287,16 @@ class _DialectRow extends StatelessWidget {
                   ],
                   Expanded(
                     child: Text(
-                      variant == null ? '표준어 (지역 무관)' : variant!,
+                      dialectLabel,
                       style: theme.textTheme.bodySmall,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Icon(Icons.arrow_drop_down,
-                      color: theme.colorScheme.outline, size: 20),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    color: theme.colorScheme.outline,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
