@@ -91,6 +91,11 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
       dio: dio,
     );
     if (!mounted) return;
+    // The close (×) button now pops with the existing selection, so result ==
+    // _selectedDialect means the user dismissed without changing anything.
+    // Barrier-tap still returns null, which would also equal _selectedDialect
+    // when no dialect was previously selected — both are safe no-ops.
+    if (result == _selectedDialect) return;
     setState(() => _selectedDialect = result);
     widget.onDialectChanged?.call(result);
   }
@@ -172,7 +177,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                   ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () => _showOther(otherSelected),
+                    onPressed: () => _showOther(_selected.toList()),
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('기타 언어'),
                     style: OutlinedButton.styleFrom(

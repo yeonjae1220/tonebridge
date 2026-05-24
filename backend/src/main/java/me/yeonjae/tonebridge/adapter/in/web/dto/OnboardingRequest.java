@@ -9,10 +9,14 @@ import java.util.List;
 import java.util.Map;
 
 public record OnboardingRequest(
-        @NotBlank String nativeLanguage,
+        @NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeLanguage,
         @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeDialect,
-        @NotNull List<String> fluentLanguages,
-        @NotNull List<String> learningLanguages,
-        Map<String, String> fluentLanguageVariants,
-        Map<String, String> learningLanguageVariants
+        @NotNull List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> fluentLanguages,
+        @NotNull List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> learningLanguages,
+        @Size(max = 20) Map<
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String,
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> fluentLanguageVariants,
+        @Size(max = 20) Map<
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String,
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> learningLanguageVariants
 ) {}

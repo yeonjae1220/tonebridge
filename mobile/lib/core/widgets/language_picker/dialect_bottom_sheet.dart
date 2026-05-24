@@ -53,8 +53,8 @@ class _DialectBottomSheetState extends State<DialectBottomSheet> {
 
   Future<void> _load() async {
     try {
-      final res = await widget.dio
-          .get<Map<String, dynamic>>('/api/languages/variants');
+      final res =
+          await widget.dio.get<Map<String, dynamic>>('/api/languages/variants');
       final raw = res.data ?? {};
       final items = (raw[widget.languageCode] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
@@ -66,9 +66,17 @@ class _DialectBottomSheetState extends State<DialectBottomSheet> {
                 variantType: v['variantType'] as String? ?? 'DIALECT',
               ))
           .toList();
-      if (mounted) setState(() { _variants = items; _loading = false; });
+      if (mounted)
+        setState(() {
+          _variants = items;
+          _loading = false;
+        });
     } catch (_) {
-      if (mounted) setState(() { _loading = false; _error = true; });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
     }
   }
 
@@ -107,7 +115,10 @@ class _DialectBottomSheetState extends State<DialectBottomSheet> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                  // Pop with the current selection so dismiss ≠ "clear dialect".
+                  // The caller treats a return value equal to its input as "no change".
+                  onPressed: () =>
+                      Navigator.of(context).pop(widget.selectedVariant),
                 ),
               ],
             ),
@@ -118,8 +129,8 @@ class _DialectBottomSheetState extends State<DialectBottomSheet> {
                 : _error
                     ? Center(
                         child: Text('방언 정보를 불러오지 못했습니다',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.error)),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: theme.colorScheme.error)),
                       )
                     : ListView(
                         controller: scrollController,
@@ -150,20 +161,19 @@ class _DialectBottomSheetState extends State<DialectBottomSheet> {
                                     Text(
                                       _variantTypeLabels[entry.key] ??
                                           entry.key,
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
                                         color: theme.colorScheme.outline,
                                         letterSpacing: 0.8,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
                                     ...entry.value.map((v) => Padding(
-                                          padding: const EdgeInsets.only(
-                                              bottom: 6),
+                                          padding:
+                                              const EdgeInsets.only(bottom: 6),
                                           child: _VariantTile(
                                             label: v.label,
-                                            subtitle: v.labelNative ??
-                                                v.region,
+                                            subtitle: v.labelNative ?? v.region,
                                             selected: widget.selectedVariant ==
                                                 v.code,
                                             onTap: () => Navigator.of(context)
@@ -214,8 +224,7 @@ class _VariantTile extends StatelessWidget {
               : null,
           borderRadius: BorderRadius.circular(12),
         ),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             Expanded(
@@ -225,14 +234,12 @@ class _VariantTile extends StatelessWidget {
                   Text(label,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: selected
-                            ? theme.colorScheme.primary
-                            : null,
+                        color: selected ? theme.colorScheme.primary : null,
                       )),
                   if (subtitle != null)
                     Text(subtitle!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline)),
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline)),
                 ],
               ),
             ),

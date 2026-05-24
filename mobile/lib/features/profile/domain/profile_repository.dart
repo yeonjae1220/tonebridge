@@ -7,7 +7,7 @@ abstract interface class ProfileRepository {
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,
-    Map<String, String> fluentLanguageVariants,
-    Map<String, String> learningLanguageVariants,
+    Map<String, String> fluentLanguageVariants = const {},
+    Map<String, String> learningLanguageVariants = const {},
   });
 }

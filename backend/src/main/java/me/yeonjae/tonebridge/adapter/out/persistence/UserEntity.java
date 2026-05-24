@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.domain.user.CorrectorLevel;
 import me.yeonjae.tonebridge.domain.user.User;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class UserEntity {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -151,7 +153,11 @@ public class UserEntity {
         try {
             return MAPPER.readValue(raw, new TypeReference<Map<String, String>>() {});
         } catch (JsonProcessingException e) {
-            return new HashMap<>();
+            // Corrupted JSON in the column indicates a data-integrity problem.
+            // Throw rather than silently return an empty map, which would cause
+            // a user's saved dialect variants to disappear without any observable error.
+            log.error("Failed to parse language variants JSON: {}", raw, e);
+            throw new IllegalStateException("Corrupted language variant data in database", e);
         }
     }
 
@@ -160,7 +166,10 @@ public class UserEntity {
         try {
             return MAPPER.writeValueAsString(map);
         } catch (JsonProcessingException e) {
-            return null;
+            // Map<String, String> serialisation should never fail; throw so the
+            // calling transaction is rolled back instead of silently dropping data.
+            log.error("Failed to serialise language variants: {}", map, e);
+            throw new IllegalStateException("Failed to serialise language variant data", e);
         }
     }
 }

@@ -13,6 +13,10 @@ public record UpdateLanguagesRequest(
         @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeDialect,
         @NotNull List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> fluentLanguages,
         @NotNull List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> learningLanguages,
-        Map<String, String> fluentLanguageVariants,
-        Map<String, String> learningLanguageVariants
+        @Size(max = 20) Map<
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String,
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> fluentLanguageVariants,
+        @Size(max = 20) Map<
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String,
+                @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> learningLanguageVariants
 ) {}
