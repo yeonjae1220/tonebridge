@@ -1,16 +1,6 @@
 import 'package:flutter/material.dart';
-
-/// Supported languages. Extend as the platform grows.
-const List<({String code, String label, String flag})> kSupportedLanguages = [
-  (code: 'ko', label: '한국어', flag: '🇰🇷'),
-  (code: 'ja', label: '日本語', flag: '🇯🇵'),
-  (code: 'zh', label: '中文', flag: '🇨🇳'),
-  (code: 'en', label: 'English', flag: '🇺🇸'),
-  (code: 'es', label: 'Español', flag: '🇪🇸'),
-  (code: 'fr', label: 'Français', flag: '🇫🇷'),
-  (code: 'de', label: 'Deutsch', flag: '🇩🇪'),
-  (code: 'pt', label: 'Português', flag: '🇧🇷'),
-];
+import 'package:tonebridge/core/constants/languages.dart';
+import 'package:tonebridge/core/widgets/language_picker/other_languages_sheet.dart';
 
 class LanguageSelectPage extends StatefulWidget {
   const LanguageSelectPage({
@@ -57,10 +47,21 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
     widget.onChanged(next.toList());
   }
 
+  Future<void> _showOther() async {
+    final picked = await showOtherLanguagesSheet(context);
+    if (picked == null || !mounted) return;
+    _toggle(picked.code);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canProceed = _selected.isNotEmpty;
+
+    // Codes selected from kOtherLanguages (not in primary grid)
+    final otherSelected = _selected
+        .where((code) => !kPrimaryLanguages.any((l) => l.code == code))
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -72,43 +73,73 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
           Text(
             widget.subtitle,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha:0.6),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 24),
           Expanded(
-            child: ListView.separated(
-              itemCount: kSupportedLanguages.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final lang = kSupportedLanguages[index];
-                final isSelected = _selected.contains(lang.code);
-                return ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outline.withValues(alpha:0.3),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 3×3 primary language grid (kPrimaryLanguages = 9 items)
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      mainAxisExtent: 90,
+                    ),
+                    itemCount: kPrimaryLanguages.length,
+                    itemBuilder: (context, index) {
+                      final lang = kPrimaryLanguages[index];
+                      return _LanguageGridCell(
+                        lang: lang,
+                        isSelected: _selected.contains(lang.code),
+                        onTap: () => _toggle(lang.code),
+                      );
+                    },
+                  ),
+                  // Selected "other" languages shown as dismissible chips
+                  if (otherSelected.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: otherSelected.map((code) {
+                        final lang = kOtherLanguages
+                            .where((l) => l.code == code)
+                            .firstOrNull;
+                        if (lang == null) return const SizedBox.shrink();
+                        return Chip(
+                          avatar: Text(
+                            lang.flag,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          label: Text(lang.label),
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          onDeleted: () => _toggle(code),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _showOther,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('기타 언어'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                  tileColor: isSelected
-                      ? theme.colorScheme.primaryContainer
-                      : null,
-                  leading: Text(
-                    lang.flag,
-                    style: const TextStyle(fontSize: 28),
-                  ),
-                  title: Text(lang.label),
-                  trailing: isSelected
-                      ? Icon(
-                          Icons.check_circle,
-                          color: theme.colorScheme.primary,
-                        )
-                      : null,
-                  onTap: () => _toggle(lang.code),
-                );
-              },
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -126,6 +157,75 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
                 : Text(widget.nextLabel),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LanguageGridCell extends StatelessWidget {
+  const _LanguageGridCell({
+    required this.lang,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final LanguageEntry lang;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primaryContainer : null,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withValues(alpha: 0.3),
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(lang.flag, style: const TextStyle(fontSize: 26)),
+                  const SizedBox(height: 6),
+                  Text(
+                    lang.label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: isSelected
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSurface,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
