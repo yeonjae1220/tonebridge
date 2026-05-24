@@ -29,36 +29,16 @@ public class UserService implements CompleteOnboardingUseCase, GetCurrentUserUse
     @Override
     public void complete(CompleteOnboardingUseCase.Command command) {
         User user = get(command.userId());
-        User updated = new User(
-                user.id(), user.email(), user.username(),
-                command.nativeLanguage(),
-                command.fluentLanguages(),
-                command.learningLanguages(),
-                command.nativeDialect(),
-                command.fluentLanguageVariants(),
-                command.learningLanguageVariants(),
-                user.credits(), user.reputationScore(), user.correctorLevel(),
-                user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
-                user.isAdmin()
-        );
-        userPort.save(updated);
+        userPort.save(user.withLanguages(
+                command.nativeLanguage(), command.fluentLanguages(), command.learningLanguages(),
+                command.nativeDialect(), command.fluentLanguageVariants(), command.learningLanguageVariants()));
     }
 
     @Override
     public void update(UpdateLanguagesUseCase.Command command) {
         User user = get(command.userId());
-        User updated = new User(
-                user.id(), user.email(), user.username(),
-                command.nativeLanguage(),
-                command.fluentLanguages(),
-                command.learningLanguages(),
-                command.nativeDialect(),
-                command.fluentLanguageVariants(),
-                command.learningLanguageVariants(),
-                user.credits(), user.reputationScore(), user.correctorLevel(),
-                user.correctionStreak(), user.lastCorrectionDate(), user.createdAt(),
-                user.isAdmin()
-        );
-        userPort.save(updated);
+        userPort.save(user.withLanguages(
+                command.nativeLanguage(), command.fluentLanguages(), command.learningLanguages(),
+                command.nativeDialect(), command.fluentLanguageVariants(), command.learningLanguageVariants()));
     }
 }

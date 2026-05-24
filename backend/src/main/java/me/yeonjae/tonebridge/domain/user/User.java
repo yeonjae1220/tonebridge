@@ -45,6 +45,15 @@ public record User(
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
+    public User withLanguages(String nativeLanguage, List<String> fluentLanguages,
+            List<String> learningLanguages, String nativeDialect,
+            Map<String, String> fluentLanguageVariants, Map<String, String> learningLanguageVariants) {
+        return new User(id, email, username, nativeLanguage, fluentLanguages,
+                learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
+                credits, reputationScore, correctorLevel,
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
+    }
+
     public boolean hasEnoughCredits(int required) {
         return credits >= required;
     }
