@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tonebridge/core/constants/languages.dart';
-import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/core/widgets/language_picker/dialect_bottom_sheet.dart';
 import 'package:tonebridge/core/widgets/language_picker/other_languages_sheet.dart';
 
@@ -83,12 +83,10 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
 
   Future<void> _showDialectSheet() async {
     if (_selected.isEmpty || !mounted) return;
-    final dio = ref.read(dioProvider);
     final result = await showDialectBottomSheet(
       context,
       languageCode: _selected.first,
       selectedVariant: _selectedDialect,
-      dio: dio,
     );
     if (!mounted) return;
     // The close (×) button now pops with the existing selection, so result ==
@@ -227,7 +225,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
 // Dialect picker row
 // ---------------------------------------------------------------------------
 
-class _DialectPickerRow extends StatelessWidget {
+class _DialectPickerRow extends ConsumerWidget {
   const _DialectPickerRow({
     required this.langCode,
     required this.selectedDialect,
@@ -239,9 +237,22 @@ class _DialectPickerRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final lang = kAllLanguages.where((l) => l.code == langCode).firstOrNull;
+
+    // Resolve the human-readable label for the selected dialect code.
+    // Falls back to the raw code while the provider is loading or on error.
+    final dialectLabel = switch (selectedDialect) {
+      null => '표준어 (지역 무관)',
+      final code => ref.watch(languageVariantsProvider).whenOrNull(
+            data: (allVariants) => allVariants[langCode]
+                ?.where((v) => v.code == code)
+                .firstOrNull
+                ?.label,
+          ) ??
+          code,
+    };
 
     return Row(
       children: [
@@ -255,7 +266,8 @@ class _DialectPickerRow extends StatelessWidget {
           child: GestureDetector(
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 border: Border.all(
                   color: theme.colorScheme.outline.withValues(alpha: 0.4),
@@ -270,9 +282,7 @@ class _DialectPickerRow extends StatelessWidget {
                   ],
                   Expanded(
                     child: Text(
-                      selectedDialect == null
-                          ? '표준어 (지역 무관)'
-                          : selectedDialect!,
+                      dialectLabel,
                       style: theme.textTheme.bodySmall,
                       overflow: TextOverflow.ellipsis,
                     ),

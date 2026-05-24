@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:tonebridge/core/constants/languages.dart';
 import 'package:tonebridge/core/widgets/language_picker/dialect_bottom_sheet.dart';
@@ -12,30 +11,28 @@ import 'package:tonebridge/core/widgets/language_picker/other_languages_sheet.da
 class LanguagePicker extends StatelessWidget {
   /// Single-select mode
   const LanguagePicker({
-    super.key,
     required this.value,
     required this.onChanged,
+    super.key,
     this.variant,
     this.onVariantChanged,
     this.showDialect = true,
     this.excludeCodes = const [],
-    this.dio,
   })  : multiSelect = false,
         values = const [],
         onMultiChanged = null;
 
   /// Multi-select mode
   const LanguagePicker.multi({
-    super.key,
     required this.values,
     required this.onMultiChanged,
+    super.key,
     this.excludeCodes = const [],
   })  : multiSelect = true,
         value = '',
         variant = null,
         onVariantChanged = null,
         showDialect = false,
-        dio = null,
         onChanged = null;
 
   final bool multiSelect;
@@ -53,6 +50,9 @@ class LanguagePicker extends StatelessWidget {
   final ValueChanged<List<String>>? onMultiChanged;
 
   final List<String> excludeCodes;
+
+  // Note: `dio` is intentionally absent — DialectBottomSheet retrieves its
+  // own Dio instance via Riverpod, so the caller no longer needs to supply one.
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,7 @@ class LanguagePicker extends StatelessWidget {
     } else {
       onChanged!(code);
       if (onVariantChanged != null) onVariantChanged!(null);
-      if (showDialect && dio != null) {
+      if (showDialect) {
         _showDialect(context, languageCode: code);
       }
     }
@@ -111,7 +111,7 @@ class LanguagePicker extends StatelessWidget {
     } else {
       onChanged!(picked.code);
       if (onVariantChanged != null) onVariantChanged!(null);
-      if (showDialect && dio != null && context.mounted) {
+      if (showDialect && context.mounted) {
         _showDialect(context, languageCode: picked.code);
       }
     }
@@ -121,12 +121,11 @@ class LanguagePicker extends StatelessWidget {
     BuildContext context, {
     required String languageCode,
   }) async {
-    if (dio == null || languageCode.isEmpty) return;
+    if (languageCode.isEmpty) return;
     final result = await showDialectBottomSheet(
       context,
       languageCode: languageCode,
       selectedVariant: languageCode == value ? variant : null,
-      dio: dio!,
     );
     // null return means "표준어" was selected; dismissed returns existing variant
     if (onVariantChanged != null) onVariantChanged!(result);

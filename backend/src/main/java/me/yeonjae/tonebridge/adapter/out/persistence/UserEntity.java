@@ -29,6 +29,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class UserEntity {
 
+    // A plain ObjectMapper instance rather than the Spring-managed bean.
+    // This is intentional: UserEntity is a JPA entity instantiated by Hibernate
+    // outside the Spring application context, so @Autowired injection is not
+    // available here.  The only types serialised are Map<String,String>, which
+    // require no custom configuration, so a default instance is safe.
+    // If richer Jackson configuration (e.g. custom modules, date handling) is ever
+    // needed here, wire this via a static initialiser that reads from a shared
+    // singleton rather than adding stateful Spring injection to the JPA layer.
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Id

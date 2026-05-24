@@ -114,7 +114,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                 }),
                 onVariantChanged: (v) => setState(() => _targetVariant = v),
                 showDialect: true,
-                dio: ref.read(dioProvider),
               ),
             ),
             const SizedBox(height: 16),
