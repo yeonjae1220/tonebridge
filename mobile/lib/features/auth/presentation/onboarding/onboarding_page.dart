@@ -61,8 +61,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       context.go(AppRoute.feed);
     } catch (e) {
       if (!mounted) return;
+      debugPrint('Onboarding save error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('저장 중 오류: $e')),
+        const SnackBar(content: Text('저장에 실패했습니다. 다시 시도해 주세요.')),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);

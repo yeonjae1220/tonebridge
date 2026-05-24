@@ -89,13 +89,18 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     }
 
     // Multi-select: remove the variant entry for deselected languages.
+    // Computed before setState so both mutations happen in one frame.
+    Map<String, String>? updatedVariants;
     if (!widget.singleSelect && wasSelected && _selectedVariants.containsKey(code)) {
-      final updated = Map.of(_selectedVariants)..remove(code);
-      setState(() => _selectedVariants = updated);
-      widget.onVariantsChanged?.call(updated);
+      updatedVariants = Map.of(_selectedVariants)..remove(code);
     }
 
-    setState(() => _selected = next);
+    setState(() {
+      _selected = next;
+      if (updatedVariants != null) _selectedVariants = updatedVariants;
+    });
+
+    if (updatedVariants != null) widget.onVariantsChanged?.call(updatedVariants);
     widget.onChanged(next.toList());
   }
 
@@ -249,7 +254,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                     const SizedBox(height: 20),
                     _MultiVariantSection(
                       selectedCodes: _selected.toList(),
-                      selectedVariants: _selectedVariants,
+                      selectedVariants: Map.of(_selectedVariants),
                       onTap: _showVariantSheet,
                     ),
                   ],
@@ -331,7 +336,6 @@ class _MultiVariantSection extends ConsumerWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _MultiVariantRow(
-              langCode: code,
               langLabel: lang?.label ?? code,
               langFlag: lang?.flag ?? '🌐',
               dialectLabel: dialectLabel,
@@ -347,7 +351,6 @@ class _MultiVariantSection extends ConsumerWidget {
 
 class _MultiVariantRow extends StatelessWidget {
   const _MultiVariantRow({
-    required this.langCode,
     required this.langLabel,
     required this.langFlag,
     required this.dialectLabel,
@@ -355,7 +358,6 @@ class _MultiVariantRow extends StatelessWidget {
     required this.onTap,
   });
 
-  final String langCode;
   final String langLabel;
   final String langFlag;
   final String dialectLabel;

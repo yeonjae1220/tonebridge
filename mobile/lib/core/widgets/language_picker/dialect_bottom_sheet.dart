@@ -228,6 +228,10 @@ Future<String?> showDialectBottomSheet(
   return showModalBottomSheet<String?>(
     context: context,
     isScrollControlled: true,
+    // Prevent tapping the barrier from returning null and being misidentified
+    // as the user choosing "표준어". The close (×) button explicitly pops with
+    // the current selection, so null can only mean "no dialect selected".
+    isDismissible: false,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
