@@ -97,15 +97,30 @@ class LanguagePicker extends StatelessWidget {
   }
 
   Future<void> _showOther(BuildContext context) async {
+    // Surface any excluded primary-language entries in the sheet so they're
+    // still findable even when hidden from the primary grid.
+    final excludedPrimary = excludeCodes
+        .map(
+          (code) =>
+              kPrimaryLanguages.where((l) => l.code == code).firstOrNull,
+        )
+        .whereType<LanguageEntry>()
+        .toList();
+
     final picked = await showOtherLanguagesSheet(
       context,
-      excludeCodes: excludeCodes,
+      selectedCodes: multiSelect ? values : (value.isNotEmpty ? [value] : []),
+      additionalEntries: excludedPrimary,
     );
     if (picked == null) return;
     if (multiSelect) {
-      if (!values.contains(picked.code)) {
-        onMultiChanged!([...values, picked.code]);
+      final current = List<String>.from(values);
+      if (current.contains(picked.code)) {
+        current.remove(picked.code);
+      } else {
+        current.add(picked.code);
       }
+      onMultiChanged!(current);
     } else {
       onChanged!(picked.code);
       if (onVariantChanged != null) onVariantChanged!(null);
@@ -212,7 +227,8 @@ class _MoreButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.4)),
+            color: theme.colorScheme.outline.withValues(alpha: 0.4),
+          ),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -220,9 +236,11 @@ class _MoreButton extends StatelessWidget {
           children: [
             Icon(Icons.add, size: 16, color: theme.colorScheme.primary),
             const SizedBox(width: 4),
-            Text('더 보기',
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: theme.colorScheme.primary)),
+            Text(
+              '더 보기',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: theme.colorScheme.primary),
+            ),
           ],
         ),
       ),

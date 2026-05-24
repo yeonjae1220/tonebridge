@@ -16,6 +16,10 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
     this.initialValues = const [],
     this.nextLabel = '다음',
     this.isLoading = false,
+    /// Codes to hide from the primary language grid.
+    /// Excluded primary-language entries are still discoverable via the
+    /// "기타 언어" sheet so the user can pick them if needed.
+    this.excludeCodes = const [],
     // ── dialect / variant params ──────────────────────────────────────────
     /// Show dialect selector(s) below the grid.
     this.showDialect = false,
@@ -35,6 +39,9 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
   final List<String> initialValues;
   final String nextLabel;
   final bool isLoading;
+
+  /// Codes hidden from the primary grid but surfaced in the "기타 언어" sheet.
+  final List<String> excludeCodes;
 
   /// Show dialect/variant selector(s) below the grid.
   final bool showDialect;
@@ -59,6 +66,12 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
 
 class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
   Set<String> _selected = {};
+
+  /// Primary languages visible in the main grid (excludeCodes are hidden here
+  /// but still accessible via the "기타 언어" sheet).
+  List<LanguageEntry> get _primaryGrid => kPrimaryLanguages
+      .where((l) => !widget.excludeCodes.contains(l.code))
+      .toList();
 
   // Single-select dialect state
   String? _selectedDialect;
@@ -104,10 +117,22 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     widget.onChanged(next.toList());
   }
 
-  Future<void> _showOther(List<String> excludeCodes) async {
+  Future<void> _showOther() async {
+    // Primary-language entries excluded from the grid (e.g. the native
+    // language on fluent/learning steps) are surfaced at the top of the sheet
+    // so the user can still find and pick them when needed.
+    final excludedPrimary = widget.excludeCodes
+        .map(
+          (code) =>
+              kPrimaryLanguages.where((l) => l.code == code).firstOrNull,
+        )
+        .whereType<LanguageEntry>()
+        .toList();
+
     final picked = await showOtherLanguagesSheet(
       context,
-      excludeCodes: excludeCodes,
+      selectedCodes: _selected.toList(),
+      additionalEntries: excludedPrimary,
     );
     if (picked == null || !mounted) return;
     _toggle(picked.code);
@@ -156,10 +181,12 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     final theme = Theme.of(context);
     final canProceed = _selected.isNotEmpty;
 
-    // Codes selected from kOtherLanguages (not in primary grid)
-    final otherSelected = _selected
-        .where((code) => !kPrimaryLanguages.any((l) => l.code == code))
-        .toList();
+    // Codes selected that are NOT shown in the current primary grid.
+    // This includes kOtherLanguages selections AND excluded primary languages
+    // (e.g. the native language selected via the "기타 언어" sheet).
+    final primaryGridCodes = _primaryGrid.map((l) => l.code).toSet();
+    final otherSelected =
+        _selected.where((code) => !primaryGridCodes.contains(code)).toList();
 
     final showSingleDialect =
         widget.showDialect && widget.singleSelect && _selected.isNotEmpty;
@@ -195,9 +222,9 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                       crossAxisSpacing: 10,
                       mainAxisExtent: 90,
                     ),
-                    itemCount: kPrimaryLanguages.length,
+                    itemCount: _primaryGrid.length,
                     itemBuilder: (context, index) {
-                      final lang = kPrimaryLanguages[index];
+                      final lang = _primaryGrid[index];
                       return _LanguageGridCell(
                         lang: lang,
                         isSelected: _selected.contains(lang.code),
@@ -212,7 +239,9 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: otherSelected.map((code) {
-                        final lang = kOtherLanguages
+                        // Search kAllLanguages so chips work for both
+                        // kOtherLanguages entries and excluded primary languages.
+                        final lang = kAllLanguages
                             .where((l) => l.code == code)
                             .firstOrNull;
                         if (lang == null) return const SizedBox.shrink();
@@ -230,7 +259,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                   ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () => _showOther(_selected.toList()),
+                    onPressed: _showOther,
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('기타 언어'),
                     style: OutlinedButton.styleFrom(

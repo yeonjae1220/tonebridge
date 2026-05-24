@@ -6,11 +6,23 @@ class OtherLanguagesSheet extends StatefulWidget {
   const OtherLanguagesSheet({
     required this.onSelect,
     super.key,
-    this.excludeCodes = const [],
+    this.selectedCodes = const [],
+    this.additionalEntries = const [],
   });
 
+  /// Called when a tile is tapped.
+  /// The caller decides whether this is a select or deselect based on
+  /// whether the code was already in [selectedCodes].
   final ValueChanged<LanguageEntry> onSelect;
-  final List<String> excludeCodes;
+
+  /// Already-selected codes — shown highlighted with a checkmark
+  /// so the user can also tap again to deselect.
+  final List<String> selectedCodes;
+
+  /// Extra entries prepended before the kOtherLanguages list.
+  /// Used to surface primary-language codes that were excluded from
+  /// the main grid (e.g. the native language on fluent/learning steps).
+  final List<LanguageEntry> additionalEntries;
 
   @override
   State<OtherLanguagesSheet> createState() => _OtherLanguagesSheetState();
@@ -29,16 +41,26 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filtered = kOtherLanguages
+
+    // Merge additionalEntries + kOtherLanguages, avoiding duplicates.
+    final additionalCodes = widget.additionalEntries.map((e) => e.code).toSet();
+    final combined = [
+      ...widget.additionalEntries,
+      ...kOtherLanguages.where((l) => !additionalCodes.contains(l.code)),
+    ];
+
+    final filtered = combined
         .where(
           (l) =>
-              !widget.excludeCodes.contains(l.code) &&
-              (_query.isEmpty || l.label.contains(_query)),
+              _query.isEmpty ||
+              l.label.contains(_query) ||
+              l.code.contains(_query.toLowerCase()),
         )
         .toList();
 
     return Column(
       children: [
+        // Drag handle
         Container(
           margin: const EdgeInsets.only(top: 12, bottom: 8),
           width: 36,
@@ -48,6 +70,7 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
+        // Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -65,6 +88,7 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
             ],
           ),
         ),
+        // Search field
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           child: TextField(
@@ -86,6 +110,7 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
             onChanged: (v) => setState(() => _query = v.trim()),
           ),
         ),
+        // Grid
         Expanded(
           child: filtered.isEmpty
               ? Center(
@@ -103,9 +128,13 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
                     },
                   ),
                   child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
+                    // Internal bottom padding absorbs the safe-area inset so
+                    // the last row is never clipped by home-indicator / nav bar.
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      8,
+                      20,
+                      MediaQuery.of(context).viewPadding.bottom + 32,
                     ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -117,53 +146,95 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
                     itemCount: filtered.length,
                     itemBuilder: (context, i) {
                       final lang = filtered[i];
-                      return InkWell(
+                      final isSelected =
+                          widget.selectedCodes.contains(lang.code);
+                      return _LanguageTile(
+                        lang: lang,
+                        isSelected: isSelected,
                         onTap: () => widget.onSelect(lang),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.3),
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                lang.flag,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  lang.label,
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(fontWeight: FontWeight.w500),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       );
                     },
                   ),
                 ),
         ),
-        SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 8),
       ],
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// Individual language tile
+// ---------------------------------------------------------------------------
+
+class _LanguageTile extends StatelessWidget {
+  const _LanguageTile({
+    required this.lang,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final LanguageEntry lang;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+              : null,
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withValues(alpha: 0.3),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Text(lang.flag, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                lang.label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: isSelected
+                      ? theme.colorScheme.onPrimaryContainer
+                      : null,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                size: 15,
+                color: theme.colorScheme.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 Future<LanguageEntry?> showOtherLanguagesSheet(
   BuildContext context, {
-  List<String> excludeCodes = const [],
+  List<String> selectedCodes = const [],
+  List<LanguageEntry> additionalEntries = const [],
 }) {
   return showModalBottomSheet<LanguageEntry>(
     context: context,
@@ -175,7 +246,8 @@ Future<LanguageEntry?> showOtherLanguagesSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (sheetCtx) => OtherLanguagesSheet(
-      excludeCodes: excludeCodes,
+      selectedCodes: selectedCodes,
+      additionalEntries: additionalEntries,
       onSelect: (lang) => Navigator.of(sheetCtx).pop(lang),
     ),
   );
