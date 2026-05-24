@@ -18,20 +18,20 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4.2.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.1.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Build & push backend
-        uses: docker/build-push-action@v7.2.0
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
@@ -42,7 +42,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build & push frontend
-        uses: docker/build-push-action@v7.2.0
+        uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
@@ -54,32 +54,19 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    # self-hosted runner on lenovo — 내부망 직접 실행, SSH/포트포워딩 불필요
+    runs-on: [self-hosted, homelab]
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v4
 
-      - name: Prepare deploy directory on server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.LENOVO_HOST }}
-          port: ${{ secrets.LENOVO_PORT }}
-          username: ${{ secrets.LENOVO_USER }}
-          key: ${{ secrets.LENOVO_SSH_KEY }}
-          script: sudo mkdir -p /opt/tonebridge && sudo chown $USER:$USER /opt/tonebridge
+      - name: Prepare deploy directory
+        run: sudo mkdir -p /opt/tonebridge && sudo chown $USER:$USER /opt/tonebridge
 
-      - name: Copy k8s manifests to server
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.LENOVO_HOST }}
-          port: ${{ secrets.LENOVO_PORT }}
-          username: ${{ secrets.LENOVO_USER }}
-          key: ${{ secrets.LENOVO_SSH_KEY }}
-          source: "k8s/"
-          target: "/opt/tonebridge/"
+      - name: Copy k8s manifests
+        run: cp -r k8s/ /opt/tonebridge/
 
-      - name: Deploy to Lenovo k3s
-        uses: appleboy/ssh-action@v1
+      - name: Apply k8s manifests & roll out
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
@@ -88,64 +75,61 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
-        with:
-          host: ${{ secrets.LENOVO_HOST }}
-          port: ${{ secrets.LENOVO_PORT }}
-          username: ${{ secrets.LENOVO_USER }}
-          key: ${{ secrets.LENOVO_SSH_KEY }}
-          envs: POSTGRES_PASSWORD,REDIS_PASSWORD,JWT_SECRET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,CLAUDE_API_KEY,MINIO_ROOT_PASSWORD
-          script: |
-            set -e
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -e
 
-            # 네임스페이스 먼저 생성 (Secret 적용 전 필수)
-            sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
+          # 네임스페이스 먼저 생성 (Secret 적용 전 필수)
+          sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
 
-            # k8s Secret 동적 생성/업데이트 (민감 값은 GitHub Actions Secrets에서 주입)
-            sudo kubectl create secret generic tonebridge-secret \
-              --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-              --from-literal=REDIS_PASSWORD="${REDIS_PASSWORD}" \
-              --from-literal=JWT_SECRET="${JWT_SECRET}" \
-              --from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-              --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-              --from-literal=CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
-              --from-literal=OPENAI_API_KEY="" \
-              --from-literal=MINIO_ROOT_USER="minio-tonebridge" \
-              --from-literal=MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-              --from-literal=CORS_ALLOWED_ORIGINS="https://tonebridge.mungji.com" \
-              -n tonebridge \
-              --dry-run=client -o yaml | sudo kubectl apply -f -
+          # k8s Secret 동적 생성/업데이트 (민감 값은 GitHub Actions Secrets에서 주입)
+          sudo kubectl create secret generic tonebridge-secret \
+            --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+            --from-literal=REDIS_PASSWORD="${REDIS_PASSWORD}" \
+            --from-literal=JWT_SECRET="${JWT_SECRET}" \
+            --from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+            --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+            --from-literal=CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
+            --from-literal=OPENAI_API_KEY="" \
+            --from-literal=MINIO_ROOT_USER="minio-tonebridge" \
+            --from-literal=MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
+            --from-literal=CORS_ALLOWED_ORIGINS="https://tonebridge.mungji.com" \
+            -n tonebridge \
+            --dry-run=client -o yaml | sudo kubectl apply -f -
 
-            # 나머지 인프라 적용
-            sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/network-policy.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/postgres.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/redis.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/minio.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/minio-init.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/backend.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/frontend.yaml
-            sudo kubectl apply -f /opt/tonebridge/k8s/ingress.yaml
+          # 나머지 인프라 적용
+          sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/network-policy.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/postgres.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/redis.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/minio.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/minio-init.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/backend.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/frontend.yaml
+          sudo kubectl apply -f /opt/tonebridge/k8s/ingress.yaml
 
-            # 이미지 최신화 및 롤아웃 (SHA 태그로 변경을 강제하여 :latest 동일 시 롤아웃 누락 방지)
-            sudo kubectl set image deployment/backend \
-              backend=${{ env.BACKEND_IMAGE }}:${{ github.sha }} \
-              -n tonebridge
-            sudo kubectl set image deployment/frontend \
-              frontend=${{ env.FRONTEND_IMAGE }}:${{ github.sha }} \
-              -n tonebridge
+          # 이미지 최신화 및 롤아웃 (SHA 태그로 변경을 강제하여 :latest 동일 시 롤아웃 누락 방지)
+          sudo kubectl set image deployment/backend \
+            backend="${BACKEND_IMAGE}:${GIT_SHA}" \
+            -n tonebridge
+          sudo kubectl set image deployment/frontend \
+            frontend="${FRONTEND_IMAGE}:${GIT_SHA}" \
+            -n tonebridge
 
-            if ! sudo kubectl rollout status deployment/backend -n tonebridge --timeout=300s; then
-              echo "=== Backend pod status ==="
-              sudo kubectl get pods -n tonebridge -l app=backend -o wide
-              NEW_POD=$(sudo kubectl get pods -n tonebridge -l app=backend \
-                --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-              sudo kubectl logs "$NEW_POD" -n tonebridge --tail=50 2>/dev/null || true
-              sudo kubectl describe pod "$NEW_POD" -n tonebridge | tail -30
-              exit 1
-            fi
+          if ! sudo kubectl rollout status deployment/backend -n tonebridge --timeout=300s; then
+            echo "=== Backend pod status ==="
+            sudo kubectl get pods -n tonebridge -l app=backend -o wide
+            NEW_POD=$(sudo kubectl get pods -n tonebridge -l app=backend \
+              --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+            sudo kubectl logs "$NEW_POD" -n tonebridge --tail=50 2>/dev/null || true
+            sudo kubectl describe pod "$NEW_POD" -n tonebridge | tail -30
+            exit 1
+          fi
 
-            if ! sudo kubectl rollout status deployment/frontend -n tonebridge --timeout=120s; then
-              echo "=== Frontend pod status ==="
-              sudo kubectl get pods -n tonebridge -l app=frontend -o wide
-              exit 1
-            fi
+          if ! sudo kubectl rollout status deployment/frontend -n tonebridge --timeout=120s; then
+            echo "=== Frontend pod status ==="
+            sudo kubectl get pods -n tonebridge -l app=frontend -o wide
+            exit 1
+          fi
