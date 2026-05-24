@@ -16,6 +16,8 @@ abstract class UserProfile with _$UserProfile {
     required String correctorLevel,
     @Default([]) List<UserBadge> badges,
     String? nativeDialect,
+    @Default(<String, String>{}) Map<String, String> fluentLanguageVariants,
+    @Default(<String, String>{}) Map<String, String> learningLanguageVariants,
   }) = _UserProfile;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) =>

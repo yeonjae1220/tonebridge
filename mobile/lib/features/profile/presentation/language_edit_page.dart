@@ -17,7 +17,9 @@ class LanguageEditPage extends ConsumerStatefulWidget {
 class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
   late String _nativeLanguage;
   late List<String> _fluentLanguages;
+  late Map<String, String> _fluentLanguageVariants;
   late List<String> _learningLanguages;
+  late Map<String, String> _learningLanguageVariants;
   String? _nativeDialect;
 
   int _step = 0; // 0: native, 1: fluent, 2: learning
@@ -27,7 +29,9 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
     super.initState();
     _nativeLanguage = widget.profile.nativeLanguage;
     _fluentLanguages = List.of(widget.profile.fluentLanguages);
+    _fluentLanguageVariants = Map.of(widget.profile.fluentLanguageVariants);
     _learningLanguages = List.of(widget.profile.learningLanguages);
+    _learningLanguageVariants = Map.of(widget.profile.learningLanguageVariants);
     _nativeDialect = widget.profile.nativeDialect;
   }
 
@@ -37,6 +41,8 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
           fluentLanguages: _fluentLanguages,
           learningLanguages: _learningLanguages,
           nativeDialect: _nativeDialect,
+          fluentLanguageVariants: _fluentLanguageVariants,
+          learningLanguageVariants: _learningLanguageVariants,
         );
     if (!mounted) return;
     if (success) {
@@ -78,8 +84,11 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
             title: '구사 가능 언어',
             subtitle: '유창하게 구사할 수 있는 언어를 선택하세요.',
             singleSelect: false,
+            showDialect: true,
             initialValues: _fluentLanguages,
+            initialVariants: _fluentLanguageVariants,
             onChanged: (langs) => _fluentLanguages = langs,
+            onVariantsChanged: (v) => _fluentLanguageVariants = v,
             onNext: () => setState(() => _step = 2),
           ),
         _ => LanguageSelectPage(
@@ -87,8 +96,11 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
             title: '학습 중인 언어',
             subtitle: '현재 학습 중인 언어를 선택하세요.',
             singleSelect: false,
+            showDialect: true,
             initialValues: _learningLanguages,
+            initialVariants: _learningLanguageVariants,
             onChanged: (langs) => _learningLanguages = langs,
+            onVariantsChanged: (v) => _learningLanguageVariants = v,
             onNext: _save,
             nextLabel: '저장',
             isLoading: isLoading,

@@ -69,8 +69,8 @@ class AuthState extends _$AuthState {
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,
-    // TODO(phase-2): add fluentLanguageVariants + learningLanguageVariants
-    //   once the fluent/learning dialect selection UI is implemented.
+    Map<String, String> fluentLanguageVariants = const {},
+    Map<String, String> learningLanguageVariants = const {},
   }) async {
     final repo = ref.read(authRepositoryProvider);
     await repo.saveLanguagePreferences(
@@ -78,6 +78,8 @@ class AuthState extends _$AuthState {
       fluentLanguages: fluentLanguages,
       learningLanguages: learningLanguages,
       nativeDialect: nativeDialect,
+      fluentLanguageVariants: fluentLanguageVariants,
+      learningLanguageVariants: learningLanguageVariants,
     );
     final currentSession = state.value;
     if (currentSession != null) {

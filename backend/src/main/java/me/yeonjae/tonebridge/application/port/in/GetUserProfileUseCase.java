@@ -4,6 +4,7 @@ import me.yeonjae.tonebridge.domain.user.CorrectorLevel;
 import me.yeonjae.tonebridge.domain.user.UserBadge;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface GetUserProfileUseCase {
@@ -16,6 +17,9 @@ public interface GetUserProfileUseCase {
             String nativeLanguage,
             String nativeDialect,
             List<String> fluentLanguages,
+            List<String> learningLanguages,
+            Map<String, String> fluentLanguageVariants,
+            Map<String, String> learningLanguageVariants,
             int correctionStreak,
             double reputationScore,
             CorrectorLevel correctorLevel,

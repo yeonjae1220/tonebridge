@@ -7,6 +7,7 @@ import me.yeonjae.tonebridge.domain.user.UserBadge;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record UserProfileResponse(
@@ -15,6 +16,9 @@ public record UserProfileResponse(
         String nativeLanguage,
         String nativeDialect,
         List<String> fluentLanguages,
+        List<String> learningLanguages,
+        Map<String, String> fluentLanguageVariants,
+        Map<String, String> learningLanguageVariants,
         int correctionStreak,
         double reputationScore,
         CorrectorLevel correctorLevel,
@@ -33,6 +37,9 @@ public record UserProfileResponse(
                 result.nativeLanguage(),
                 result.nativeDialect(),
                 result.fluentLanguages(),
+                result.learningLanguages(),
+                result.fluentLanguageVariants(),
+                result.learningLanguageVariants(),
                 result.correctionStreak(),
                 result.reputationScore(),
                 result.correctorLevel(),

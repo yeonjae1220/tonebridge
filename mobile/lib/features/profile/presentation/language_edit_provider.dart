@@ -16,8 +16,8 @@ class LanguageEdit extends _$LanguageEdit {
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,
-    // TODO(phase-2): add fluentLanguageVariants + learningLanguageVariants
-    //   once the fluent/learning dialect selection UI is implemented.
+    Map<String, String> fluentLanguageVariants = const {},
+    Map<String, String> learningLanguageVariants = const {},
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -26,6 +26,8 @@ class LanguageEdit extends _$LanguageEdit {
             fluentLanguages: fluentLanguages,
             learningLanguages: learningLanguages,
             nativeDialect: nativeDialect,
+            fluentLanguageVariants: fluentLanguageVariants,
+            learningLanguageVariants: learningLanguageVariants,
           );
     });
     if (state.hasError) return false;

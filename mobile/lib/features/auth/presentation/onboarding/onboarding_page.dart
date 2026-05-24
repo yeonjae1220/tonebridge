@@ -23,7 +23,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   String? _nativeLanguage;
   String? _nativeDialect;
   List<String> _fluentLanguages = [];
+  Map<String, String> _fluentLanguageVariants = {};
   List<String> _learningLanguages = [];
+  Map<String, String> _learningLanguageVariants = {};
 
   bool _isSaving = false;
 
@@ -52,6 +54,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             fluentLanguages: _fluentLanguages,
             learningLanguages: _learningLanguages,
             nativeDialect: _nativeDialect,
+            fluentLanguageVariants: _fluentLanguageVariants,
+            learningLanguageVariants: _learningLanguageVariants,
           );
       if (!mounted) return;
       context.go(AppRoute.feed);
@@ -91,14 +95,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             title: '구사 가능한 언어',
             subtitle: '교정해 줄 수 있는 언어를 모두 선택하세요.',
             singleSelect: false,
+            showDialect: true,
             onChanged: (langs) => _fluentLanguages = langs,
+            onVariantsChanged: (v) => _fluentLanguageVariants = v,
             onNext: _nextStep,
           ),
           LanguageSelectPage(
             title: '배우고 싶은 언어',
             subtitle: '교정받고 싶은 언어를 선택하세요.',
             singleSelect: false,
+            showDialect: true,
             onChanged: (langs) => _learningLanguages = langs,
+            onVariantsChanged: (v) => _learningLanguageVariants = v,
             onNext: _finish,
             nextLabel: _isSaving ? '저장 중...' : '시작하기',
             isLoading: _isSaving,
