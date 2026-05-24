@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/constants/languages.dart';
+import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
@@ -447,37 +448,99 @@ class _BadgeTile extends StatelessWidget {
   }
 }
 
-class _LanguageSection extends StatelessWidget {
+class _LanguageSection extends ConsumerWidget {
   const _LanguageSection({required this.profile});
   final UserProfile profile;
 
+  /// Resolves a variant code to its human-readable label using the already-loaded
+  /// variants map. Falls back to the raw code while the provider is loading or
+  /// on error, so the UI is never blocked.
+  String _resolveLabel(
+    AsyncValue<Map<String, List<LanguageVariant>>> variantsAsync,
+    String langCode,
+    String variantCode,
+  ) =>
+      variantsAsync.whenOrNull(
+        data: (all) => all[langCode]
+            ?.where((v) => v.code == variantCode)
+            .firstOrNull
+            ?.label,
+      ) ??
+      variantCode;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final variantsAsync = ref.watch(languageVariantsProvider);
+
+    // Native — at most one dialect code.
+    final nativeDialectLabels = <String, String>{};
+    final nd = profile.nativeDialect;
+    if (nd != null && nd.isNotEmpty) {
+      nativeDialectLabels[profile.nativeLanguage] =
+          _resolveLabel(variantsAsync, profile.nativeLanguage, nd);
+    }
+
+    // Fluent — one entry per language that has a variant set.
+    final fluentDialectLabels = {
+      for (final e in profile.fluentLanguageVariants.entries)
+        e.key: _resolveLabel(variantsAsync, e.key, e.value),
+    };
+
+    // Learning — same shape.
+    final learningDialectLabels = {
+      for (final e in profile.learningLanguageVariants.entries)
+        e.key: _resolveLabel(variantsAsync, e.key, e.value),
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('언어 설정',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          '언어 설정',
+          style: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 12),
-        _LanguageRow(label: '모국어', languages: [profile.nativeLanguage]),
+        _LanguageRow(
+          label: '모국어',
+          languages: [profile.nativeLanguage],
+          dialectLabels:
+              nativeDialectLabels.isNotEmpty ? nativeDialectLabels : null,
+        ),
         const SizedBox(height: 8),
         _LanguageRow(
-            label: '구사 가능', languages: profile.fluentLanguages),
+          label: '구사 가능',
+          languages: profile.fluentLanguages,
+          dialectLabels:
+              fluentDialectLabels.isNotEmpty ? fluentDialectLabels : null,
+        ),
         const SizedBox(height: 8),
         _LanguageRow(
-            label: '학습 중', languages: profile.learningLanguages),
+          label: '학습 중',
+          languages: profile.learningLanguages,
+          dialectLabels:
+              learningDialectLabels.isNotEmpty ? learningDialectLabels : null,
+        ),
       ],
     );
   }
 }
 
 class _LanguageRow extends StatelessWidget {
-  const _LanguageRow(
-      {required this.label, required this.languages});
+  const _LanguageRow({
+    required this.label,
+    required this.languages,
+    this.dialectLabels,
+  });
+
   final String label;
   final List<String> languages;
+
+  /// Already-resolved dialect label strings keyed by language code.
+  /// When a language code is present in this map the chip shows
+  /// "Language · Dialect", otherwise just "Language".
+  final Map<String, String>? dialectLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -487,22 +550,27 @@ class _LanguageRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 72,
-          child: Text(label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.outline)),
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.outline),
+          ),
         ),
         Expanded(
           child: Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: languages
-                .map((l) => Chip(
-                      label: Text(langLabel(l)),
-                      materialTapTargetSize:
-                          MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ))
-                .toList(),
+            children: languages.map((l) {
+              final dialectLabel = dialectLabels?[l];
+              final chipLabel = dialectLabel != null
+                  ? '${langLabel(l)} · $dialectLabel'
+                  : langLabel(l);
+              return Chip(
+                label: Text(chipLabel),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
           ),
         ),
       ],

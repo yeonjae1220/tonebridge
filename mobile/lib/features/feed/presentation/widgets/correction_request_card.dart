@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tonebridge/core/constants/languages.dart';
+import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
 
 class CorrectionRequestCard extends StatelessWidget {
@@ -104,17 +107,36 @@ class CorrectionRequestCard extends StatelessWidget {
   }
 }
 
-class _LanguageBadge extends StatelessWidget {
+class _LanguageBadge extends ConsumerWidget {
   const _LanguageBadge({required this.language, this.variant});
   final String language;
   final String? variant;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final label = variant != null && variant!.isNotEmpty
-        ? '$language · $variant'
-        : language;
+
+    // Resolve language code → human-readable display name.
+    final resolvedLang = langLabel(language);
+
+    // Resolve variant code → label via the cached variants provider.
+    // Falls back to the raw code while loading or on error.
+    final variantsAsync = ref.watch(languageVariantsProvider);
+    final resolvedVariant = switch (variant) {
+      null || '' => null,
+      final vc => variantsAsync.whenOrNull(
+              data: (all) => all[language]
+                  ?.where((v) => v.code == vc)
+                  .firstOrNull
+                  ?.label,
+            ) ??
+            vc,
+    };
+
+    final label = resolvedVariant != null
+        ? '$resolvedLang · $resolvedVariant'
+        : resolvedLang;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
