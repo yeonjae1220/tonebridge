@@ -481,16 +481,19 @@ class _LanguageSection extends ConsumerWidget {
           _resolveLabel(variantsAsync, profile.nativeLanguage, nd);
     }
 
-    // Fluent — one entry per language that has a variant set.
+    // Fluent — one entry per language that has a non-empty variant set.
+    // Guard isNotEmpty mirrors the null||'' switch guard in _LanguageBadge.
     final fluentDialectLabels = {
       for (final e in profile.fluentLanguageVariants.entries)
-        e.key: _resolveLabel(variantsAsync, e.key, e.value),
+        if (e.value.isNotEmpty)
+          e.key: _resolveLabel(variantsAsync, e.key, e.value),
     };
 
     // Learning — same shape.
     final learningDialectLabels = {
       for (final e in profile.learningLanguageVariants.entries)
-        e.key: _resolveLabel(variantsAsync, e.key, e.value),
+        if (e.value.isNotEmpty)
+          e.key: _resolveLabel(variantsAsync, e.key, e.value),
     };
 
     return Column(
