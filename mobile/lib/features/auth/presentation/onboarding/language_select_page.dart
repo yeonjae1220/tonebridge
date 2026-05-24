@@ -47,8 +47,11 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
     widget.onChanged(next.toList());
   }
 
-  Future<void> _showOther() async {
-    final picked = await showOtherLanguagesSheet(context);
+  Future<void> _showOther(List<String> excludeCodes) async {
+    final picked = await showOtherLanguagesSheet(
+      context,
+      excludeCodes: excludeCodes,
+    );
     if (picked == null || !mounted) return;
     _toggle(picked.code);
   }
@@ -82,7 +85,6 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 3×3 primary language grid (kPrimaryLanguages = 9 items)
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -128,7 +130,7 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
                   ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: _showOther,
+                    onPressed: () => _showOther(otherSelected),
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('기타 언어'),
                     style: OutlinedButton.styleFrom(
@@ -152,7 +154,10 @@ class _LanguageSelectPageState extends State<LanguageSelectPage> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      semanticsLabel: '로딩 중',
+                    ),
                   )
                 : Text(widget.nextLabel),
           ),
@@ -176,8 +181,9 @@ class _LanguageGridCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
