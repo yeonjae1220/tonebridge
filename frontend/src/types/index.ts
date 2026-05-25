@@ -125,7 +125,7 @@ export interface FriendRequest {
   id: string
   senderId: string
   receiverId: string
-  status: string
+  status: 'PENDING' | 'ACCEPTED' | 'BLOCKED'
   senderUsername: string | null
   createdAt: string
 }
