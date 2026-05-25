@@ -16,12 +16,8 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
     this.initialValues = const [],
     this.nextLabel = '다음',
     this.isLoading = false,
-    /// Codes to hide from the primary language grid.
-    /// Excluded primary-language entries are still discoverable via the
-    /// "기타 언어" sheet so the user can pick them if needed.
-    this.excludeCodes = const [],
     // ── dialect / variant params ──────────────────────────────────────────
-    /// Show dialect selector(s) below the grid.
+    /// Show dialect selector(s) — popup on selection + summary row below.
     this.showDialect = false,
     // Single-select mode only
     this.initialDialect,
@@ -40,10 +36,7 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
   final String nextLabel;
   final bool isLoading;
 
-  /// Codes hidden from the primary grid but surfaced in the "기타 언어" sheet.
-  final List<String> excludeCodes;
-
-  /// Show dialect/variant selector(s) below the grid.
+  /// Show dialect/variant selector popup immediately after language selection.
   final bool showDialect;
 
   // ── single-select dialect ────────────────────────────────────────────────
@@ -67,12 +60,6 @@ class LanguageSelectPage extends ConsumerStatefulWidget {
 class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
   Set<String> _selected = {};
 
-  /// Primary languages visible in the main grid (excludeCodes are hidden here
-  /// but still accessible via the "기타 언어" sheet).
-  List<LanguageEntry> get _primaryGrid => kPrimaryLanguages
-      .where((l) => !widget.excludeCodes.contains(l.code))
-      .toList();
-
   // Single-select dialect state
   String? _selectedDialect;
 
@@ -87,12 +74,16 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     _selectedVariants = Map.of(widget.initialVariants);
   }
 
+  // ── State helpers ────────────────────────────────────────────────────────
+
+  /// Synchronously toggle a language code in/out of [_selected].
+  /// Does NOT trigger dialect popup — use [_handleGridTap] for that.
   void _toggle(String code) {
     final wasSelected = _selected.contains(code);
     final next = widget.singleSelect
         ? {code}
         : (wasSelected
-            ? (_selected.toSet()..remove(code))
+            ? (Set.of(_selected)..remove(code))
             : {..._selected, code});
 
     // Single-select: reset dialect when language changes.
@@ -101,8 +92,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
       widget.onDialectChanged?.call(null);
     }
 
-    // Multi-select: remove the variant entry for deselected languages.
-    // Computed before setState so both mutations happen in one frame.
+    // Multi-select: remove the variant entry for deselected language.
     Map<String, String>? updatedVariants;
     if (!widget.singleSelect && wasSelected && _selectedVariants.containsKey(code)) {
       updatedVariants = Map.of(_selectedVariants)..remove(code);
@@ -117,28 +107,93 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     widget.onChanged(next.toList());
   }
 
-  Future<void> _showOther() async {
-    // Primary-language entries excluded from the grid (e.g. the native
-    // language on fluent/learning steps) are surfaced at the top of the sheet
-    // so the user can still find and pick them when needed.
-    final excludedPrimary = widget.excludeCodes
-        .map(
-          (code) =>
-              kPrimaryLanguages.where((l) => l.code == code).firstOrNull,
-        )
-        .whereType<LanguageEntry>()
-        .toList();
+  /// Called when the user taps a language in the primary grid.
+  /// Toggles the language then — if newly selected — shows dialect popup.
+  Future<void> _handleGridTap(String code) async {
+    final wasSelected = _selected.contains(code);
+    _toggle(code);
 
-    final picked = await showOtherLanguagesSheet(
-      context,
-      selectedCodes: _selected.toList(),
-      additionalEntries: excludedPrimary,
-    );
-    if (picked == null || !mounted) return;
-    _toggle(picked.code);
+    // Only show dialect popup when a language is newly added, not removed.
+    if (wasSelected || !widget.showDialect || !mounted) return;
+
+    if (widget.singleSelect) {
+      await _showDialectSheet();
+    } else {
+      await _showVariantSheet(code);
+    }
   }
 
-  // ── single-select dialect sheet ──────────────────────────────────────────
+  // ── "기타" sheet (other languages) ───────────────────────────────────────
+
+  Future<void> _showOther() async {
+    if (widget.singleSelect) {
+      await _showOtherSingle();
+    } else {
+      await _showOtherMulti();
+    }
+  }
+
+  /// Single-select: pick one "other" language, replacing the current selection.
+  Future<void> _showOtherSingle() async {
+    final otherCodes = kOtherLanguages.map((l) => l.code).toSet();
+    final currentOtherSelected = _selected.intersection(otherCodes);
+
+    final result = await showOtherLanguagesSheet(
+      context,
+      initialSelectedCodes: currentOtherSelected,
+      multiSelect: false,
+    );
+    if (result == null || result.isEmpty || !mounted) return;
+
+    final pickedCode = result.first;
+    setState(() {
+      _selected = {pickedCode};
+      _selectedDialect = null;
+    });
+    widget.onDialectChanged?.call(null);
+    widget.onChanged([pickedCode]);
+
+    if (!mounted || !widget.showDialect) return;
+    await _showDialectSheet();
+  }
+
+  /// Multi-select: toggle multiple "other" languages; show dialect for new ones.
+  Future<void> _showOtherMulti() async {
+    final otherCodes = kOtherLanguages.map((l) => l.code).toSet();
+    final initialOtherSelected = _selected.intersection(otherCodes);
+
+    final result = await showOtherLanguagesSheet(
+      context,
+      initialSelectedCodes: initialOtherSelected,
+    );
+    if (result == null || !mounted) return; // null = cancelled
+
+    final newlyAdded = result.difference(initialOtherSelected);
+    final removed = initialOtherSelected.difference(result);
+
+    final updatedVariants = Map.of(_selectedVariants)
+      ..removeWhere((k, _) => removed.contains(k));
+
+    setState(() {
+      // Keep primary-grid selections; replace other-language selections.
+      _selected = {..._selected.difference(otherCodes), ...result};
+      _selectedVariants = updatedVariants;
+    });
+    widget.onChanged(_selected.toList());
+    if (updatedVariants != _selectedVariants) {
+      widget.onVariantsChanged?.call(Map.unmodifiable(updatedVariants));
+    }
+
+    // Show dialect popup for each newly selected "other" language.
+    if (widget.showDialect) {
+      for (final code in newlyAdded) {
+        if (!mounted) break;
+        await _showVariantSheet(code);
+      }
+    }
+  }
+
+  // ── Dialect / variant sheets ─────────────────────────────────────────────
 
   Future<void> _showDialectSheet() async {
     if (_selected.isEmpty || !mounted) return;
@@ -148,14 +203,10 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
       selectedVariant: _selectedDialect,
     );
     if (!mounted) return;
-    // The close (×) button pops with the existing selection, so result ==
-    // _selectedDialect means the user dismissed without changing anything.
     if (result == _selectedDialect) return;
     setState(() => _selectedDialect = result);
     widget.onDialectChanged?.call(result);
   }
-
-  // ── multi-select variant sheet ───────────────────────────────────────────
 
   Future<void> _showVariantSheet(String langCode) async {
     if (!mounted) return;
@@ -176,17 +227,16 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
     widget.onVariantsChanged?.call(Map.unmodifiable(updated));
   }
 
+  // ── Build ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canProceed = _selected.isNotEmpty;
 
-    // Codes selected that are NOT shown in the current primary grid.
-    // This includes kOtherLanguages selections AND excluded primary languages
-    // (e.g. the native language selected via the "기타 언어" sheet).
-    final primaryGridCodes = _primaryGrid.map((l) => l.code).toSet();
-    final otherSelected =
-        _selected.where((code) => !primaryGridCodes.contains(code)).toList();
+    final primaryCodes = kPrimaryLanguages.map((l) => l.code).toSet();
+    final otherSelectedCount =
+        _selected.where((c) => !primaryCodes.contains(c)).length;
 
     final showSingleDialect =
         widget.showDialect && widget.singleSelect && _selected.isNotEmpty;
@@ -212,6 +262,7 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // ── Primary grid: 11 languages + "기타" cell (3 × 4) ──────
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -222,54 +273,25 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                       crossAxisSpacing: 10,
                       mainAxisExtent: 90,
                     ),
-                    itemCount: _primaryGrid.length,
+                    itemCount: kPrimaryLanguages.length + 1,
                     itemBuilder: (context, index) {
-                      final lang = _primaryGrid[index];
+                      // Last cell is always "기타"
+                      if (index == kPrimaryLanguages.length) {
+                        return _OtherGridCell(
+                          selectedCount: otherSelectedCount,
+                          onTap: _showOther,
+                        );
+                      }
+                      final lang = kPrimaryLanguages[index];
                       return _LanguageGridCell(
                         lang: lang,
                         isSelected: _selected.contains(lang.code),
-                        onTap: () => _toggle(lang.code),
+                        onTap: () => _handleGridTap(lang.code),
                       );
                     },
                   ),
-                  // Selected "other" languages shown as dismissible chips
-                  if (otherSelected.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: otherSelected.map((code) {
-                        // Search kAllLanguages so chips work for both
-                        // kOtherLanguages entries and excluded primary languages.
-                        final lang = kAllLanguages
-                            .where((l) => l.code == code)
-                            .firstOrNull;
-                        if (lang == null) return const SizedBox.shrink();
-                        return Chip(
-                          avatar: Text(
-                            lang.flag,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          label: Text(lang.label),
-                          deleteIcon: const Icon(Icons.close, size: 16),
-                          onDeleted: () => _toggle(code),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _showOther,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('기타 언어'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  // ── Single-select dialect row ─────────────────────────
+
+                  // ── Single-select dialect row ──────────────────────────────
                   if (showSingleDialect) ...[
                     const SizedBox(height: 16),
                     _DialectPickerRow(
@@ -278,7 +300,8 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                       onTap: _showDialectSheet,
                     ),
                   ],
-                  // ── Multi-select variant rows ─────────────────────────
+
+                  // ── Multi-select variant rows ──────────────────────────────
                   if (showMultiDialect) ...[
                     const SizedBox(height: 20),
                     _MultiVariantSection(
@@ -309,6 +332,95 @@ class _LanguageSelectPageState extends ConsumerState<LanguageSelectPage> {
                 : Text(widget.nextLabel),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// "기타" grid cell — 12th cell that opens the other-languages sheet
+// ---------------------------------------------------------------------------
+
+class _OtherGridCell extends StatelessWidget {
+  const _OtherGridCell({
+    required this.onTap,
+    this.selectedCount = 0,
+  });
+
+  final VoidCallback onTap;
+
+  /// Number of "other" languages currently selected (shown as a badge).
+  final int selectedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasSelected = selectedCount > 0;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: hasSelected
+              ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.6)
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasSelected
+                ? theme.colorScheme.secondary
+                : theme.colorScheme.outline.withValues(alpha: 0.3),
+            width: hasSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 26,
+                    color: hasSelected
+                        ? theme.colorScheme.secondary
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '기타',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: hasSelected
+                          ? theme.colorScheme.secondary
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontWeight: hasSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasSelected)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$selectedCount',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -350,7 +462,6 @@ class _MultiVariantSection extends ConsumerWidget {
               kAllLanguages.where((l) => l.code == code).firstOrNull;
           final selectedVariantCode = selectedVariants[code];
 
-          // Resolve human-readable label for the selected variant.
           final dialectLabel = switch (selectedVariantCode) {
             null => '표준어 (지역 무관)',
             final vc => variantsAsync.whenOrNull(
@@ -469,8 +580,6 @@ class _DialectPickerRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final lang = kAllLanguages.where((l) => l.code == langCode).firstOrNull;
 
-    // Resolve the human-readable label for the selected dialect code.
-    // Falls back to the raw code while the provider is loading or on error.
     final dialectLabel = switch (selectedDialect) {
       null => '표준어 (지역 무관)',
       final code => ref.watch(languageVariantsProvider).whenOrNull(

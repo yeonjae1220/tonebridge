@@ -1,20 +1,22 @@
 typedef LanguageEntry = ({String code, String label, String flag});
 
 const List<LanguageEntry> kPrimaryLanguages = [
-  (code: 'ko', label: '한국어', flag: '🇰🇷'),
-  (code: 'ja', label: '일본어', flag: '🇯🇵'),
-  (code: 'zh', label: '중국어', flag: '🇨🇳'),
   (code: 'en', label: '영어', flag: '🇺🇸'),
   (code: 'es', label: '스페인어', flag: '🇪🇸'),
   (code: 'fr', label: '프랑스어', flag: '🇫🇷'),
+  (code: 'ja', label: '일본어', flag: '🇯🇵'),
   (code: 'de', label: '독일어', flag: '🇩🇪'),
+  (code: 'ko', label: '한국어', flag: '🇰🇷'),
+  (code: 'it', label: '이탈리아어', flag: '🇮🇹'),
+  (code: 'zh', label: '중국어', flag: '🇨🇳'),
   (code: 'pt', label: '포르투갈어', flag: '🇵🇹'),
+  (code: 'hi', label: '힌디어', flag: '🇮🇳'),
   (code: 'ru', label: '러시아어', flag: '🇷🇺'),
 ];
 
 const List<LanguageEntry> kOtherLanguages = [
   (code: 'ar', label: '아랍어', flag: '🇸🇦'),
-  (code: 'hi', label: '힌디어', flag: '🇮🇳'),
+  // hi moved to kPrimaryLanguages
   (code: 'tr', label: '터키어', flag: '🇹🇷'),
   (code: 'pl', label: '폴란드어', flag: '🇵🇱'),
   (code: 'nl', label: '네덜란드어', flag: '🇳🇱'),

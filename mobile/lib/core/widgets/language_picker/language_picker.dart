@@ -5,11 +5,11 @@ import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/core/widgets/language_picker/dialect_bottom_sheet.dart';
 import 'package:tonebridge/core/widgets/language_picker/other_languages_sheet.dart';
 
-/// Inline language picker.
+/// Inline language picker (used in the request page for single-select).
 ///
 /// Single-select: provide [value] + [onChanged].
 /// Multi-select:  provide [values] + [onMultiChanged] + set [multiSelect] = true.
-/// Dialect:       [showDialect] = true (default) shows a sub-row for variant selection.
+/// Dialect:       [showDialect] = true shows a sub-row for variant selection.
 class LanguagePicker extends StatelessWidget {
   /// Single-select mode
   const LanguagePicker({
@@ -19,7 +19,6 @@ class LanguagePicker extends StatelessWidget {
     this.variant,
     this.onVariantChanged,
     this.showDialect = true,
-    this.excludeCodes = const [],
   })  : multiSelect = false,
         values = const [],
         onMultiChanged = null;
@@ -29,7 +28,6 @@ class LanguagePicker extends StatelessWidget {
     required this.values,
     required this.onMultiChanged,
     super.key,
-    this.excludeCodes = const [],
   })  : multiSelect = true,
         value = '',
         variant = null,
@@ -50,8 +48,6 @@ class LanguagePicker extends StatelessWidget {
   final List<String> values;
   final ValueChanged<List<String>>? onMultiChanged;
 
-  final List<String> excludeCodes;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -61,7 +57,6 @@ class LanguagePicker extends StatelessWidget {
           multiSelect: multiSelect,
           selectedCode: multiSelect ? null : value,
           selectedCodes: multiSelect ? values : null,
-          excludeCodes: excludeCodes,
           onTap: (code) => _handleTap(context, code),
         ),
         const SizedBox(height: 8),
@@ -97,35 +92,33 @@ class LanguagePicker extends StatelessWidget {
   }
 
   Future<void> _showOther(BuildContext context) async {
-    // Surface any excluded primary-language entries in the sheet so they're
-    // still findable even when hidden from the primary grid.
-    final excludedPrimary = excludeCodes
-        .map(
-          (code) =>
-              kPrimaryLanguages.where((l) => l.code == code).firstOrNull,
-        )
-        .whereType<LanguageEntry>()
-        .toList();
+    final currentSelected = multiSelect
+        ? values.toSet()
+        : (value.isNotEmpty ? {value} : <String>{});
 
-    final picked = await showOtherLanguagesSheet(
+    // Only pass "other" codes as initial selection (primary codes are in grid).
+    final otherCodes = kOtherLanguages.map((l) => l.code).toSet();
+    final initialOther = currentSelected.intersection(otherCodes);
+
+    final result = await showOtherLanguagesSheet(
       context,
-      selectedCodes: multiSelect ? values : (value.isNotEmpty ? [value] : []),
-      additionalEntries: excludedPrimary,
+      initialSelectedCodes: initialOther,
+      multiSelect: multiSelect,
     );
-    if (picked == null) return;
+    if (result == null || !context.mounted) return;
+
     if (multiSelect) {
-      final current = List<String>.from(values);
-      if (current.contains(picked.code)) {
-        current.remove(picked.code);
-      } else {
-        current.add(picked.code);
-      }
-      onMultiChanged!(current);
+      // Replace other-language selections; keep primary selections.
+      final primarySelected = currentSelected.difference(otherCodes);
+      final newValues = {...primarySelected, ...result}.toList();
+      onMultiChanged!(newValues);
     } else {
-      onChanged!(picked.code);
+      if (result.isEmpty) return;
+      final pickedCode = result.first;
+      onChanged!(pickedCode);
       if (onVariantChanged != null) onVariantChanged!(null);
       if (showDialect && context.mounted) {
-        _showDialect(context, languageCode: picked.code);
+        _showDialect(context, languageCode: pickedCode);
       }
     }
   }
@@ -140,7 +133,6 @@ class LanguagePicker extends StatelessWidget {
       languageCode: languageCode,
       selectedVariant: languageCode == value ? variant : null,
     );
-    // null return means "표준어" was selected; dismissed returns existing variant
     if (onVariantChanged != null) onVariantChanged!(result);
   }
 }
@@ -150,14 +142,12 @@ class _PrimaryGrid extends StatelessWidget {
     required this.multiSelect,
     required this.selectedCode,
     required this.selectedCodes,
-    required this.excludeCodes,
     required this.onTap,
   });
 
   final bool multiSelect;
   final String? selectedCode;
   final List<String>? selectedCodes;
-  final List<String> excludeCodes;
   final ValueChanged<String> onTap;
 
   bool _isSelected(String code) => multiSelect
@@ -167,13 +157,11 @@ class _PrimaryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final langs =
-        kPrimaryLanguages.where((l) => !excludeCodes.contains(l.code)).toList();
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: langs.map((lang) {
+      children: kPrimaryLanguages.map((lang) {
         final selected = _isSelected(lang.code);
         return GestureDetector(
           onTap: () => onTap(lang.code),
@@ -264,8 +252,6 @@ class _DialectRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final lang = kAllLanguages.where((l) => l.code == languageCode).firstOrNull;
 
-    // Resolve variant code → human-readable label.
-    // Falls back to the raw code while provider is loading or on error.
     final variantsAsync = ref.watch(languageVariantsProvider);
     final dialectLabel = switch (variant) {
       null => '표준어 (지역 무관)',
@@ -275,7 +261,7 @@ class _DialectRow extends ConsumerWidget {
                   .firstOrNull
                   ?.label,
             ) ??
-            vc,
+          vc,
     };
 
     return Row(

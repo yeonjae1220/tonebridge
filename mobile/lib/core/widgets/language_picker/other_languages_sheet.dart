@@ -2,27 +2,27 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:tonebridge/core/constants/languages.dart';
 
+/// Bottom sheet for selecting languages outside the primary 11-language grid.
+///
+/// [multiSelect] = true  → tap toggles highlight, "확인" button applies
+/// [multiSelect] = false → tap immediately closes with the picked language
+///
+/// Returns [Set<String>?]:
+///   - null  → user cancelled (X button in multi-select)
+///   - Set   → final set of selected other-language codes
 class OtherLanguagesSheet extends StatefulWidget {
   const OtherLanguagesSheet({
-    required this.onSelect,
+    required this.initialSelectedCodes,
+    required this.multiSelect,
     super.key,
-    this.selectedCodes = const [],
-    this.additionalEntries = const [],
   });
 
-  /// Called when a tile is tapped.
-  /// The caller decides whether this is a select or deselect based on
-  /// whether the code was already in [selectedCodes].
-  final ValueChanged<LanguageEntry> onSelect;
+  /// Codes that are already selected when the sheet opens.
+  final Set<String> initialSelectedCodes;
 
-  /// Already-selected codes — shown highlighted with a checkmark
-  /// so the user can also tap again to deselect.
-  final List<String> selectedCodes;
-
-  /// Extra entries prepended before the kOtherLanguages list.
-  /// Used to surface primary-language codes that were excluded from
-  /// the main grid (e.g. the native language on fluent/learning steps).
-  final List<LanguageEntry> additionalEntries;
+  /// true  → multi-select mode (stay open, confirm via button)
+  /// false → single-select mode (close immediately on tap)
+  final bool multiSelect;
 
   @override
   State<OtherLanguagesSheet> createState() => _OtherLanguagesSheetState();
@@ -31,6 +31,13 @@ class OtherLanguagesSheet extends StatefulWidget {
 class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
   final _controller = TextEditingController();
   String _query = '';
+  late Set<String> _localSelected;
+
+  @override
+  void initState() {
+    super.initState();
+    _localSelected = Set.of(widget.initialSelectedCodes);
+  }
 
   @override
   void dispose() {
@@ -38,18 +45,26 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
     super.dispose();
   }
 
+  void _handleTap(LanguageEntry lang) {
+    if (!widget.multiSelect) {
+      // Single-select: pick immediately and close.
+      Navigator.of(context).pop({lang.code});
+      return;
+    }
+    setState(() {
+      if (_localSelected.contains(lang.code)) {
+        _localSelected = Set.of(_localSelected)..remove(lang.code);
+      } else {
+        _localSelected = {..._localSelected, lang.code};
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Merge additionalEntries + kOtherLanguages, avoiding duplicates.
-    final additionalCodes = widget.additionalEntries.map((e) => e.code).toSet();
-    final combined = [
-      ...widget.additionalEntries,
-      ...kOtherLanguages.where((l) => !additionalCodes.contains(l.code)),
-    ];
-
-    final filtered = combined
+    final filtered = kOtherLanguages
         .where(
           (l) =>
               _query.isEmpty ||
@@ -58,9 +73,13 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
         )
         .toList();
 
+    // Number of newly added languages (to show in confirm button label).
+    final addedCount =
+        _localSelected.difference(widget.initialSelectedCodes).length;
+
     return Column(
       children: [
-        // Drag handle
+        // ── Drag handle ─────────────────────────────────────────────────────
         Container(
           margin: const EdgeInsets.only(top: 12, bottom: 8),
           width: 36,
@@ -70,7 +89,8 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
-        // Header
+
+        // ── Header ──────────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -81,14 +101,18 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              // X button always cancels (returns null in multi-select)
               IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(context).pop(
+                  widget.multiSelect ? null : null,
+                ),
               ),
             ],
           ),
         ),
-        // Search field
+
+        // ── Search field ─────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           child: TextField(
@@ -110,7 +134,8 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
             onChanged: (v) => setState(() => _query = v.trim()),
           ),
         ),
-        // Grid
+
+        // ── Language grid ────────────────────────────────────────────────────
         Expanded(
           child: filtered.isEmpty
               ? Center(
@@ -128,13 +153,13 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
                     },
                   ),
                   child: GridView.builder(
-                    // Internal bottom padding absorbs the safe-area inset so
-                    // the last row is never clipped by home-indicator / nav bar.
                     padding: EdgeInsets.fromLTRB(
                       20,
                       8,
                       20,
-                      MediaQuery.of(context).viewPadding.bottom + 32,
+                      widget.multiSelect
+                          ? 8
+                          : MediaQuery.of(context).viewPadding.bottom + 32,
                     ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -146,24 +171,44 @@ class _OtherLanguagesSheetState extends State<OtherLanguagesSheet> {
                     itemCount: filtered.length,
                     itemBuilder: (context, i) {
                       final lang = filtered[i];
-                      final isSelected =
-                          widget.selectedCodes.contains(lang.code);
+                      final isSelected = _localSelected.contains(lang.code);
                       return _LanguageTile(
                         lang: lang,
                         isSelected: isSelected,
-                        onTap: () => widget.onSelect(lang),
+                        onTap: () => _handleTap(lang),
                       );
                     },
                   ),
                 ),
         ),
+
+        // ── Confirm button (multi-select only) ───────────────────────────────
+        if (widget.multiSelect)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              MediaQuery.of(context).viewPadding.bottom + 16,
+            ),
+            child: FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(Set.of(_localSelected)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+              child: Text(
+                addedCount > 0 ? '확인 (+$addedCount)' : '확인',
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Individual language tile
+// Language tile
 // ---------------------------------------------------------------------------
 
 class _LanguageTile extends StatelessWidget {
@@ -231,12 +276,19 @@ class _LanguageTile extends StatelessWidget {
 // Public API
 // ---------------------------------------------------------------------------
 
-Future<LanguageEntry?> showOtherLanguagesSheet(
+/// Shows the other-languages bottom sheet.
+///
+/// [initialSelectedCodes] — codes already selected (shown highlighted).
+/// [multiSelect]          — true: stay-open toggle mode; false: pick-and-close.
+///
+/// Returns null when the user cancels (X button in multi-select mode).
+/// Returns a [Set<String>] of selected codes otherwise.
+Future<Set<String>?> showOtherLanguagesSheet(
   BuildContext context, {
-  List<String> selectedCodes = const [],
-  List<LanguageEntry> additionalEntries = const [],
+  Set<String> initialSelectedCodes = const {},
+  bool multiSelect = true,
 }) {
-  return showModalBottomSheet<LanguageEntry>(
+  return showModalBottomSheet<Set<String>>(
     context: context,
     isScrollControlled: true,
     constraints: BoxConstraints(
@@ -245,10 +297,9 @@ Future<LanguageEntry?> showOtherLanguagesSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (sheetCtx) => OtherLanguagesSheet(
-      selectedCodes: selectedCodes,
-      additionalEntries: additionalEntries,
-      onSelect: (lang) => Navigator.of(sheetCtx).pop(lang),
+    builder: (_) => OtherLanguagesSheet(
+      initialSelectedCodes: initialSelectedCodes,
+      multiSelect: multiSelect,
     ),
   );
 }
