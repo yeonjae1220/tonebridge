@@ -6,13 +6,17 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 
-type Step = 'native' | 'fluent' | 'learning'
+type Step = 'nickname' | 'native' | 'fluent' | 'learning'
+
+const STEP_ORDER: Step[] = ['nickname', 'native', 'fluent', 'learning']
 
 export default function OnboardingPage() {
   const router = useRouter()
   const accessToken = useAuthStore((s) => s.accessToken)
 
-  const [step, setStep] = useState<Step>('native')
+  const [step, setStep] = useState<Step>('nickname')
+  const [username, setUsername] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
   const [nativeLanguage, setNativeLanguage] = useState('')
   const [fluentLanguages, setFluentLanguages] = useState<string[]>([])
   const [learningLanguages, setLearningLanguages] = useState<string[]>([])
@@ -23,19 +27,45 @@ export default function OnboardingPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
+  const validateUsername = (value: string) => {
+    if (value && !/^[a-zA-Z0-9_]{2,20}$/.test(value)) {
+      return '닉네임은 2~20자의 영문, 숫자, 언더스코어만 사용할 수 있습니다.'
+    }
+    return null
+  }
+
+  const handleNicknameNext = () => {
+    if (username) {
+      const err = validateUsername(username)
+      if (err) { setUsernameError(err); return }
+    }
+    setUsernameError(null)
+    setStep('native')
+  }
+
   const handleSubmit = async () => {
     setLoading(true)
     setError(null)
     try {
-      await api.patch('/users/me/onboarding', { nativeLanguage, fluentLanguages, learningLanguages })
+      await api.patch('/users/me/onboarding', {
+        ...(username ? { username } : {}),
+        nativeLanguage,
+        fluentLanguages,
+        learningLanguages,
+      })
       router.replace('/feed')
-    } catch {
-      setError('저장에 실패했습니다. 다시 시도해주세요.')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 409) {
+        setError('이미 사용 중인 닉네임입니다. 첫 단계로 돌아가 닉네임을 바꿔주세요.')
+      } else {
+        setError('저장에 실패했습니다. 다시 시도해주세요.')
+      }
       setLoading(false)
     }
   }
 
-  const stepIndex = ['native', 'fluent', 'learning'].indexOf(step)
+  const stepIndex = STEP_ORDER.indexOf(step)
 
   const steps: Record<Step, {
     title: string
@@ -43,7 +73,28 @@ export default function OnboardingPage() {
     content: React.ReactNode
     canNext: boolean
     onNext: () => void
+    nextLabel?: string
   }> = {
+    nickname: {
+      title: '닉네임을 설정해주세요',
+      subtitle: '선택 사항이에요. 나중에 프로필에서 변경할 수 있어요.',
+      content: (
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setUsernameError(null) }}
+            maxLength={20}
+            placeholder="닉네임 (영문, 숫자, _ 2~20자)"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 transition-colors"
+          />
+          {usernameError && <p className="text-xs text-red-500">{usernameError}</p>}
+          <p className="text-xs text-gray-400">설정하지 않으면 임시 닉네임이 자동 부여됩니다.</p>
+        </div>
+      ),
+      canNext: true,
+      onNext: handleNicknameNext,
+    },
     native: {
       title: '모국어가 무엇인가요?',
       subtitle: '가장 능숙하게 말할 수 있는 언어',
@@ -84,6 +135,7 @@ export default function OnboardingPage() {
       ),
       canNext: learningLanguages.length > 0,
       onNext: handleSubmit,
+      nextLabel: loading ? '저장 중...' : '시작하기',
     },
   }
 
@@ -95,7 +147,7 @@ export default function OnboardingPage() {
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md flex flex-col gap-8">
         <div className="flex gap-2">
-          {[0, 1, 2].map((i) => (
+          {STEP_ORDER.map((_, i) => (
             <div
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
@@ -121,7 +173,7 @@ export default function OnboardingPage() {
           disabled={!current.canNext || loading}
           className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-semibold disabled:opacity-40 hover:bg-blue-600 transition-colors"
         >
-          {step === 'learning' ? (loading ? '저장 중...' : '시작하기') : '다음'}
+          {current.nextLabel ?? '다음'}
         </button>
       </div>
     </main>

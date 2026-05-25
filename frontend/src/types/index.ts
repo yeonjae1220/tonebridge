@@ -108,3 +108,56 @@ export interface PageResponse<T> {
   number: number
   size: number
 }
+
+export interface UserSearchResult {
+  id: string
+  username: string
+  nativeLanguage: string
+}
+
+export interface Friend {
+  id: string
+  username: string
+  nativeLanguage: string
+}
+
+export interface FriendRequest {
+  id: string
+  senderId: string
+  receiverId: string
+  status: string
+  senderUsername: string | null
+  createdAt: string
+}
+
+export interface StudySession {
+  id: string
+  title: string | null
+  createdBy: string
+  memberIds: string[]
+  status: 'ACTIVE' | 'ENDED'
+  createdAt: string
+}
+
+export interface LearnerAttempt {
+  id: string
+  cardId: string
+  learnerId: string
+  audioUrl: string | null
+  correctionNote: string | null
+  score: number | null
+  attemptedAt: string
+}
+
+export interface StudyCard {
+  id: string
+  sessionId: string
+  createdByUserId: string
+  phrase: string
+  context: string | null
+  nativeAudioUrl: string | null
+  explanation: string | null
+  tags: string[]
+  createdAt: string
+  latestAttempt: LearnerAttempt | null
+}

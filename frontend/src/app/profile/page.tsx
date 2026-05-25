@@ -50,6 +50,9 @@ export default function ProfilePage() {
   const [learningLangs, setLearningLangs] = useState<string[]>([])
   const [langError, setLangError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [editingNickname, setEditingNickname] = useState(false)
+  const [nicknameInput, setNicknameInput] = useState('')
+  const [nicknameError, setNicknameError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -90,6 +93,38 @@ export default function ProfilePage() {
     },
     onError: () => setLangError('저장에 실패했습니다. 다시 시도해주세요.'),
   })
+
+  const updateNicknameMutation = useMutation({
+    mutationFn: (username: string) => api.patch('/users/me/username', { username }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setEditingNickname(false)
+      setNicknameError(null)
+    },
+    onError: (err: { response?: { status?: number } }) => {
+      if (err?.response?.status === 409) {
+        setNicknameError('이미 사용 중인 닉네임입니다.')
+      } else {
+        setNicknameError('저장에 실패했습니다. 다시 시도해주세요.')
+      }
+    },
+  })
+
+  const handleNicknameEdit = () => {
+    setNicknameInput(profile?.username ?? '')
+    setNicknameError(null)
+    setEditingNickname(true)
+  }
+
+  const handleNicknameSave = () => {
+    const trimmed = nicknameInput.trim()
+    if (!/^[a-zA-Z0-9_]{2,20}$/.test(trimmed)) {
+      setNicknameError('닉네임은 2~20자의 영문, 숫자, 언더스코어만 사용할 수 있습니다.')
+      return
+    }
+    updateNicknameMutation.mutate(trimmed)
+  }
 
   const deleteAccountMutation = useMutation({
     mutationFn: () => api.delete('/users/me'),
@@ -198,14 +233,59 @@ export default function ProfilePage() {
             {/* 기본 정보 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
               <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xl font-bold text-gray-900">{profile.username}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {langLabel(profile.nativeLanguage)} 원어민
-                  </p>
+                <div className="flex-1 min-w-0">
+                  {editingNickname ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nicknameInput}
+                          onChange={(e) => setNicknameInput(e.target.value)}
+                          maxLength={20}
+                          placeholder="닉네임 (2~20자, 영문/숫자/_)"
+                          className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+                          onKeyDown={(e) => e.key === 'Enter' && handleNicknameSave()}
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleNicknameSave}
+                          disabled={updateNicknameMutation.isPending}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                        >
+                          {updateNicknameMutation.isPending ? '저장...' : '저장'}
+                        </button>
+                        <button
+                          onClick={() => setEditingNickname(false)}
+                          className="px-3 py-1.5 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                      {nicknameError && <p className="text-xs text-red-500">{nicknameError}</p>}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-xl font-bold text-gray-900 truncate">{profile.username}</p>
+                      <button
+                        onClick={handleNicknameEdit}
+                        className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                        aria-label="닉네임 변경"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  {!editingNickname && (
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {langLabel(profile.nativeLanguage)} 원어민
+                    </p>
+                  )}
                 </div>
-                {levelMeta && (
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${levelMeta.bg} ${levelMeta.color}`}>
+                {levelMeta && !editingNickname && (
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${levelMeta.bg} ${levelMeta.color} ml-2 flex-shrink-0`}>
                     {levelMeta.label}
                   </span>
                 )}
