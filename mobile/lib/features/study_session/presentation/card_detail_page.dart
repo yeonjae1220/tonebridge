@@ -4,45 +4,17 @@ import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
 import 'package:tonebridge/core/services/presigned_upload_service.dart';
-import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/core/utils/permission_dialogs.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
-import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
+import 'package:tonebridge/features/study_session/presentation/native_audios_section.dart';
+import 'package:tonebridge/features/study_session/presentation/note_sheet.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
-
-void _showPermissionError(BuildContext context, RecorderPermissionException e) {
-  if (e.isPermanentlyDenied) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('마이크 권한 필요'),
-        content: const Text('앱 설정에서 마이크 권한을 허용해야 녹음할 수 있어요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              openAppSettings();
-            },
-            child: const Text('설정으로 이동'),
-          ),
-        ],
-      ),
-    );
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('마이크 권한이 필요해요')),
-    );
-  }
-}
 
 class CardDetailPage extends ConsumerStatefulWidget {
   const CardDetailPage({
@@ -171,13 +143,13 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     try {
       final repo = ref.read(studySessionRepositoryProvider);
       final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.aac';
-      final urls = await repo.getNativeAudioUploadUrl(card.id, fileName);
+      final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       await uploader.uploadToUrl(
         file: _recorder.file!,
         uploadUrl: urls['uploadUrl']!,
       );
-      await repo.confirmNativeAudio(card.id, urls['audioKey']!);
+      await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);
 
       ref.invalidate(cardDetailProvider(widget.cardId));
       ref.invalidate(cardNativeAudiosProvider(widget.cardId));
@@ -242,7 +214,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                   ),
                   const SizedBox(height: 24),
                   if (isCardCreator) ...[
-                    _NativeAudiosSection(
+                    NativeAudiosSection(
                       cardId: widget.cardId,
                       sessionId: widget.sessionId,
                       recorder: _recorder,
@@ -491,7 +463,7 @@ class _RecordingSection extends StatelessWidget {
                     try {
                       await recorder.start();
                     } on RecorderPermissionException catch (e) {
-                      if (context.mounted) _showPermissionError(context, e);
+                      if (context.mounted) showMicPermissionError(context, e);
                     }
                   },
                   icon: const Icon(Icons.fiber_manual_record_rounded),
@@ -705,7 +677,7 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _NoteSheet(
+      builder: (_) => NoteSheet(
         attemptId: widget.attempt.id,
         onNoteAdded: widget.onNoteAdded,
       ),
@@ -717,361 +689,3 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
   }
 }
 
-// ── Native Audios Section (card creator — multiple recordings) ───────────────
-
-class _NativeAudiosSection extends ConsumerStatefulWidget {
-  const _NativeAudiosSection({
-    required this.cardId,
-    required this.sessionId,
-    required this.recorder,
-    required this.uploading,
-    required this.onSubmit,
-  });
-
-  final String cardId;
-  final String sessionId;
-  final AudioRecorderService recorder;
-  final bool uploading;
-  final VoidCallback onSubmit;
-
-  @override
-  ConsumerState<_NativeAudiosSection> createState() =>
-      _NativeAudiosSectionState();
-}
-
-class _NativeAudiosSectionState extends ConsumerState<_NativeAudiosSection> {
-  final Map<String, AudioPlayer> _players = {};
-
-  @override
-  void dispose() {
-    for (final p in _players.values) {
-      unawaited(p.stop());
-      p.dispose();
-    }
-    super.dispose();
-  }
-
-  Future<void> _playAudio(NativeAudioEntry entry) async {
-    try {
-      final url = await ref
-          .read(studySessionRepositoryProvider)
-          .getNativeAudioDownloadUrlV2(entry.id);
-      final player = _players.putIfAbsent(entry.id, AudioPlayer.new);
-      await player.setUrl(url);
-      await player.play();
-    } on Exception catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('재생 실패: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteAudio(NativeAudioEntry entry) async {
-    try {
-      await ref
-          .read(studySessionRepositoryProvider)
-          .deleteNativeAudio(widget.cardId, entry.id);
-      ref.invalidate(cardNativeAudiosProvider(widget.cardId));
-    } on Exception catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제 실패: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final audiosAsync = ref.watch(cardNativeAudiosProvider(widget.cardId));
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.record_voice_over_rounded,
-                  color: theme.colorScheme.onSecondaryContainer),
-              const SizedBox(width: 8),
-              Text(
-                '원어민 발음 녹음',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '녹음을 추가하면 상대방이 듣고 따라할 수 있어요.',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Existing recordings list
-          audiosAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (audios) {
-              if (audios.isEmpty) return const SizedBox.shrink();
-              return Column(
-                children: [
-                  ...audios.map((a) => _AudioEntryTile(
-                        entry: a,
-                        onPlay: () => _playAudio(a),
-                        onDelete: () => _deleteAudio(a),
-                      )),
-                  const SizedBox(height: 12),
-                ],
-              );
-            },
-          ),
-          // Recording controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.recorder.state == RecorderState.idle)
-                FilledButton.icon(
-                  onPressed: () async {
-                    try {
-                      await widget.recorder.start();
-                    } on RecorderPermissionException catch (e) {
-                      if (context.mounted) _showPermissionError(context, e);
-                    }
-                  },
-                  icon: const Icon(Icons.mic_rounded),
-                  label: const Text('녹음 추가'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: theme.colorScheme.secondary,
-                    foregroundColor: theme.colorScheme.onSecondary,
-                  ),
-                )
-              else if (widget.recorder.state == RecorderState.recording)
-                Column(
-                  children: [
-                    Text(
-                      widget.recorder.formattedDuration,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: widget.recorder.stop,
-                      icon: const Icon(Icons.stop_rounded),
-                      label: const Text('녹음 중지'),
-                    ),
-                  ],
-                )
-              else ...[
-                IconButton.filled(
-                  onPressed: widget.recorder.reset,
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: '다시 녹음',
-                ),
-                const SizedBox(width: 12),
-                if (widget.uploading)
-                  const CircularProgressIndicator()
-                else
-                  FilledButton.icon(
-                    onPressed: widget.onSubmit,
-                    icon: const Icon(Icons.upload_rounded),
-                    label: const Text('발음 등록'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.colorScheme.secondary,
-                      foregroundColor: theme.colorScheme.onSecondary,
-                    ),
-                  ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AudioEntryTile extends StatelessWidget {
-  const _AudioEntryTile({
-    required this.entry,
-    required this.onPlay,
-    required this.onDelete,
-  });
-
-  final NativeAudioEntry entry;
-  final VoidCallback onPlay;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dt = entry.createdAt;
-    final label =
-        '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.onSecondaryContainer.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.play_circle_rounded,
-                color: theme.colorScheme.secondary),
-            onPressed: onPlay,
-            tooltip: '재생',
-          ),
-          Expanded(
-            child: Text(
-              '녹음 $label',
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.delete_outline_rounded,
-                color: theme.colorScheme.error, size: 20),
-            onPressed: onDelete,
-            tooltip: '삭제',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Note Sheet ────────────────────────────────────────────────────────────────
-
-class _NoteSheet extends ConsumerStatefulWidget {
-  const _NoteSheet({required this.attemptId, required this.onNoteAdded});
-  final String attemptId;
-  final VoidCallback onNoteAdded;
-
-  @override
-  ConsumerState<_NoteSheet> createState() => _NoteSheetState();
-}
-
-class _NoteSheetState extends ConsumerState<_NoteSheet> {
-  final _noteController = TextEditingController();
-  int? _selectedScore;
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final note = _noteController.text.trim();
-    if (note.isEmpty || _submitting) return;
-    setState(() => _submitting = true);
-    final messenger = ScaffoldMessenger.of(context);
-    final errorColor = Theme.of(context).colorScheme.error;
-    try {
-      await ref
-          .read(cardAttemptStateProvider.notifier)
-          .addNote(widget.attemptId, note, _selectedScore);
-      if (!mounted) return;
-      widget.onNoteAdded();
-      Navigator.pop(context);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      setState(() => _submitting = false);
-      final msg = e.toString().contains('SESSION_002')
-          ? '세션 멤버만 교정 메모를 작성할 수 있어요.'
-          : '교정 메모 저장에 실패했어요. 다시 시도해 주세요.';
-      messenger.showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: errorColor),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '교정 메모 추가',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                (i) => GestureDetector(
-                  onTap: _submitting
-                      ? null
-                      : () => setState(() => _selectedScore = i + 1),
-                  child: Icon(
-                    _selectedScore != null && i < _selectedScore!
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    color: const Color(0xFFFFC107),
-                    size: 36,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteController,
-              autofocus: true,
-              enabled: !_submitting,
-              decoration: const InputDecoration(
-                labelText: '교정 메모',
-                hintText: '발음, 억양, 개선점 등을 알려주세요',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('저장'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

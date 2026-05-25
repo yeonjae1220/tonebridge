@@ -1,6 +1,8 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
@@ -158,5 +160,5 @@ public class StudyCardController {
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}
     record SubmitAttemptDto(@NotBlank String audioKey) {}
-    record CorrectionNoteDto(@NotBlank String correctionNote, Integer score) {}
+    record CorrectionNoteDto(@NotBlank String correctionNote, @Min(1) @Max(5) Integer score) {}
 }

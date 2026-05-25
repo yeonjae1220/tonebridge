@@ -9,4 +9,6 @@ public interface StoragePort {
     PresignedUpload generatePresignedUploadUrl(String fileName, String contentType, Duration expiry);
 
     String generatePresignedDownloadUrl(String audioKey, Duration expiry);
+
+    void deleteObject(String audioKey);
 }

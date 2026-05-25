@@ -77,9 +77,12 @@ public class CardNativeAudioService implements
 
     @Override
     public void delete(UUID audioId, UUID cardId, UUID requesterId) {
+        CardNativeAudio audio = nativeAudioPort.findById(audioId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.FILE_NOT_FOUND));
         StudyCard card = requireCard(cardId);
         requireMember(card.sessionId(), requesterId);
         nativeAudioPort.deleteByIdAndCardId(audioId, cardId);
+        storagePort.deleteObject(audio.audioKey());
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────

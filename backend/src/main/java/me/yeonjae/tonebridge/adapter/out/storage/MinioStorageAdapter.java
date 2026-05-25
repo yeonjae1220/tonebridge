@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.StoragePort;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -17,6 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MinioStorageAdapter implements StoragePort {
 
+    private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final ToneBridgeProperties properties;
 
@@ -56,6 +59,14 @@ public class MinioStorageAdapter implements StoragePort {
                         .getObjectRequest(getRequest)
                         .build()
         ).url().toString();
+    }
+
+    @Override
+    public void deleteObject(String audioKey) {
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(properties.getStorage().getBucket())
+                .key(audioKey)
+                .build());
     }
 
     private static String sanitize(String fileName) {
