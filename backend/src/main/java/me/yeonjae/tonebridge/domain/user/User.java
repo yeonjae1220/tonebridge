@@ -54,6 +54,13 @@ public record User(
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
+    public User withUsername(String newUsername) {
+        return new User(id, email, newUsername, nativeLanguage, fluentLanguages,
+                learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
+                credits, reputationScore, correctorLevel,
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
+    }
+
     public boolean hasEnoughCredits(int required) {
         return credits >= required;
     }

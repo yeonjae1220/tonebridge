@@ -129,6 +129,7 @@ public class UserEntity {
     }
 
     public void updateFrom(User user) {
+        this.username = user.username();
         this.nativeLanguage = user.nativeLanguage();
         this.fluentLanguagesRaw = joinList(user.fluentLanguages());
         this.learningLanguagesRaw = joinList(user.learningLanguages());

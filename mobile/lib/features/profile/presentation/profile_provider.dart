@@ -7,3 +7,19 @@ part 'profile_provider.g.dart';
 @riverpod
 Future<UserProfile> userProfile(Ref ref) =>
     ref.watch(profileRepositoryProvider).getProfile();
+
+@riverpod
+class NicknameUpdateState extends _$NicknameUpdateState {
+  @override
+  AsyncValue<void> build() => const AsyncData(null);
+
+  Future<void> update(String username) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => ref.read(profileRepositoryProvider).updateNickname(username),
+    );
+    if (!state.hasError) {
+      ref.invalidate(userProfileProvider);
+    }
+  }
+}

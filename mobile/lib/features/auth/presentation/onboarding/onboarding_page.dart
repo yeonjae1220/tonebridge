@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/auth/presentation/onboarding/language_select_page.dart';
+import 'package:tonebridge/features/auth/presentation/onboarding/nickname_step.dart';
 
 /// Multi-step onboarding wizard:
+///   Step 0 — Set nickname
 ///   Step 1 — Select native language (+ optional dialect)
 ///   Step 2 — Select fluent languages
 ///   Step 3 — Select languages to learn
@@ -20,6 +22,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final PageController _controller = PageController();
   int _currentStep = 0;
 
+  String _username = '';
   String? _nativeLanguage;
   String? _nativeDialect;
   List<String> _fluentLanguages = [];
@@ -29,6 +32,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   bool _isSaving = false;
 
+  static const _totalSteps = 4;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -36,7 +41,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   void _nextStep() {
-    if (_currentStep < 2) {
+    if (_currentStep < _totalSteps - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -50,6 +55,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() => _isSaving = true);
     try {
       await ref.read(authStateProvider.notifier).completeOnboarding(
+            username: _username.isNotEmpty ? _username : null,
             nativeLanguage: _nativeLanguage!,
             fluentLanguages: _fluentLanguages,
             learningLanguages: _learningLanguages,
@@ -74,13 +80,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('프로필 설정 (${_currentStep + 1}/3)'),
+        title: Text('프로필 설정 (${_currentStep + 1}/$_totalSteps)'),
         automaticallyImplyLeading: false,
       ),
       body: PageView(
         controller: _controller,
         physics: const NeverScrollableScrollPhysics(),
         children: [
+          NicknameStep(
+            initialValue: _username,
+            onChanged: (v) => _username = v,
+            onNext: _nextStep,
+          ),
           LanguageSelectPage(
             title: '모국어를 선택하세요',
             subtitle: '가장 자신 있는 언어 하나를 골라주세요.',

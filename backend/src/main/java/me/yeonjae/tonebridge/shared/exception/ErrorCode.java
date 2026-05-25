@@ -16,6 +16,8 @@ public enum ErrorCode {
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다"),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_002", "이미 사용 중인 이메일입니다"),
+    USERNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_003", "이미 사용 중인 닉네임입니다"),
+    INVALID_USERNAME(HttpStatus.BAD_REQUEST, "USER_004", "닉네임은 2~20자의 영문, 숫자, 언더스코어만 사용할 수 있습니다"),
 
     // Correction Request
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "REQ_001", "교정 요청을 찾을 수 없습니다"),

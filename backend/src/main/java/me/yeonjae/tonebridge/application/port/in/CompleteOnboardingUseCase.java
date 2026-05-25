@@ -7,6 +7,7 @@ import java.util.UUID;
 public interface CompleteOnboardingUseCase {
     record Command(
             UUID userId,
+            String username,
             String nativeLanguage,
             List<String> fluentLanguages,
             List<String> learningLanguages,

@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/features/friend/data/friend_repository_impl.dart';
 import 'package:tonebridge/features/friend/domain/model/friend.dart';
+import 'package:tonebridge/features/friend/domain/model/user_search_result.dart';
 
 part 'friend_provider.g.dart';
 
@@ -40,3 +41,9 @@ class FriendListState extends _$FriendListState {
 @riverpod
 Future<List<FriendRequestItem>> pendingFriendRequests(Ref ref) =>
     ref.watch(friendRepositoryProvider).getPendingRequests();
+
+@riverpod
+Future<List<UserSearchResult>> userSearch(Ref ref, String query) async {
+  if (query.trim().isEmpty) return [];
+  return ref.watch(friendRepositoryProvider).searchUsers(query.trim());
+}

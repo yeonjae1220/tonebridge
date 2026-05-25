@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 public record OnboardingRequest(
+        @Size(min = 2, max = 20) @Pattern(regexp = "^[a-zA-Z0-9_]+$") String username,
         @NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeLanguage,
         @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeDialect,
         // @Size(max = 50) bounds the list to prevent CSV overflow of VARCHAR(1024)

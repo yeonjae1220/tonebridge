@@ -2,6 +2,7 @@ import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 
 abstract interface class ProfileRepository {
   Future<UserProfile> getProfile();
+  Future<void> updateNickname(String username);
   Future<void> updateLanguages({
     required String nativeLanguage,
     required List<String> fluentLanguages,

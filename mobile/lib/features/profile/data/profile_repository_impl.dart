@@ -24,6 +24,14 @@ class ProfileRepositoryImpl implements ProfileRepository {
   }
 
   @override
+  Future<void> updateNickname(String username) async {
+    await _dio.patch<void>(
+      '/api/users/me/username',
+      data: {'username': username},
+    );
+  }
+
+  @override
   Future<void> updateLanguages({
     required String nativeLanguage,
     required List<String> fluentLanguages,
