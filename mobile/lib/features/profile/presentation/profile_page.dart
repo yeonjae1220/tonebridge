@@ -37,11 +37,6 @@ class ProfilePage extends ConsumerWidget {
                 extra: profileAsync.value,
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () =>
-                ref.read(authStateProvider.notifier).signOut(),
-          ),
         ],
       ),
       body: profileAsync.when(
@@ -81,6 +76,9 @@ class ProfilePage extends ConsumerWidget {
               _BadgeSection(badges: profile.badges),
               const SizedBox(height: 20),
               _LanguageSection(profile: profile),
+              const SizedBox(height: 32),
+              const _AccountActionsSection(),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -91,13 +89,17 @@ class ProfilePage extends ConsumerWidget {
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
 
-class _ProfileHeader extends StatelessWidget {
+class _ProfileHeader extends ConsumerWidget {
   const _ProfileHeader({required this.profile});
   final UserProfile profile;
 
+  static final _usernameRegex = RegExp(r'^[a-zA-Z0-9_]+$');
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final updateState = ref.watch(nicknameUpdateStateProvider);
+
     return Column(
       children: [
         CircleAvatar(
@@ -113,7 +115,27 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text(profile.username, style: theme.textTheme.titleLarge),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(profile.username, style: theme.textTheme.titleLarge),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              tooltip: '닉네임 변경',
+              visualDensity: VisualDensity.compact,
+              onPressed: updateState.isLoading
+                  ? null
+                  : () => _showNicknameDialog(context, ref, profile.username),
+            ),
+          ],
+        ),
+        if (updateState.hasError)
+          Text(
+            '닉네임 변경에 실패했습니다.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+          ),
         const SizedBox(height: 6),
         Text(
           '${langLabel(profile.nativeLanguage)} 원어민',
@@ -137,6 +159,65 @@ class _ProfileHeader extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _showNicknameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String currentUsername,
+  ) async {
+    final controller = TextEditingController(text: currentUsername);
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('닉네임 변경'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: '새 닉네임',
+              hintText: 'user_name123',
+              helperText: '영문, 숫자, 언더스코어 2~20자',
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return '닉네임을 입력해주세요';
+              final s = v.trim();
+              if (s.length < 2) return '2자 이상 입력해주세요';
+              if (s.length > 20) return '20자 이하로 입력해주세요';
+              if (!_usernameRegex.hasMatch(s)) {
+                return '영문, 숫자, 언더스코어(_)만 사용 가능합니다';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.of(ctx).pop(true);
+              }
+            },
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await ref
+          .read(nicknameUpdateStateProvider.notifier)
+          .update(controller.text.trim());
+    }
+    controller.dispose();
   }
 
   String _levelLabel(String level) => switch (level) {
@@ -574,6 +655,85 @@ class _LanguageRow extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
               );
             }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccountActionsSection extends ConsumerWidget {
+  const _AccountActionsSection();
+
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('회원탈퇴'),
+        content: const Text(
+          '정말로 탈퇴하시겠습니까?\n탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('탈퇴하기'),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false)) return;
+    try {
+      await ref.read(authStateProvider.notifier).deleteAccount();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('회원탈퇴에 실패했습니다. 다시 시도해주세요.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton(
+          onPressed: () => ref.read(authStateProvider.notifier).signOut(),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.4)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Text(
+            '로그아웃',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton(
+          onPressed: () => _confirmDeleteAccount(context, ref),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.7)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Text(
+            '회원탈퇴',
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ],

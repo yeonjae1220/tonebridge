@@ -12,5 +12,7 @@ public interface UserPort {
     Optional<User> findByUsername(String username);
     Optional<User> findById(UUID id);
     List<User> findAllByIds(Collection<UUID> ids);
+    List<User> searchByUsernamePrefix(String prefix, int limit);
     User save(User user);
+    void deleteById(UUID id);
 }

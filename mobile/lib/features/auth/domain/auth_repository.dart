@@ -14,10 +14,12 @@ abstract interface class AuthRepository {
   Future<AuthSession?> restoreSession();
 
   /// Saves the user's language preferences during onboarding.
+  /// [username] is optional — if provided, the server will update the nickname too.
   Future<void> saveLanguagePreferences({
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? username,
     String? nativeDialect,
     Map<String, String> fluentLanguageVariants = const {},
     Map<String, String> learningLanguageVariants = const {},
@@ -25,4 +27,7 @@ abstract interface class AuthRepository {
 
   /// Revokes all tokens and clears local storage.
   Future<void> signOut();
+
+  /// Permanently deletes the current user's account and clears local storage.
+  Future<void> deleteAccount();
 }

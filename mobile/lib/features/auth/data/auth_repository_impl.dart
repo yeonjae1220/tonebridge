@@ -152,6 +152,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? username,
     String? nativeDialect,
     Map<String, String> fluentLanguageVariants = const {},
     Map<String, String> learningLanguageVariants = const {},
@@ -159,6 +160,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await _dio.patch<void>(
       '/api/users/me/onboarding',
       data: {
+        if (username != null && username.isNotEmpty) 'username': username,
         'nativeLanguage': nativeLanguage,
         'fluentLanguages': fluentLanguages,
         'learningLanguages': learningLanguages,
@@ -184,5 +186,11 @@ class AuthRepositoryImpl implements AuthRepository {
     } finally {
       await _storage.clearAll();
     }
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    await _dio.delete<void>('/api/users/me');
+    await _storage.clearAll();
   }
 }

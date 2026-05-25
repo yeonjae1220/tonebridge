@@ -7,4 +7,5 @@ public interface RefreshTokenPort {
     void save(String refreshToken, UUID userId, long ttlSeconds);
     Optional<UUID> findUserIdByToken(String refreshToken);
     void delete(String refreshToken);
+    void deleteAllByUserId(UUID userId);
 }

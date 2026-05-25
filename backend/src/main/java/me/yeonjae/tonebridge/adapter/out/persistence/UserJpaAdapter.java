@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.adapter.out.persistence;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
 import me.yeonjae.tonebridge.domain.user.User;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -34,6 +35,20 @@ public class UserJpaAdapter implements UserPort {
     @Override
     public List<User> findAllByIds(Collection<UUID> ids) {
         return userJpaRepository.findAllById(ids).stream().map(UserEntity::toDomain).toList();
+    }
+
+    @Override
+    public List<User> searchByUsernamePrefix(String prefix, int limit) {
+        return userJpaRepository
+                .findByUsernameStartingWithIgnoreCase(prefix, PageRequest.of(0, limit))
+                .stream()
+                .map(UserEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void deleteById(UUID id) {
+        userJpaRepository.deleteById(id);
     }
 
     @Override

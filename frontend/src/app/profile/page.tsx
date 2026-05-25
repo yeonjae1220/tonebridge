@@ -49,6 +49,7 @@ export default function ProfilePage() {
   const [fluentLangs, setFluentLangs] = useState<string[]>([])
   const [learningLangs, setLearningLangs] = useState<string[]>([])
   const [langError, setLangError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -89,6 +90,22 @@ export default function ProfilePage() {
     },
     onError: () => setLangError('저장에 실패했습니다. 다시 시도해주세요.'),
   })
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: () => api.delete('/users/me'),
+    onSuccess: () => {
+      queryClient.clear()
+      logout()
+      router.replace('/login')
+    },
+    onError: () => setDeleteError('회원탈퇴에 실패했습니다. 다시 시도해주세요.'),
+  })
+
+  const handleDeleteAccount = () => {
+    if (!window.confirm('정말로 탈퇴하시겠습니까?\n탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.')) return
+    setDeleteError(null)
+    deleteAccountMutation.mutate()
+  }
 
   if (!accessToken) return null
 
@@ -295,6 +312,19 @@ export default function ProfilePage() {
             >
               로그아웃
             </button>
+
+            <div className="flex flex-col gap-2">
+              {deleteError && (
+                <p className="text-xs text-red-500 text-center">{deleteError}</p>
+              )}
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountMutation.isPending}
+                className="w-full py-3 border border-red-400 text-red-600 text-sm font-semibold rounded-2xl hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                {deleteAccountMutation.isPending ? '탈퇴 중...' : '회원탈퇴'}
+              </button>
+            </div>
           </div>
         )}
       </div>

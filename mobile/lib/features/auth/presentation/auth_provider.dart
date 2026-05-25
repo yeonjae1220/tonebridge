@@ -64,10 +64,24 @@ class AuthState extends _$AuthState {
     }
   }
 
+  Future<void> deleteAccount() async {
+    state = const AsyncLoading();
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      await repo.deleteAccount();
+      state = const AsyncData(null);
+    } catch (e, st) {
+      // Restore previous state so the caller can show an error and retry.
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
   Future<void> completeOnboarding({
     required String nativeLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
+    String? username,
     String? nativeDialect,
     Map<String, String> fluentLanguageVariants = const {},
     Map<String, String> learningLanguageVariants = const {},
@@ -77,6 +91,7 @@ class AuthState extends _$AuthState {
       nativeLanguage: nativeLanguage,
       fluentLanguages: fluentLanguages,
       learningLanguages: learningLanguages,
+      username: username,
       nativeDialect: nativeDialect,
       fluentLanguageVariants: fluentLanguageVariants,
       learningLanguageVariants: learningLanguageVariants,
