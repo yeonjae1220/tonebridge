@@ -1,67 +1,65 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_sound/flutter_sound.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 
 enum RecorderState { idle, recording, stopped }
 
 class RecorderPermissionException implements Exception {
-  const RecorderPermissionException({this.isPermanentlyDenied = false});
-  final bool isPermanentlyDenied;
+  const RecorderPermissionException();
 
   @override
-  String toString() => isPermanentlyDenied
-      ? '마이크 권한이 영구적으로 거부되었습니다.'
-      : '마이크 권한이 필요합니다.';
+  String toString() => '마이크 권한이 필요합니다.';
 }
 
 class AudioRecorderService extends ChangeNotifier {
-  final _recorder = FlutterSoundRecorder();
+  final _recorder = AudioRecorder();
 
   RecorderState _state = RecorderState.idle;
-  String? _filePath;
+  String? _nativePath;
+  String? _webBlobUrl;
   Duration _duration = Duration.zero;
   Timer? _timer;
-  bool _initialized = false;
 
   RecorderState get state => _state;
-  String? get filePath => _filePath;
   Duration get duration => _duration;
 
-  Future<void> _ensureInitialized() async {
-    if (_initialized) return;
-    var status = await Permission.microphone.status;
-    if (status.isPermanentlyDenied) {
-      throw const RecorderPermissionException(isPermanentlyDenied: true);
-    }
-    status = await Permission.microphone.request();
-    if (!status.isGranted) {
-      throw RecorderPermissionException(
-        isPermanentlyDenied: status.isPermanentlyDenied,
-      );
-    }
-    await _recorder.openRecorder();
-    _initialized = true;
-  }
+  // Native: File reference; null on web
+  File? get file =>
+      (!kIsWeb && _nativePath != null) ? File(_nativePath!) : null;
+
+  // Web: blob URL returned by stop(); null on native
+  String? get webBlobUrl => kIsWeb ? _webBlobUrl : null;
 
   Future<void> start() async {
     if (_state == RecorderState.recording) return;
-    await _ensureInitialized();
 
-    final dir = await getTemporaryDirectory();
-    _filePath =
-        '${dir.path}/tonebridge_rec_${DateTime.now().millisecondsSinceEpoch}.aac';
-    _duration = Duration.zero;
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) throw const RecorderPermissionException();
 
-    await _recorder.startRecorder(
-      toFile: _filePath,
-      codec: Codec.aacADTS,
+    final String path;
+    if (kIsWeb) {
+      path = '';
+    } else {
+      final dir = await getTemporaryDirectory();
+      path =
+          '${dir.path}/tonebridge_rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
+
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
     );
 
+    _nativePath = kIsWeb ? null : path;
+    _webBlobUrl = null;
+    _duration = Duration.zero;
     _state = RecorderState.recording;
+
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _duration += const Duration(seconds: 1);
       notifyListeners();
@@ -72,24 +70,38 @@ class AudioRecorderService extends ChangeNotifier {
   Future<void> stop() async {
     if (_state != RecorderState.recording) return;
     _timer?.cancel();
-    await _recorder.stopRecorder();
+
+    final result = await _recorder.stop();
+    if (kIsWeb) {
+      _webBlobUrl = result;
+    } else {
+      _nativePath = result;
+    }
+
     _state = RecorderState.stopped;
     notifyListeners();
   }
 
   void reset() {
     _timer?.cancel();
-    if (_filePath != null) {
-      final f = File(_filePath!);
+    if (!kIsWeb && _nativePath != null) {
+      final f = File(_nativePath!);
       if (f.existsSync()) f.deleteSync();
     }
-    _filePath = null;
+    _nativePath = null;
+    _webBlobUrl = null;
     _duration = Duration.zero;
     _state = RecorderState.idle;
     notifyListeners();
   }
 
-  File? get file => _filePath != null ? File(_filePath!) : null;
+  // Fetches recorded bytes from the web blob URL.
+  // Returns null on native (use [file] instead).
+  Future<Uint8List?> getWebBytes() async {
+    if (!kIsWeb || _webBlobUrl == null) return null;
+    final response = await http.get(Uri.parse(_webBlobUrl!));
+    return response.bodyBytes;
+  }
 
   String get formattedDuration {
     final m = _duration.inMinutes.toString().padLeft(2, '0');
@@ -100,11 +112,7 @@ class AudioRecorderService extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
-    if (_state == RecorderState.recording) {
-      unawaited(_recorder.stopRecorder().then((_) => _recorder.closeRecorder()));
-    } else {
-      unawaited(_recorder.closeRecorder());
-    }
+    unawaited(_recorder.dispose());
     super.dispose();
   }
 }

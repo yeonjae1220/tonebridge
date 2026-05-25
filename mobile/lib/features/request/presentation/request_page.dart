@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -238,15 +239,32 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     final context = _contextController.text.trim();
 
     if (_isAudio) {
-      final file = _recorder.file;
-      if (file == null) return;
+      final hasRecording =
+          kIsWeb ? _recorder.webBlobUrl != null : _recorder.file != null;
+      if (!hasRecording) return;
       setState(() => _uploading = true);
       try {
         final uploader = PresignedUploadService(dio: ref.read(dioProvider));
-        final key = await uploader.upload(
-          file: file,
-          fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.aac',
-        );
+        final ext = kIsWeb ? 'webm' : 'aac';
+        final String key;
+        if (kIsWeb) {
+          final bytes = await _recorder.getWebBytes();
+          final metaRes =
+              await ref.read(dioProvider).get<Map<String, dynamic>>(
+            '/api/storage/presigned-upload',
+            queryParameters: {
+              'fileName': 'audio_${DateTime.now().millisecondsSinceEpoch}.$ext',
+            },
+          );
+          final uploadUrl = metaRes.data!['url'] as String;
+          key = metaRes.data!['key'] as String;
+          await uploader.uploadBytesToUrl(bytes: bytes!, uploadUrl: uploadUrl);
+        } else {
+          key = await uploader.upload(
+            file: _recorder.file!,
+            fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.$ext',
+          );
+        }
         await ref.read(requestStateProvider.notifier).submitAudio(
               targetLanguage: _targetLanguage,
               targetVariant: _targetVariant,
@@ -269,11 +287,17 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   }
 
   Future<void> _startPlayback() async {
-    final path = _recorder.filePath;
-    if (path == null) return;
     _playbackPlayer?.dispose();
     _playbackPlayer = AudioPlayer();
-    await _playbackPlayer!.setFilePath(path);
+    if (kIsWeb) {
+      final blobUrl = _recorder.webBlobUrl;
+      if (blobUrl == null) return;
+      await _playbackPlayer!.setUrl(blobUrl);
+    } else {
+      final path = _recorder.file?.path;
+      if (path == null) return;
+      await _playbackPlayer!.setFilePath(path);
+    }
     await _playbackPlayer!.play();
   }
 

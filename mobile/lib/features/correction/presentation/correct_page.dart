@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -338,11 +339,17 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   }
 
   Future<void> _startRefPlayback() async {
-    final path = _refRecorder.filePath;
-    if (path == null) return;
     _refPlaybackPlayer?.dispose();
     _refPlaybackPlayer = AudioPlayer();
-    await _refPlaybackPlayer!.setFilePath(path);
+    if (kIsWeb) {
+      final blobUrl = _refRecorder.webBlobUrl;
+      if (blobUrl == null) return;
+      await _refPlaybackPlayer!.setUrl(blobUrl);
+    } else {
+      final path = _refRecorder.file?.path;
+      if (path == null) return;
+      await _refPlaybackPlayer!.setFilePath(path);
+    }
     await _refPlaybackPlayer!.play();
   }
 
@@ -361,15 +368,32 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     if (!_formKey.currentState!.validate()) return;
 
     String? referenceAudioUrl;
-    if (_refRecorder.state == RecorderState.stopped &&
-        _refRecorder.file != null) {
+    final hasRefRecording = _refRecorder.state == RecorderState.stopped &&
+        (kIsWeb ? _refRecorder.webBlobUrl != null : _refRecorder.file != null);
+    if (hasRefRecording) {
       setState(() => _uploading = true);
       try {
         final uploader = PresignedUploadService(dio: ref.read(dioProvider));
-        referenceAudioUrl = await uploader.upload(
-          file: _refRecorder.file!,
-          fileName: 'ref_${DateTime.now().millisecondsSinceEpoch}.aac',
-        );
+        final ext = kIsWeb ? 'webm' : 'aac';
+        if (kIsWeb) {
+          final bytes = await _refRecorder.getWebBytes();
+          final metaRes =
+              await ref.read(dioProvider).get<Map<String, dynamic>>(
+            '/api/storage/presigned-upload',
+            queryParameters: {
+              'fileName': 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext',
+            },
+          );
+          final uploadUrl = metaRes.data!['url'] as String;
+          referenceAudioUrl = metaRes.data!['key'] as String;
+          await uploader.uploadBytesToUrl(
+              bytes: bytes!, uploadUrl: uploadUrl);
+        } else {
+          referenceAudioUrl = await uploader.upload(
+            file: _refRecorder.file!,
+            fileName: 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext',
+          );
+        }
       } finally {
         if (mounted) setState(() => _uploading = false);
       }

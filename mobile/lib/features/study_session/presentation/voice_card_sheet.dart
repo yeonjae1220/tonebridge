@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,7 +53,9 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
   }
 
   Future<void> _createCard() async {
-    if (_recorder.file == null) return;
+    final hasRecording =
+        kIsWeb ? _recorder.webBlobUrl != null : _recorder.file != null;
+    if (!hasRecording) return;
     setState(() => _uploading = true);
 
     final now = DateTime.now();
@@ -71,14 +74,23 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
         phrase: phrase,
       );
 
-      final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.aac';
+      final ext = kIsWeb ? 'webm' : 'aac';
+      final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
 
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
-      await uploader.uploadToUrl(
-        file: _recorder.file!,
-        uploadUrl: urls['uploadUrl']!,
-      );
+      if (kIsWeb) {
+        final bytes = await _recorder.getWebBytes();
+        await uploader.uploadBytesToUrl(
+          bytes: bytes!,
+          uploadUrl: urls['uploadUrl']!,
+        );
+      } else {
+        await uploader.uploadToUrl(
+          file: _recorder.file!,
+          uploadUrl: urls['uploadUrl']!,
+        );
+      }
 
       await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);
       ref.invalidate(sessionCardsProvider(widget.sessionId));

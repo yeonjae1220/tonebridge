@@ -41,14 +41,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push frontend
+      - name: Build & push frontend (Flutter Web)
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
+          context: ./mobile
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:latest
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            API_BASE_URL=https://tonebridge.mungji.com
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

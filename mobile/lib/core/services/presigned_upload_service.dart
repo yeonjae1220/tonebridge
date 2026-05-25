@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -7,36 +8,42 @@ class PresignedUploadService {
 
   final Dio _dio;
 
-  /// Uploads [file] and returns the storage key.
+  /// Uploads [file] (native) and returns the storage key.
   Future<String> upload({
     required File file,
     required String fileName,
   }) async {
-    // 1. Get presigned upload URL from backend
     final metaRes = await _dio.get<Map<String, dynamic>>(
       '/api/storage/presigned-upload',
       queryParameters: {'fileName': fileName},
     );
     final uploadUrl = metaRes.data!['url'] as String;
     final key = metaRes.data!['key'] as String;
-
-    // 2. PUT file directly to S3
-    final bytes = await file.readAsBytes();
-    await _putBytes(uploadUrl, bytes);
-
+    await _putBytes(uploadUrl, await file.readAsBytes());
     return key;
   }
 
-  /// Uploads [file] directly to a presigned [uploadUrl] (URL already obtained from backend).
+  /// Uploads [file] (native) to an already-obtained presigned [uploadUrl].
   Future<void> uploadToUrl({
     required File file,
     required String uploadUrl,
   }) async {
-    final bytes = await file.readAsBytes();
-    await _putBytes(uploadUrl, bytes);
+    await _putBytes(uploadUrl, await file.readAsBytes());
   }
 
-  Future<void> _putBytes(String uploadUrl, List<int> bytes) async {
+  /// Uploads raw [bytes] (web) to an already-obtained presigned [uploadUrl].
+  Future<void> uploadBytesToUrl({
+    required Uint8List bytes,
+    required String uploadUrl,
+  }) async {
+    await _putBytes(uploadUrl, bytes, contentType: 'audio/webm');
+  }
+
+  Future<void> _putBytes(
+    String uploadUrl,
+    List<int> bytes, {
+    String contentType = 'audio/aac',
+  }) async {
     final uploadDio = Dio();
     await uploadDio.put<void>(
       uploadUrl,
@@ -44,7 +51,7 @@ class PresignedUploadService {
       options: Options(
         headers: {
           HttpHeaders.contentLengthHeader: bytes.length,
-          HttpHeaders.contentTypeHeader: 'audio/aac',
+          HttpHeaders.contentTypeHeader: contentType,
         },
         sendTimeout: const Duration(minutes: 2),
         receiveTimeout: const Duration(minutes: 2),
