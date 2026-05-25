@@ -6,19 +6,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { ALL_LANG_LABELS } from '@/constants/languages'
+import { useDebounce } from '@/hooks/useDebounce'
 import type { Friend, FriendRequest, UserSearchResult } from '@/types'
 
 function langLabel(code: string) {
   return ALL_LANG_LABELS[code] ?? code
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
 }
 
 export default function FriendsPage() {
@@ -29,6 +21,9 @@ export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [acceptingId, setAcceptingId] = useState<string | null>(null)
+  const [decliningId, setDecliningId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const debouncedQuery = useDebounce(searchQuery, 300)
 
@@ -46,7 +41,7 @@ export default function FriendsPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const { data: friends = [], isLoading: friendsLoading } = useQuery<Friend[]>({
+  const { data: friends = [], isLoading: friendsLoading, isError: friendsError } = useQuery<Friend[]>({
     queryKey: ['friends'],
     queryFn: () => api.get('/friends').then((r) => r.data),
     enabled: !!accessToken,
@@ -91,16 +86,19 @@ export default function FriendsPage() {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
     },
+    onSettled: () => setAcceptingId(null),
   })
 
   const declineMutation = useMutation({
     mutationFn: (requestId: string) => api.delete(`/friends/requests/${requestId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }),
+    onSettled: () => setDecliningId(null),
   })
 
   const removeMutation = useMutation({
     mutationFn: (friendId: string) => api.delete(`/friends/${friendId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends'] }),
+    onSettled: () => setRemovingId(null),
   })
 
   const friendIds = new Set(friends.map((f) => f.id))
@@ -196,18 +194,18 @@ export default function FriendsPage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => acceptMutation.mutate(req.id)}
-                      disabled={acceptMutation.isPending}
+                      onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
+                      disabled={acceptingId === req.id || decliningId === req.id}
                       className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
                     >
-                      수락
+                      {acceptingId === req.id ? '수락 중...' : '수락'}
                     </button>
                     <button
-                      onClick={() => declineMutation.mutate(req.id)}
-                      disabled={declineMutation.isPending}
+                      onClick={() => { setDecliningId(req.id); declineMutation.mutate(req.id) }}
+                      disabled={decliningId === req.id || acceptingId === req.id}
                       className="px-3 py-1.5 text-xs font-semibold border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
                     >
-                      거절
+                      {decliningId === req.id ? '처리 중...' : '거절'}
                     </button>
                   </div>
                 </div>
@@ -218,8 +216,15 @@ export default function FriendsPage() {
 
         {/* 친구 목록 */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-500 mb-2">친구 {friends.length}명</h2>
-          {friendsLoading ? (
+          <h2 className="text-sm font-semibold text-gray-500 mb-2">
+            친구 {!friendsLoading && !friendsError ? `${friends.length}명` : ''}
+          </h2>
+          {friendsError ? (
+            <div className="bg-white rounded-2xl border border-red-100 py-10 text-center">
+              <p className="text-sm text-red-500 font-medium">친구 목록을 불러오지 못했어요</p>
+              <p className="text-xs text-gray-400 mt-1">잠시 후 다시 시도해주세요.</p>
+            </div>
+          ) : friendsLoading ? (
             <div className="flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-16 bg-gray-200 animate-pulse rounded-2xl" />
@@ -250,10 +255,11 @@ export default function FriendsPage() {
                   <button
                     onClick={() => {
                       if (window.confirm(`${friend.username}님을 친구 목록에서 삭제할까요?`)) {
+                        setRemovingId(friend.id)
                         removeMutation.mutate(friend.id)
                       }
                     }}
-                    disabled={removeMutation.isPending}
+                    disabled={removingId === friend.id}
                     className="p-2 text-gray-400 hover:text-red-400 transition-colors disabled:opacity-40"
                     aria-label="친구 삭제"
                   >

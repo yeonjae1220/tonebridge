@@ -236,8 +236,10 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   {editingNickname ? (
                     <div className="flex flex-col gap-2">
+                      <label htmlFor="nickname-input" className="sr-only">닉네임</label>
                       <div className="flex gap-2">
                         <input
+                          id="nickname-input"
                           type="text"
                           value={nicknameInput}
                           onChange={(e) => setNicknameInput(e.target.value)}

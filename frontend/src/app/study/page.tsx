@@ -6,10 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import type { Friend, StudySession } from '@/types'
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
-}
+import { formatDate } from '@/lib/dateUtils'
 
 export default function StudyPage() {
   const router = useRouter()
@@ -25,7 +22,7 @@ export default function StudyPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: sessions = [], isLoading } = useQuery<StudySession[]>({
+  const { data: sessions = [], isLoading, isError } = useQuery<StudySession[]>({
     queryKey: ['sessions'],
     queryFn: () => api.get('/sessions').then((r) => r.data),
     enabled: !!accessToken,
@@ -145,7 +142,12 @@ export default function StudyPage() {
           </div>
         )}
 
-        {isLoading ? (
+        {isError ? (
+          <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
+            <p className="text-sm text-red-500 font-medium">세션 목록을 불러오지 못했어요</p>
+            <p className="text-xs text-gray-400 mt-1">잠시 후 다시 시도해주세요.</p>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-24 bg-gray-200 animate-pulse rounded-2xl" />

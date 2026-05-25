@@ -80,7 +80,9 @@ export default function OnboardingPage() {
       subtitle: '선택 사항이에요. 나중에 프로필에서 변경할 수 있어요.',
       content: (
         <div className="flex flex-col gap-2">
+          <label htmlFor="onboarding-username" className="sr-only">닉네임</label>
           <input
+            id="onboarding-username"
             type="text"
             value={username}
             onChange={(e) => { setUsername(e.target.value); setUsernameError(null) }}

@@ -6,10 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import type { StudyCard, StudySession } from '@/types'
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
-}
+import { formatDate } from '@/lib/dateUtils'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -26,7 +23,7 @@ export default function StudySessionPage() {
     enabled: !!accessToken && !!sessionId,
   })
 
-  const { data: cards = [], isLoading: cardsLoading } = useQuery<StudyCard[]>({
+  const { data: cards = [], isLoading: cardsLoading, isError: cardsError } = useQuery<StudyCard[]>({
     queryKey: ['sessions', sessionId, 'cards'],
     queryFn: () => api.get(`/sessions/${sessionId}/cards`).then((r) => r.data),
     enabled: !!accessToken && !!sessionId,
@@ -62,7 +59,12 @@ export default function StudySessionPage() {
           )}
         </div>
 
-        {cardsLoading ? (
+        {cardsError ? (
+          <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
+            <p className="text-sm text-red-500 font-medium">카드를 불러오지 못했어요</p>
+            <p className="text-xs text-gray-400 mt-1">잠시 후 다시 시도해주세요.</p>
+          </div>
+        ) : cardsLoading ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-28 bg-gray-200 animate-pulse rounded-2xl" />
