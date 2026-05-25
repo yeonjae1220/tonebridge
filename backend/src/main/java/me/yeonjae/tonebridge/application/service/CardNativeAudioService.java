@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.AddCardNativeAudioUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteCardNativeAudioUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetCardNativeAudiosUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateNativeAudioNoteUseCase;
 import me.yeonjae.tonebridge.application.port.in.UploadNativeAudioUseCase;
 import me.yeonjae.tonebridge.application.port.out.CardNativeAudioPort;
 import me.yeonjae.tonebridge.application.port.out.StoragePort;
@@ -26,7 +27,8 @@ import java.util.UUID;
 public class CardNativeAudioService implements
         AddCardNativeAudioUseCase,
         GetCardNativeAudiosUseCase,
-        DeleteCardNativeAudioUseCase {
+        DeleteCardNativeAudioUseCase,
+        UpdateNativeAudioNoteUseCase {
 
     private final CardNativeAudioPort nativeAudioPort;
     private final StudyCardPort cardPort;
@@ -49,7 +51,7 @@ public class CardNativeAudioService implements
     public CardNativeAudio confirm(AddCardNativeAudioUseCase.ConfirmCommand command) {
         StudyCard card = requireCard(command.cardId());
         requireMember(card.sessionId(), command.uploaderId());
-        CardNativeAudio audio = new CardNativeAudio(null, command.cardId(), command.audioKey(), null);
+        CardNativeAudio audio = new CardNativeAudio(null, command.cardId(), command.audioKey(), null, null);
         return nativeAudioPort.save(audio);
     }
 
@@ -83,6 +85,17 @@ public class CardNativeAudioService implements
         requireMember(card.sessionId(), requesterId);
         nativeAudioPort.deleteByIdAndCardId(audioId, cardId);
         storagePort.deleteObject(audio.audioKey());
+    }
+
+    // ─── UpdateNativeAudioNoteUseCase ─────────────────────────────────────
+
+    @Override
+    public CardNativeAudio updateNote(UUID audioId, UUID requesterId, String note) {
+        CardNativeAudio audio = nativeAudioPort.findById(audioId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.FILE_NOT_FOUND));
+        StudyCard card = requireCard(audio.cardId());
+        requireMember(card.sessionId(), requesterId);
+        return nativeAudioPort.save(audio.withNote(note));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────

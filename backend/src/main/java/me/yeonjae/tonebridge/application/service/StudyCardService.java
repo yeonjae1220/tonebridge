@@ -30,7 +30,8 @@ public class StudyCardService implements
         UploadNativeAudioUseCase,
         GetNativeAudioDownloadUrlUseCase,
         SubmitLearnerAttemptUseCase,
-        AddCorrectionNoteUseCase {
+        AddCorrectionNoteUseCase,
+        UpdateCardNoteUseCase {
 
     private final StudyCardPort cardPort;
     private final LearnerAttemptPort attemptPort;
@@ -83,7 +84,7 @@ public class StudyCardService implements
         requireMemberInSession(session, command.creatorId());
 
         StudyCard card = new StudyCard(null, command.sessionId(), command.creatorId(),
-                command.phrase(), command.context(), null, null, command.tags(), null, null);
+                command.phrase(), command.context(), null, null, command.tags(), null, null, null);
         StudyCard saved = cardPort.save(card);
 
         session.memberIds().stream()
@@ -166,6 +167,16 @@ public class StudyCardService implements
                 new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername));
 
         return updated;
+    }
+
+    // ─── UpdateCardNoteUseCase ─────────────────────────────────────────────
+
+    @Override
+    public StudyCard updateNote(UUID cardId, UUID requesterId, String note) {
+        StudyCard card = cardPort.findById(cardId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
+        requireMember(card.sessionId(), requesterId);
+        return cardPort.save(card.withNote(note));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────

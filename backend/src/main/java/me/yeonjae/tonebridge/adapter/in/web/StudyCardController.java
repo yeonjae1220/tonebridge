@@ -34,6 +34,8 @@ public class StudyCardController {
     private final AddCardNativeAudioUseCase addNativeAudioUseCase;
     private final GetCardNativeAudiosUseCase getNativeAudiosUseCase;
     private final DeleteCardNativeAudioUseCase deleteNativeAudioUseCase;
+    private final UpdateCardNoteUseCase updateCardNoteUseCase;
+    private final UpdateNativeAudioNoteUseCase updateNativeAudioNoteUseCase;
 
     @PostMapping("/sessions/{sessionId}/cards")
     public ResponseEntity<StudyCardResponse> createCard(
@@ -156,9 +158,30 @@ public class StudyCardController {
         return ResponseEntity.noContent().build();
     }
 
+    // ─── Note endpoints ────────────────────────────────────────────────────
+
+    @PatchMapping("/cards/{cardId}/note")
+    public ResponseEntity<StudyCardResponse> updateCardNote(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @Valid @RequestBody NoteDto dto) {
+        var card = updateCardNoteUseCase.updateNote(cardId, userId, dto.note());
+        return ResponseEntity.ok(StudyCardResponse.from(card));
+    }
+
+    @PatchMapping("/native-audios/{audioId}/note")
+    public ResponseEntity<CardNativeAudioResponse> updateNativeAudioNote(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID audioId,
+            @Valid @RequestBody NoteDto dto) {
+        var audio = updateNativeAudioNoteUseCase.updateNote(audioId, userId, dto.note());
+        return ResponseEntity.ok(CardNativeAudioResponse.from(audio));
+    }
+
     record CreateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}
     record SubmitAttemptDto(@NotBlank String audioKey) {}
     record CorrectionNoteDto(@NotBlank String correctionNote, @Min(1) @Max(5) Integer score) {}
+    record NoteDto(String note) {}
 }

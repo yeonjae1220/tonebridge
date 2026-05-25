@@ -16,13 +16,15 @@ public record StudyCardResponse(
         String explanation,
         List<String> tags,
         Instant createdAt,
-        LearnerAttemptResponse latestAttempt
+        LearnerAttemptResponse latestAttempt,
+        String note
 ) {
     public static StudyCardResponse from(StudyCard c) {
         return new StudyCardResponse(
                 c.id(), c.sessionId(), c.createdByUserId(),
                 c.phrase(), c.context(), c.nativeAudioUrl(), c.explanation(),
                 c.tags(), c.createdAt(),
-                c.latestAttempt() != null ? LearnerAttemptResponse.from(c.latestAttempt()) : null);
+                c.latestAttempt() != null ? LearnerAttemptResponse.from(c.latestAttempt()) : null,
+                c.note());
     }
 }

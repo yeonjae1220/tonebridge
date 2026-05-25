@@ -47,6 +47,9 @@ public class StudyCardEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
@@ -55,7 +58,7 @@ public class StudyCardEntity {
 
     public StudyCard toDomain() {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                nativeAudioUrl, explanation, parseList(tagsRaw), createdAt, null);
+                nativeAudioUrl, explanation, parseList(tagsRaw), createdAt, null, note);
     }
 
     public static StudyCardEntity fromDomain(StudyCard c) {
@@ -69,6 +72,7 @@ public class StudyCardEntity {
                 .explanation(c.explanation())
                 .tagsRaw(joinList(c.tags()))
                 .createdAt(c.createdAt())
+                .note(c.note())
                 .build();
     }
 

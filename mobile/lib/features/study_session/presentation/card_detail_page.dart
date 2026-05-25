@@ -12,6 +12,7 @@ import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
+import 'package:tonebridge/features/study_session/presentation/card_note_section.dart';
 import 'package:tonebridge/features/study_session/presentation/native_audios_section.dart';
 import 'package:tonebridge/features/study_session/presentation/note_sheet.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
@@ -231,6 +232,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                     ),
                     const SizedBox(height: 24),
                   ],
+                  CardNoteSection(card: card),
+                  const SizedBox(height: 24),
                   _AttemptsSection(
                     attemptsAsync: attemptsAsync,
                     cardId: widget.cardId,
@@ -688,4 +691,6 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
+
+
 

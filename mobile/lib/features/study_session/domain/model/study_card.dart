@@ -19,6 +19,7 @@ abstract class StudyCard with _$StudyCard {
     @Default([]) List<String> tags,
     required DateTime createdAt,
     LearnerAttempt? latestAttempt,
+    String? note,
   }) = _StudyCard;
 
   const StudyCard._();

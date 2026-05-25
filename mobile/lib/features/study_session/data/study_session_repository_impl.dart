@@ -190,7 +190,25 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<void> deleteNativeAudio(String cardId, String audioId) async {
-    await _dio.delete<void>(
-        '/api/cards/$cardId/native-audios/$audioId');
+    await _dio.delete<void>('/api/cards/$cardId/native-audios/$audioId');
+  }
+
+  @override
+  Future<StudyCard> updateCardNote(String cardId, String? note) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/cards/$cardId/note',
+      data: {'note': note},
+    );
+    return StudyCard.fromJson(response.data!);
+  }
+
+  @override
+  Future<NativeAudioEntry> updateNativeAudioNote(
+      String audioId, String? note) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/native-audios/$audioId/note',
+      data: {'note': note},
+    );
+    return NativeAudioEntry.fromJson(response.data!);
   }
 }

@@ -14,7 +14,8 @@ public record StudyCard(
         String explanation,
         List<String> tags,
         Instant createdAt,
-        LearnerAttempt latestAttempt
+        LearnerAttempt latestAttempt,
+        String note
 ) {
     public boolean hasNativeAudio() {
         return nativeAudioUrl != null && !nativeAudioUrl.isBlank();
@@ -22,11 +23,16 @@ public record StudyCard(
 
     public StudyCard withNativeAudio(String audioUrl) {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                audioUrl, explanation, tags, createdAt, latestAttempt);
+                audioUrl, explanation, tags, createdAt, latestAttempt, note);
     }
 
     public StudyCard withLatestAttempt(LearnerAttempt attempt) {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                nativeAudioUrl, explanation, tags, createdAt, attempt);
+                nativeAudioUrl, explanation, tags, createdAt, attempt, note);
+    }
+
+    public StudyCard withNote(String newNote) {
+        return new StudyCard(id, sessionId, createdByUserId, phrase, context,
+                nativeAudioUrl, explanation, tags, createdAt, latestAttempt, newNote);
     }
 }

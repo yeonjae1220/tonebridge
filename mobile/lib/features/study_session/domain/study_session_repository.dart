@@ -31,4 +31,8 @@ abstract interface class StudySessionRepository {
   Future<List<NativeAudioEntry>> getNativeAudios(String cardId);
   Future<String> getNativeAudioDownloadUrlV2(String audioId);
   Future<void> deleteNativeAudio(String cardId, String audioId);
+
+  // ── Notes ─────────────────────────────────────────────────────────────
+  Future<StudyCard> updateCardNote(String cardId, String? note);
+  Future<NativeAudioEntry> updateNativeAudioNote(String audioId, String? note);
 }

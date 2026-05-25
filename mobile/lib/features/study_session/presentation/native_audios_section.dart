@@ -143,6 +143,7 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
                 children: [
                   ...audios.map((a) => _AudioEntryTile(
                         entry: a,
+                        cardId: widget.cardId,
                         onPlay: () => _playAudio(a),
                         onDelete: () => _deleteAudio(a),
                       )),
@@ -217,52 +218,173 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
   }
 }
 
-class _AudioEntryTile extends StatelessWidget {
+class _AudioEntryTile extends ConsumerStatefulWidget {
   const _AudioEntryTile({
     required this.entry,
+    required this.cardId,
     required this.onPlay,
     required this.onDelete,
   });
 
   final NativeAudioEntry entry;
+  final String cardId;
   final VoidCallback onPlay;
   final VoidCallback onDelete;
 
   @override
+  ConsumerState<_AudioEntryTile> createState() => _AudioEntryTileState();
+}
+
+class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
+  bool _savingNote = false;
+
+  Future<void> _editNote() async {
+    final controller =
+        TextEditingController(text: widget.entry.note ?? '');
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _RecordingNoteSheet(controller: controller),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _savingNote = true);
+    try {
+      await ref
+          .read(studySessionRepositoryProvider)
+          .updateNativeAudioNote(widget.entry.id, result.isEmpty ? null : result);
+      if (mounted) ref.invalidate(cardNativeAudiosProvider(widget.cardId));
+    } on Exception catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('메모 저장에 실패했어요.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingNote = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dt = entry.createdAt;
+    final dt = widget.entry.createdAt;
     final label =
         '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final hasNote =
+        widget.entry.note != null && widget.entry.note!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.08),
+        color:
+            theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: Icon(Icons.play_circle_rounded,
-                color: theme.colorScheme.secondary),
-            onPressed: onPlay,
-            tooltip: '재생',
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.play_circle_rounded,
+                    color: theme.colorScheme.secondary),
+                onPressed: widget.onPlay,
+                tooltip: '재생',
+              ),
+              Expanded(
+                child: Text(
+                  '녹음 $label',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+              if (_savingNote)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: Icon(
+                    hasNote
+                        ? Icons.edit_note_rounded
+                        : Icons.note_add_outlined,
+                    size: 20,
+                    color: theme.colorScheme.onSecondaryContainer
+                        .withValues(alpha: 0.6),
+                  ),
+                  onPressed: _editNote,
+                  tooltip: hasNote ? '메모 수정' : '메모 추가',
+                ),
+              IconButton(
+                icon: Icon(Icons.delete_outline_rounded,
+                    color: theme.colorScheme.error, size: 20),
+                onPressed: widget.onDelete,
+                tooltip: '삭제',
+              ),
+            ],
           ),
-          Expanded(
-            child: Text(
-              '녹음 $label',
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.colorScheme.onSecondaryContainer,
+          if (hasNote)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+              child: Text(
+                widget.entry.note!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSecondaryContainer
+                      .withValues(alpha: 0.75),
+                ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecordingNoteSheet extends StatelessWidget {
+  const _RecordingNoteSheet({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('녹음 메모',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '이 녹음에 대한 메모를 남겨보세요',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
           ),
-          IconButton(
-            icon: Icon(Icons.delete_outline_rounded,
-                color: theme.colorScheme.error, size: 20),
-            onPressed: onDelete,
-            tooltip: '삭제',
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('저장'),
+            ),
           ),
         ],
       ),

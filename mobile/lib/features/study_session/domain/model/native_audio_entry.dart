@@ -9,6 +9,7 @@ abstract class NativeAudioEntry with _$NativeAudioEntry {
     required String id,
     required String cardId,
     required DateTime createdAt,
+    String? note,
   }) = _NativeAudioEntry;
 
   factory NativeAudioEntry.fromJson(Map<String, dynamic> json) =>

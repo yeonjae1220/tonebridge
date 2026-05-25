@@ -28,13 +28,16 @@ public class CardNativeAudioEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
     }
 
     public CardNativeAudio toDomain() {
-        return new CardNativeAudio(id, cardId, audioKey, createdAt);
+        return new CardNativeAudio(id, cardId, audioKey, createdAt, note);
     }
 
     public static CardNativeAudioEntity fromDomain(CardNativeAudio a) {
@@ -43,6 +46,7 @@ public class CardNativeAudioEntity {
                 .cardId(a.cardId())
                 .audioKey(a.audioKey())
                 .createdAt(a.createdAt())
+                .note(a.note())
                 .build();
     }
 }

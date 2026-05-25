@@ -8,9 +8,10 @@ import java.util.UUID;
 public record CardNativeAudioResponse(
         UUID id,
         UUID cardId,
-        Instant createdAt
+        Instant createdAt,
+        String note
 ) {
     public static CardNativeAudioResponse from(CardNativeAudio a) {
-        return new CardNativeAudioResponse(a.id(), a.cardId(), a.createdAt());
+        return new CardNativeAudioResponse(a.id(), a.cardId(), a.createdAt(), a.note());
     }
 }
