@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -259,7 +261,6 @@ class _StudyPageState extends ConsumerState<StudyPage> {
       builder: (ctx) => _AddFriendSheet(
         onSend: (username) async {
           final messenger = ScaffoldMessenger.of(context);
-          final errorColor = Theme.of(context).colorScheme.error;
           await ref
               .read(friendListStateProvider.notifier)
               .sendRequest(username);
@@ -588,9 +589,11 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
   final _controller = TextEditingController();
   String _query = '';
   bool _sending = false;
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -600,7 +603,11 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
     setState(() => _sending = true);
     try {
       final ok = await widget.onSend(username);
-      if (ok && mounted) Navigator.of(context).pop();
+      if (ok && mounted) {
+        Navigator.of(context).pop();
+      } else if (mounted) {
+        setState(() => _sending = false);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _sending = false);
@@ -638,7 +645,12 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.search_rounded),
             ),
-            onChanged: (v) => setState(() => _query = v.trim()),
+            onChanged: (v) {
+              _debounce?.cancel();
+              _debounce = Timer(const Duration(milliseconds: 300), () {
+                setState(() => _query = v.trim());
+              });
+            },
             onSubmitted: (v) => _send(v.trim()),
           ),
           if (_query.isNotEmpty) ...[
@@ -648,7 +660,14 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: LinearProgressIndicator(),
               ),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, __) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  '검색 중 오류가 발생했어요. 다시 시도해 주세요.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.error),
+                ),
+              ),
               data: (results) {
                 if (results.isEmpty) {
                   return Padding(
@@ -717,7 +736,7 @@ class _UserSuggestionTile extends StatelessWidget {
               radius: 18,
               backgroundColor: theme.colorScheme.primaryContainer,
               child: Text(
-                user.username[0].toUpperCase(),
+                user.username.isNotEmpty ? user.username[0].toUpperCase() : '?',
                 style: TextStyle(
                   color: theme.colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
