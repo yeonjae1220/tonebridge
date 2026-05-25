@@ -831,8 +831,8 @@ class _NoteSheetState extends ConsumerState<_NoteSheet> {
       await ref
           .read(cardAttemptStateProvider.notifier)
           .addNote(widget.attemptId, note, _selectedScore);
-      widget.onNoteAdded();
       if (!mounted) return;
+      widget.onNoteAdded();
       Navigator.pop(context);
     } on Exception catch (e) {
       if (!mounted) return;

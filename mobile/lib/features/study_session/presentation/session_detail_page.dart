@@ -356,8 +356,8 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
                 ? null
                 : _contextController.text.trim(),
           );
-      ref.invalidate(sessionCardsProvider(widget.sessionId));
       if (!mounted) return;
+      ref.invalidate(sessionCardsProvider(widget.sessionId));
       Navigator.pop(context);
     } on Exception catch (e) {
       if (!mounted) return;

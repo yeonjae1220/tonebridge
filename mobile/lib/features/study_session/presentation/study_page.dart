@@ -647,14 +647,15 @@ class _CreateSessionSheet extends ConsumerStatefulWidget {
 }
 
 class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
-  late Friend? _selected;
+  // Non-nullable: this sheet is only opened when friends.isNotEmpty.
+  late Friend _selected;
   final _titleController = TextEditingController();
   bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
-    _selected = widget.friends.firstOrNull;
+    _selected = widget.friends.first;
   }
 
   @override
@@ -664,39 +665,39 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
   }
 
   Future<void> _submit() async {
-    if (_selected == null || _submitting) return;
+    if (_submitting) return;
     setState(() => _submitting = true);
-    final router = GoRouter.of(context);
+    // Capture router and messenger while context is guaranteed valid.
     final messenger = ScaffoldMessenger.of(context);
     try {
       final session = await ref
           .read(studySessionListStateProvider.notifier)
           .createSession(
-            _selected!.id,
+            _selected.id,
             title: _titleController.text.trim().isEmpty
                 ? null
                 : _titleController.text.trim(),
           );
       if (!mounted) return;
+      // Capture router after the mounted check so the context is live.
+      final router = GoRouter.of(context);
       Navigator.pop(context);
       router.push(AppRoute.sessionDetail(session.id));
-    } catch (e) {
+    } on Exception catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
       messenger.showSnackBar(
-        SnackBar(content: Text(_errorMessage(e))),
+        SnackBar(content: Text(_sessionErrorMessage(e))),
       );
     }
   }
 
-  String _errorMessage(Object e) {
+  String _sessionErrorMessage(Exception e) {
     final msg = e.toString();
-    if (msg.contains('USER_NOT_FOUND')) return '해당 유저를 찾을 수 없어요.';
-    if (msg.contains('CANNOT_ADD_SELF')) return '자기 자신에게 친구 요청을 보낼 수 없어요.';
-    if (msg.contains('ALREADY_SENT') || msg.contains('FRIEND_REQUEST_ALREADY')) {
-      return '이미 친구 요청을 보냈어요.';
+    if (msg.contains('SESSION_003') || msg.contains('ALREADY_EXISTS')) {
+      return '이미 해당 친구와 진행 중인 세션이 있어요.';
     }
-    return '오류가 발생했어요. 다시 시도해 주세요.';
+    return '세션 생성에 실패했어요. 다시 시도해 주세요.';
   }
 
   @override
@@ -730,8 +731,11 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
                         child: Text('${f.username} (${f.nativeLanguage})'),
                       ))
                   .toList(),
-              onChanged:
-                  _submitting ? null : (f) => setState(() => _selected = f),
+              onChanged: _submitting
+                  ? null
+                  : (f) {
+                      if (f != null) _selected = f;
+                    },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -746,7 +750,7 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: (_selected == null || _submitting) ? null : _submit,
+                onPressed: _submitting ? null : _submit,
                 child: _submitting
                     ? const SizedBox(
                         width: 20,
