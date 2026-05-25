@@ -9,10 +9,13 @@ import 'package:permission_handler/permission_handler.dart';
 enum RecorderState { idle, recording, stopped }
 
 class RecorderPermissionException implements Exception {
-  const RecorderPermissionException();
+  const RecorderPermissionException({this.isPermanentlyDenied = false});
+  final bool isPermanentlyDenied;
 
   @override
-  String toString() => '마이크 권한이 필요합니다.';
+  String toString() => isPermanentlyDenied
+      ? '마이크 권한이 영구적으로 거부되었습니다.'
+      : '마이크 권한이 필요합니다.';
 }
 
 class AudioRecorderService extends ChangeNotifier {
@@ -30,9 +33,15 @@ class AudioRecorderService extends ChangeNotifier {
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
-    final status = await Permission.microphone.request();
+    var status = await Permission.microphone.status;
+    if (status.isPermanentlyDenied) {
+      throw const RecorderPermissionException(isPermanentlyDenied: true);
+    }
+    status = await Permission.microphone.request();
     if (!status.isGranted) {
-      throw const RecorderPermissionException();
+      throw RecorderPermissionException(
+        isPermanentlyDenied: status.isPermanentlyDenied,
+      );
     }
     await _recorder.openRecorder();
     _initialized = true;
@@ -91,7 +100,11 @@ class AudioRecorderService extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
-    _recorder.closeRecorder();
+    if (_state == RecorderState.recording) {
+      unawaited(_recorder.stopRecorder().then((_) => _recorder.closeRecorder()));
+    } else {
+      unawaited(_recorder.closeRecorder());
+    }
     super.dispose();
   }
 }

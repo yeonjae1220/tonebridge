@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
+import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_session.dart';
 import 'package:tonebridge/features/study_session/domain/study_session_repository.dart';
@@ -144,5 +145,52 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
       },
     );
     return LearnerAttempt.fromJson(response.data!);
+  }
+
+  // ── Multiple native audio recordings ──────────────────────────────────
+
+  @override
+  Future<Map<String, String>> getNativeAudioUploadUrlV2(
+      String cardId, String fileName) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/cards/$cardId/native-audios/upload-url',
+      data: {'fileName': fileName},
+    );
+    return {
+      'uploadUrl': response.data!['uploadUrl'] as String,
+      'audioKey': response.data!['audioKey'] as String,
+    };
+  }
+
+  @override
+  Future<NativeAudioEntry> confirmNativeAudioV2(
+      String cardId, String audioKey) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/cards/$cardId/native-audios',
+      data: {'audioKey': audioKey},
+    );
+    return NativeAudioEntry.fromJson(response.data!);
+  }
+
+  @override
+  Future<List<NativeAudioEntry>> getNativeAudios(String cardId) async {
+    final response =
+        await _dio.get<List<dynamic>>('/api/cards/$cardId/native-audios');
+    return response.data!
+        .map((e) => NativeAudioEntry.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<String> getNativeAudioDownloadUrlV2(String audioId) async {
+    final response = await _dio
+        .get<Map<String, dynamic>>('/api/native-audios/$audioId/download-url');
+    return response.data!['downloadUrl'] as String;
+  }
+
+  @override
+  Future<void> deleteNativeAudio(String cardId, String audioId) async {
+    await _dio.delete<void>(
+        '/api/cards/$cardId/native-audios/$audioId');
   }
 }

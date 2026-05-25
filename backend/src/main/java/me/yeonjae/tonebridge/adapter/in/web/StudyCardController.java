@@ -3,6 +3,7 @@ package me.yeonjae.tonebridge.adapter.in.web;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.LearnerAttemptResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.application.port.in.*;
@@ -28,6 +29,9 @@ public class StudyCardController {
     private final GetNativeAudioDownloadUrlUseCase getNativeAudioDownloadUrlUseCase;
     private final SubmitLearnerAttemptUseCase submitAttemptUseCase;
     private final AddCorrectionNoteUseCase addNoteUseCase;
+    private final AddCardNativeAudioUseCase addNativeAudioUseCase;
+    private final GetCardNativeAudiosUseCase getNativeAudiosUseCase;
+    private final DeleteCardNativeAudioUseCase deleteNativeAudioUseCase;
 
     @PostMapping("/sessions/{sessionId}/cards")
     public ResponseEntity<StudyCardResponse> createCard(
@@ -101,6 +105,53 @@ public class StudyCardController {
         var attempt = addNoteUseCase.addNote(
                 new AddCorrectionNoteUseCase.Command(attemptId, userId, dto.correctionNote(), dto.score()));
         return ResponseEntity.ok(LearnerAttemptResponse.from(attempt));
+    }
+
+    // ─── Card Native Audio (multiple recordings) ───────────────────────────
+
+    @PostMapping("/cards/{cardId}/native-audios/upload-url")
+    public ResponseEntity<Map<String, String>> getNativeAudioUploadUrlV2(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @Valid @RequestBody UploadUrlDto dto) {
+        var result = addNativeAudioUseCase.getUploadUrl(
+                new AddCardNativeAudioUseCase.GetUrlCommand(cardId, userId, dto.fileName()));
+        return ResponseEntity.ok(Map.of("uploadUrl", result.uploadUrl(), "audioKey", result.audioKey()));
+    }
+
+    @PostMapping("/cards/{cardId}/native-audios")
+    public ResponseEntity<CardNativeAudioResponse> confirmNativeAudioV2(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @Valid @RequestBody ConfirmAudioDto dto) {
+        var audio = addNativeAudioUseCase.confirm(
+                new AddCardNativeAudioUseCase.ConfirmCommand(cardId, userId, dto.audioKey()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(CardNativeAudioResponse.from(audio));
+    }
+
+    @GetMapping("/cards/{cardId}/native-audios")
+    public ResponseEntity<List<CardNativeAudioResponse>> getNativeAudios(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId) {
+        var audios = getNativeAudiosUseCase.getAudios(cardId, userId);
+        return ResponseEntity.ok(audios.stream().map(CardNativeAudioResponse::from).toList());
+    }
+
+    @GetMapping("/native-audios/{audioId}/download-url")
+    public ResponseEntity<Map<String, String>> getNativeAudioDownloadUrlV2(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID audioId) {
+        String url = getNativeAudiosUseCase.getDownloadUrl(audioId, userId);
+        return ResponseEntity.ok(Map.of("downloadUrl", url));
+    }
+
+    @DeleteMapping("/cards/{cardId}/native-audios/{audioId}")
+    public ResponseEntity<Void> deleteNativeAudio(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @PathVariable UUID audioId) {
+        deleteNativeAudioUseCase.delete(audioId, cardId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     record CreateCardDto(@NotBlank String phrase, String context, List<String> tags) {}

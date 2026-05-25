@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
+import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_session.dart';
 
@@ -66,3 +67,7 @@ Future<StudyCard> cardDetail(Ref ref, String cardId) =>
 @riverpod
 Future<List<LearnerAttempt>> cardAttempts(Ref ref, String cardId) =>
     ref.watch(studySessionRepositoryProvider).getAttempts(cardId);
+
+@riverpod
+Future<List<NativeAudioEntry>> cardNativeAudios(Ref ref, String cardId) =>
+    ref.watch(studySessionRepositoryProvider).getNativeAudios(cardId);
