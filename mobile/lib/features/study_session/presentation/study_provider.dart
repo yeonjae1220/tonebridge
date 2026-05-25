@@ -21,7 +21,7 @@ class StudySessionListState extends _$StudySessionListState {
     final session = await ref
         .read(studySessionRepositoryProvider)
         .createSession(friendId, title: title);
-    await refresh();
+    ref.invalidateSelf();
     return session;
   }
 
@@ -29,7 +29,7 @@ class StudySessionListState extends _$StudySessionListState {
     final session = await ref
         .read(studySessionRepositoryProvider)
         .endSession(sessionId);
-    await refresh();
+    ref.invalidateSelf();
     return session;
   }
 }

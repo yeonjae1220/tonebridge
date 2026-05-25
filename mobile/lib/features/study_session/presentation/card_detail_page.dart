@@ -663,94 +663,15 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
   }
 
   void _showNoteSheet(BuildContext context) {
-    final noteController = TextEditingController();
-    int? selectedScore;
-    // Cache before async gaps so they remain valid after the sheet closes.
-    final messenger = ScaffoldMessenger.of(context);
-    final errorColor = Theme.of(context).colorScheme.error;
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('교정 메모 추가',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  5,
-                  (i) => GestureDetector(
-                    onTap: () => setSheetState(() => selectedScore = i + 1),
-                    child: Icon(
-                      selectedScore != null && i < selectedScore!
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      color: const Color(0xFFFFC107),
-                      size: 36,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: '교정 메모',
-                  hintText: '발음, 억양, 개선점 등을 알려주세요',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final note = noteController.text.trim();
-                    if (note.isEmpty) return;
-                    try {
-                      await ref
-                          .read(cardAttemptStateProvider.notifier)
-                          .addNote(widget.attempt.id, note, selectedScore);
-                      widget.onNoteAdded();
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    } on Exception catch (e) {
-                      if (ctx.mounted) {
-                        final msg = e.toString().contains('SESSION_002')
-                            ? '세션 멤버만 교정 메모를 작성할 수 있어요.'
-                            : '교정 메모 저장에 실패했어요. 다시 시도해 주세요.';
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(msg),
-                            backgroundColor: errorColor,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('저장'),
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => _NoteSheet(
+        attemptId: widget.attempt.id,
+        onNoteAdded: widget.onNoteAdded,
       ),
-    ).whenComplete(noteController.dispose);
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -873,6 +794,123 @@ class _NativeAudioUploadSection extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Note Sheet ────────────────────────────────────────────────────────────────
+
+class _NoteSheet extends ConsumerStatefulWidget {
+  const _NoteSheet({required this.attemptId, required this.onNoteAdded});
+  final String attemptId;
+  final VoidCallback onNoteAdded;
+
+  @override
+  ConsumerState<_NoteSheet> createState() => _NoteSheetState();
+}
+
+class _NoteSheetState extends ConsumerState<_NoteSheet> {
+  final _noteController = TextEditingController();
+  int? _selectedScore;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty || _submitting) return;
+    setState(() => _submitting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = Theme.of(context).colorScheme.error;
+    try {
+      await ref
+          .read(cardAttemptStateProvider.notifier)
+          .addNote(widget.attemptId, note, _selectedScore);
+      widget.onNoteAdded();
+      if (!mounted) return;
+      Navigator.pop(context);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      final msg = e.toString().contains('SESSION_002')
+          ? '세션 멤버만 교정 메모를 작성할 수 있어요.'
+          : '교정 메모 저장에 실패했어요. 다시 시도해 주세요.';
+      messenger.showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: errorColor),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '교정 메모 추가',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                5,
+                (i) => GestureDetector(
+                  onTap: _submitting
+                      ? null
+                      : () => setState(() => _selectedScore = i + 1),
+                  child: Icon(
+                    _selectedScore != null && i < _selectedScore!
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: const Color(0xFFFFC107),
+                    size: 36,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteController,
+              autofocus: true,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: '교정 메모',
+                hintText: '발음, 억양, 개선점 등을 알려주세요',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('저장'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

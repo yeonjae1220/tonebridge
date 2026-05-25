@@ -144,79 +144,12 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   }
 
   void _showAddCardSheet(BuildContext context) {
-    final phraseController = TextEditingController();
-    final contextController = TextEditingController();
-    final messenger = ScaffoldMessenger.of(context);
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('새 카드 추가',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phraseController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '표현 입력 (필수)',
-                hintText: '예: 밥 먹었어?',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: contextController,
-              decoration: const InputDecoration(
-                labelText: '상황 설명 (선택)',
-                hintText: '예: 친구에게 안부 물을 때 쓰는 표현',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () async {
-                  final phrase = phraseController.text.trim();
-                  if (phrase.isEmpty) return;
-                  final contextText = contextController.text.trim();
-                  try {
-                    await ref.read(studySessionRepositoryProvider).createCard(
-                          sessionId: widget.sessionId,
-                          phrase: phrase,
-                          context: contextText.isEmpty ? null : contextText,
-                        );
-                    ref.invalidate(sessionCardsProvider(widget.sessionId));
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                },
-                child: const Text('추가하기'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(() {
-      phraseController.dispose();
-      contextController.dispose();
-    });
+      builder: (_) => _AddCardSheet(sessionId: widget.sessionId),
+    );
   }
 }
 
@@ -382,6 +315,113 @@ class _CardListItem extends StatelessWidget {
         onTap: () => context.push(
           AppRoute.cardDetail(sessionId, card.id),
           extra: card,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Add Card Bottom Sheet ─────────────────────────────────────────────────────
+
+class _AddCardSheet extends ConsumerStatefulWidget {
+  const _AddCardSheet({required this.sessionId});
+  final String sessionId;
+
+  @override
+  ConsumerState<_AddCardSheet> createState() => _AddCardSheetState();
+}
+
+class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
+  final _phraseController = TextEditingController();
+  final _contextController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _phraseController.dispose();
+    _contextController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final phrase = _phraseController.text.trim();
+    if (phrase.isEmpty || _submitting) return;
+    setState(() => _submitting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(studySessionRepositoryProvider).createCard(
+            sessionId: widget.sessionId,
+            phrase: phrase,
+            context: _contextController.text.trim().isEmpty
+                ? null
+                : _contextController.text.trim(),
+          );
+      ref.invalidate(sessionCardsProvider(widget.sessionId));
+      if (!mounted) return;
+      Navigator.pop(context);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '새 카드 추가',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phraseController,
+              autofocus: true,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: '표현 입력 (필수)',
+                hintText: '예: 밥 먹었어?',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _contextController,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: '상황 설명 (선택)',
+                hintText: '예: 친구에게 안부 물을 때 쓰는 표현',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('추가하기'),
+              ),
+            ),
+          ],
         ),
       ),
     );

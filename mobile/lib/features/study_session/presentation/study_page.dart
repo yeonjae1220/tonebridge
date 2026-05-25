@@ -295,88 +295,12 @@ class _StudyPageState extends ConsumerState<StudyPage> {
   }
 
   void _showCreateSessionSheet(BuildContext context, List<Friend> friends) {
-    Friend? selected = friends.firstOrNull;
-    final titleController = TextEditingController();
-    // Cache before async gaps.
-    final messenger = ScaffoldMessenger.of(context);
-    final router = GoRouter.of(context);
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('새 스터디 세션',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<Friend>(
-                initialValue: selected,
-                decoration: const InputDecoration(
-                  labelText: '함께할 친구',
-                  border: OutlineInputBorder(),
-                ),
-                items: friends
-                    .map((f) => DropdownMenuItem(
-                          value: f,
-                          child: Text('${f.username} (${f.nativeLanguage})'),
-                        ))
-                    .toList(),
-                onChanged: (f) => setSheetState(() => selected = f),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: '세션 이름 (선택)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: selected == null
-                      ? null
-                      : () async {
-                          final title = titleController.text.trim();
-                          try {
-                            final session = await ref
-                                .read(studySessionListStateProvider.notifier)
-                                .createSession(
-                                  selected!.id,
-                                  title: title.isEmpty ? null : title,
-                                );
-                            if (ctx.mounted) {
-                              Navigator.pop(ctx);
-                              router.push(AppRoute.sessionDetail(session.id));
-                            }
-                          } catch (e) {
-                            if (ctx.mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text(_friendErrorMessage(e))),
-                              );
-                            }
-                          }
-                        },
-                  child: const Text('시작하기'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ).whenComplete(titleController.dispose);
+      builder: (_) => _CreateSessionSheet(friends: friends),
+    );
   }
 }
 
@@ -706,6 +630,134 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Create Session Bottom Sheet ───────────────────────────────────────────────
+
+class _CreateSessionSheet extends ConsumerStatefulWidget {
+  const _CreateSessionSheet({required this.friends});
+  final List<Friend> friends;
+
+  @override
+  ConsumerState<_CreateSessionSheet> createState() =>
+      _CreateSessionSheetState();
+}
+
+class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
+  late Friend? _selected;
+  final _titleController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.friends.firstOrNull;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_selected == null || _submitting) return;
+    setState(() => _submitting = true);
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final session = await ref
+          .read(studySessionListStateProvider.notifier)
+          .createSession(
+            _selected!.id,
+            title: _titleController.text.trim().isEmpty
+                ? null
+                : _titleController.text.trim(),
+          );
+      if (!mounted) return;
+      Navigator.pop(context);
+      router.push(AppRoute.sessionDetail(session.id));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(_errorMessage(e))),
+      );
+    }
+  }
+
+  String _errorMessage(Object e) {
+    final msg = e.toString();
+    if (msg.contains('USER_NOT_FOUND')) return '해당 유저를 찾을 수 없어요.';
+    if (msg.contains('CANNOT_ADD_SELF')) return '자기 자신에게 친구 요청을 보낼 수 없어요.';
+    if (msg.contains('ALREADY_SENT') || msg.contains('FRIEND_REQUEST_ALREADY')) {
+      return '이미 친구 요청을 보냈어요.';
+    }
+    return '오류가 발생했어요. 다시 시도해 주세요.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '새 스터디 세션',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<Friend>(
+              initialValue: _selected,
+              decoration: const InputDecoration(
+                labelText: '함께할 친구',
+                border: OutlineInputBorder(),
+              ),
+              items: widget.friends
+                  .map((f) => DropdownMenuItem(
+                        value: f,
+                        child: Text('${f.username} (${f.nativeLanguage})'),
+                      ))
+                  .toList(),
+              onChanged:
+                  _submitting ? null : (f) => setState(() => _selected = f),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _titleController,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: '세션 이름 (선택)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: (_selected == null || _submitting) ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('시작하기'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
