@@ -6,6 +6,10 @@ RUN flutter pub get
 
 COPY . .
 
+# Generate code (freezed, riverpod, json_serializable, go_router).
+# .g.dart / .freezed.dart files are gitignored and must be produced during the build.
+RUN dart run build_runner build --delete-conflicting-outputs
+
 # GOOGLE_CLIENT_ID is a public OAuth identifier — safe to embed in the JS bundle.
 # Never pass real server secrets via --dart-define; use backend environment variables instead.
 ARG GOOGLE_CLIENT_ID=""
