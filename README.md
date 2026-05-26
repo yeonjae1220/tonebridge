@@ -7,7 +7,7 @@
 ```
 ToneBridge/
 ├── backend/              Spring Boot 4.0.3 + Java 21 (헥사고날 아키텍처)
-├── frontend/             Next.js 14 (App Router + Tailwind CSS)
+├── mobile/               Flutter (iOS · Android · Web PWA)
 ├── k8s/                  Kubernetes 매니페스트 (Lenovo k3s 클러스터)
 │   ├── namespace.yaml
 │   ├── network-policy.yaml   ← default-deny-all + 컴포넌트별 allowlist
@@ -15,44 +15,31 @@ ToneBridge/
 │   ├── redis.yaml
 │   ├── minio.yaml / minio-init.yaml
 │   ├── backend.yaml
-│   ├── frontend.yaml
+│   ├── frontend.yaml         ← Flutter Web (nginx:alpine)
 │   └── ingress.yaml          ← cert-manager DNS-01 (Cloudflare)
 └── .github/workflows/
     └── deploy.yml            ← GHCR 빌드 + k3s 자동 배포
 ```
 
-## 로컬 실행 (Docker Compose)
-
-```bash
-# 1. 환경변수 파일 복사 & 설정
-cp .env.example .env
-# .env 파일에서 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET 등 입력
-
-# 2. 전체 스택 실행
-docker compose up -d
-
-# 로그 확인
-docker compose logs -f backend
-docker compose logs -f frontend
-
-# 중지
-docker compose down
-```
-
-접속:
-- 프론트엔드: http://localhost:3000
-- 백엔드 API: http://localhost:8080
-- MinIO 콘솔: http://localhost:9001 (minioadmin / minioadmin)
-
-## 로컬 개발 (개별 실행)
+## 로컬 실행
 
 ```bash
 # Backend (H2 인메모리 DB)
 cd backend && ./gradlew bootRun
 
-# Frontend
-cd frontend && npm install && npm run dev
+# Flutter Web (로컬 개발)
+cd mobile
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+flutter run -d chrome \
+  --dart-define=API_BASE_URL=http://localhost:8080 \
+  --dart-define=GOOGLE_CLIENT_ID=<your-web-client-id>
 ```
+
+접속:
+- 웹 앱: http://localhost:8080 (Flutter Web 빌드 시) / 브라우저 자동 오픈 (flutter run)
+- 백엔드 API: http://localhost:8080
+- MinIO 콘솔: http://localhost:9001
 
 ## 인프라 구조
 
@@ -71,7 +58,7 @@ cloudflared (서버 내 systemd 서비스)
 ingress-nginx (NodePort 32048)
   ├── /api             → backend:8080
   ├── /actuator/health → backend:8080
-  └── /               → frontend:3000
+  └── /               → frontend:80   (Flutter Web, nginx)
 
 k3s 클러스터 노드:
   - lenovo-server (172.30.1.70) — control-plane
@@ -99,7 +86,7 @@ cert-manager가 Cloudflare API로 `_acme-challenge.tonebridge.mungji.com` TXT �
 `default-deny-all` 기반으로 필요한 경로만 허용한다.
 
 ```
-ingress-nginx → frontend:3000
+ingress-nginx → frontend:80    (Flutter Web nginx)
 ingress-nginx → backend:8080
 frontend      → backend:8080
 backend       → postgres:5432, redis:6379, minio:9000
@@ -121,17 +108,14 @@ main 브랜치 push 시 자동 실행:
 
 | Secret | 설명 |
 |--------|------|
-| `LENOVO_HOST` | 서버 IP (118.38.96.19) |
-| `LENOVO_PORT` | SSH 포트 (2224) |
-| `LENOVO_USER` | SSH 유저 (yeonjae) |
-| `LENOVO_SSH_KEY` | SSH 개인키 |
 | `POSTGRES_PASSWORD` | PostgreSQL 비밀번호 |
 | `REDIS_PASSWORD` | Redis 비밀번호 |
 | `JWT_SECRET` | JWT 서명 키 |
-| `GOOGLE_CLIENT_ID` | Google OAuth 클라이언트 ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth 클라이언트 Secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth Web 클라이언트 ID (Flutter dart-define에도 주입) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 클라이언트 Secret (백엔드 전용) |
 | `CLAUDE_API_KEY` | Claude API 키 |
 | `MINIO_ROOT_PASSWORD` | MinIO 루트 비밀번호 |
+| `VAPID_KEY` | FCM 웹 푸시 VAPID 키 (Firebase Console → Cloud Messaging) |
 
 ## 신규 서버 최초 배포
 
@@ -163,10 +147,11 @@ kubectl get certificate tonebridge-tls -n tonebridge
 
 | 레이어 | 기술 |
 |--------|------|
-| Frontend | Next.js 14, Tailwind CSS, Zustand, TanStack Query |
+| Frontend | Flutter 3 (iOS · Android · Web PWA), Riverpod, GoRouter, Freezed |
 | Backend | Spring Boot 4, Java 21 (Virtual Threads), JPA, Flyway |
 | DB | PostgreSQL 16 (prod) / H2 (로컬 단독 실행) |
 | Cache | Redis 7 |
 | Storage | MinIO (S3 호환, AWS S3 전환 시 endpoint만 변경) |
 | AI | Claude claude-sonnet-4-6 (첨삭 품질 검수 + AI 폴백) |
+| 푸시 알림 | Firebase Cloud Messaging (FCM) — 웹: VAPID, 네이티브: APNs/FCM |
 | 인프라 | k3s, cert-manager, ingress-nginx, Cloudflare Tunnel |

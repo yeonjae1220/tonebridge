@@ -28,38 +28,54 @@ flutter pub run build_runner build --delete-conflicting-outputs
 
 ## 4. Firebase 설정
 
+`lib/firebase_options.dart`는 이미 커밋돼 있어 별도 생성이 필요 없다.
+웹 플랫폼 config는 포함되어 있으며, Android/iOS는 `REPLACE_ME` 상태다.
+
+### Android/iOS 네이티브 배포 시
+
 ```bash
 # flutterfire CLI 설치
 dart pub global activate flutterfire_cli
 
-# Firebase 프로젝트 연결 (기존 langcorrect 프로젝트 사용)
-flutterfire configure --project=<FIREBASE_PROJECT_ID>
+# Firebase 프로젝트 연결 (프로젝트 ID: tonebridge-44c8a)
+flutterfire configure --project=tonebridge-44c8a
 ```
 
-이 명령이 `lib/firebase_options.dart`를 자동 생성합니다.
+이 명령이 `firebase_options.dart`의 Android/iOS 값을 채우고
+`android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist`를 생성한다.
+두 파일은 `.gitignore`에 포함되어 있으므로 커밋하지 않는다.
 
-### 플랫폼별 추가 설정
+### 웹 FCM 푸시 알림 (VAPID key)
 
-**Android:**
-- `android/app/google-services.json` 자동 생성됨 (flutterfire 실행 후)
-- `android/app/build.gradle`에 `apply plugin: 'com.google.gms.google-services'` 확인
-
-**iOS:**
-- `ios/Runner/GoogleService-Info.plist` 자동 생성됨
-- Xcode에서 Bundle ID = `me.yeonjae.tonebridge` 확인
+VAPID key는 Firebase Console → Project Settings → Cloud Messaging → Web Push certificates에서 확인한다.
+빌드 시 `--dart-define=VAPID_KEY=<key>` 로 주입한다.
 
 ## 5. 환경 변수 설정
 
-```bash
-# 개발 환경 (Android 에뮬레이터)
-flutter run \
-  --dart-define=BASE_URL=http://10.0.2.2:8080 \
-  --dart-define=OAUTH_REDIRECT_URI=tonebridge://oauth/callback
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `API_BASE_URL` | 백엔드 API 주소 | `http://10.0.2.2:8080` |
+| `GOOGLE_CLIENT_ID` | Google OAuth Web 클라이언트 ID | (필수) |
+| `FIREBASE_CONFIGURED` | Firebase 초기화 여부 | `false` |
+| `VAPID_KEY` | FCM 웹 푸시 VAPID 키 | (웹 푸시 사용 시 필수) |
 
-# 스테이징/프로덕션
-flutter run --release \
-  --dart-define=BASE_URL=https://api.tonebridge.app \
-  --dart-define=OAUTH_REDIRECT_URI=tonebridge://oauth/callback
+```bash
+# 웹 개발
+flutter run -d chrome \
+  --dart-define=API_BASE_URL=http://localhost:8080 \
+  --dart-define=GOOGLE_CLIENT_ID=<web-client-id> \
+  --dart-define=FIREBASE_CONFIGURED=true \
+  --dart-define=VAPID_KEY=<vapid-key>
+
+# Android 에뮬레이터
+flutter run -d emulator \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8080 \
+  --dart-define=GOOGLE_CLIENT_ID=<web-client-id>
+
+# iOS 시뮬레이터
+flutter run -d simulator \
+  --dart-define=API_BASE_URL=http://localhost:8080 \
+  --dart-define=GOOGLE_CLIENT_ID=<web-client-id>
 ```
 
 ## 6. Deep Link 설정 (OAuth Callback)
@@ -124,7 +140,7 @@ flutter run -d <device_id>
 lib/
 ├── main.dart              # 진입점 (Firebase 초기화, 글로벌 에러 핸들러)
 ├── app.dart               # ToneBridgeApp (MaterialApp.router)
-├── firebase_options.dart  # flutterfire generate (gitignore)
+├── firebase_options.dart  # 웹 config 포함, Android/iOS는 flutterfire configure 필요
 ├── core/
 │   ├── config/
 │   │   └── app_config.dart          # 컴파일타임 환경변수
