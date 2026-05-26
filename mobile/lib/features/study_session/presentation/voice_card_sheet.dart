@@ -77,18 +77,21 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
       final ext = kIsWeb ? 'webm' : 'aac';
       final fileName = 'voice_card_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
+      final uploadUrl = urls['uploadUrl'];
+      final audioKey = urls['audioKey'];
+      if (uploadUrl == null || audioKey == null) {
+        throw const FormatException('presigned URL response missing required keys');
+      }
 
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
-        final bytes = await _recorder.getWebBytes();
         await uploader.uploadBytesToUrl(
-            bytes: bytes, uploadUrl: urls['uploadUrl']!);
+            bytes: await _recorder.getWebBytes(), uploadUrl: uploadUrl);
       } else {
-        await uploader.uploadToUrl(
-            file: _recorder.file!, uploadUrl: urls['uploadUrl']!);
+        await uploader.uploadToUrl(file: _recorder.file!, uploadUrl: uploadUrl);
       }
 
-      await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);
+      await repo.confirmNativeAudioV2(card.id, audioKey);
       ref.invalidate(sessionCardsProvider(widget.sessionId));
 
       if (!mounted) return;
@@ -96,7 +99,6 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
       router.push(AppRoute.cardDetail(widget.sessionId, card.id));
     } on Exception catch (e) {
       if (!mounted) return;
-      setState(() => _uploading = false);
       // Card was created but audio upload failed — user can re-record from card detail.
       messenger.showSnackBar(
         SnackBar(
@@ -107,6 +109,8 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
         ),
       );
       ref.invalidate(sessionCardsProvider(widget.sessionId));
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
@@ -154,7 +158,7 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.error.withOpacity(0.12),
+                      color: theme.colorScheme.error.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -191,7 +195,7 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.12),
+                      color: Colors.green.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(

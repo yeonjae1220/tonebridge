@@ -69,7 +69,7 @@ class PresignedUploadService {
       data: Stream.fromIterable([bytes]),
       options: Options(
         headers: {
-          'content-length': bytes.length,
+          'content-length': bytes.length.toString(),
           'content-type': contentType,
         },
         sendTimeout: const Duration(minutes: 2),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +40,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
 
   // Audio playback for original request
   AudioPlayer? _originalPlayer;
+  StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
   bool _originalReady = false;
   bool _originalPlaying = false;
   Duration _originalPosition = Duration.zero;
@@ -52,12 +57,16 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     super.initState();
     _refRecorder = AudioRecorderService();
     _refRecorder.addListener(_onRefRecorderChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoadAudio());
   }
 
   void _onRefRecorderChange() => setState(() {});
 
   @override
   void dispose() {
+    _durationSub?.cancel();
+    _positionSub?.cancel();
+    _playingSub?.cancel();
     _correctedTextController.dispose();
     _explanationController.dispose();
     _timestampCommentController.dispose();
@@ -66,6 +75,18 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     _refRecorder.dispose();
     _refPlaybackPlayer?.dispose();
     super.dispose();
+  }
+
+  void _tryLoadAudio() {
+    if (!mounted || _originalPlayer != null) return;
+    final feedItems = ref.read(feedStateProvider).asData?.value ?? [];
+    final myItems = ref.read(myRequestsStateProvider).asData?.value ?? [];
+    final request =
+        feedItems.where((CorrectionRequestItem i) => i.id == widget.requestId).firstOrNull
+        ?? myItems.where((CorrectionRequestItem i) => i.id == widget.requestId).firstOrNull;
+    if (request?.type == 'AUDIO' && request?.audioUrl != null) {
+      _loadAudio(request!.audioUrl!);
+    }
   }
 
   Future<void> _loadAudio(String audioKey) async {
@@ -78,15 +99,15 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
       final url = res.data!['downloadUrl'] as String;
       _originalPlayer = AudioPlayer();
       await _originalPlayer!.setUrl(url);
-      _originalPlayer!.durationStream.listen((d) {
+      _durationSub = _originalPlayer!.durationStream.listen((d) {
         if (mounted && d != null) {
           setState(() => _originalDuration = d);
         }
       });
-      _originalPlayer!.positionStream.listen((p) {
+      _positionSub = _originalPlayer!.positionStream.listen((p) {
         if (mounted) setState(() => _originalPosition = p);
       });
-      _originalPlayer!.playingStream.listen((playing) {
+      _playingSub = _originalPlayer!.playingStream.listen((playing) {
         if (mounted) setState(() => _originalPlaying = playing);
       });
       if (mounted) setState(() => _originalReady = true);
@@ -120,9 +141,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
 
     final isAudio = request?.type == 'AUDIO';
 
-    if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
-      _loadAudio(request!.audioUrl!);
-    }
+    ref.listen(feedStateProvider, (_, __) => _tryLoadAudio());
+    ref.listen(myRequestsStateProvider, (_, __) => _tryLoadAudio());
 
     ref.listen(submitCorrectionStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {
@@ -397,6 +417,7 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
       }
     }
 
+    if (!mounted) return;
     ref.read(submitCorrectionStateProvider.notifier).submit(
           requestId: widget.requestId,
           correctedText: _correctedTextController.text.trim().isEmpty

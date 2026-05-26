@@ -158,16 +158,19 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       final ext = kIsWeb ? 'webm' : 'aac';
       final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
+      final uploadUrl = urls['uploadUrl'];
+      final audioKey = urls['audioKey'];
+      if (uploadUrl == null || audioKey == null) {
+        throw const FormatException('presigned URL response missing required keys');
+      }
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
         await uploader.uploadBytesToUrl(
-            bytes: await _recorder.getWebBytes(),
-            uploadUrl: urls['uploadUrl']!);
+            bytes: await _recorder.getWebBytes(), uploadUrl: uploadUrl);
       } else {
-        await uploader.uploadToUrl(
-            file: _recorder.file!, uploadUrl: urls['uploadUrl']!);
+        await uploader.uploadToUrl(file: _recorder.file!, uploadUrl: uploadUrl);
       }
-      await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);
+      await repo.confirmNativeAudioV2(card.id, audioKey);
 
       ref.invalidate(cardDetailProvider(widget.cardId));
       ref.invalidate(cardNativeAudiosProvider(widget.cardId));
@@ -610,6 +613,7 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
 
   @override
   void dispose() {
+    _player?.stop();
     _player?.dispose();
     super.dispose();
   }
