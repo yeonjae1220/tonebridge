@@ -36,7 +36,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // Show error only on transition to error state to avoid repeated snackbars
     ref.listen(authStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {
-        _showError('로그인 중 오류가 발생했습니다.');
+        _showError(next.error.toString());
       }
     });
 
