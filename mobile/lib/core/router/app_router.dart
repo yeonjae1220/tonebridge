@@ -80,7 +80,9 @@ GoRouter appRouter(Ref ref) {
       if (needsOnboarding) {
         return path == AppRoute.onboarding ? null : AppRoute.onboarding;
       }
-      if (path == AppRoute.login || path == AppRoute.onboarding) {
+      if (path == AppRoute.login ||
+          path == AppRoute.onboarding ||
+          path == AppRoute.authCallback) {
         return AppRoute.feed;
       }
       return null;
@@ -198,8 +200,23 @@ GoRouter appRouter(Ref ref) {
   return router;
 }
 
-class _AuthCallbackPage extends StatelessWidget {
+class _AuthCallbackPage extends ConsumerStatefulWidget {
   const _AuthCallbackPage();
+
+  @override
+  ConsumerState<_AuthCallbackPage> createState() => _AuthCallbackPageState();
+}
+
+class _AuthCallbackPageState extends ConsumerState<_AuthCallbackPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Invalidate the auth state so build() re-runs and picks up the new
+    // HttpOnly refresh-token cookie set by the backend during OAuth.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(authStateProvider);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -52,8 +52,6 @@ jobs:
           build-args: |
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             API_BASE_URL=https://tonebridge.mungji.com
-            FIREBASE_CONFIGURED=true
-            VAPID_KEY=${{ secrets.VAPID_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

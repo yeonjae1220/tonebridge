@@ -4,7 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/platform/web_redirect.dart'
-    if (dart.library.html) 'package:tonebridge/core/platform/web_redirect_web.dart';
+    if (dart.library.js_interop) 'package:tonebridge/core/platform/web_redirect_web.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/storage/secure_storage_service.dart';
 import 'package:tonebridge/features/auth/data/dto/auth_response.dart';
