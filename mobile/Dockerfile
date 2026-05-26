@@ -10,10 +10,14 @@ COPY . .
 # Never pass real server secrets via --dart-define; use backend environment variables instead.
 ARG GOOGLE_CLIENT_ID=""
 ARG API_BASE_URL="https://tonebridge.mungji.com"
+ARG FIREBASE_CONFIGURED="true"
+ARG VAPID_KEY=""
 
 RUN flutter build web --release \
     --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-    --dart-define=API_BASE_URL="${API_BASE_URL}"
+    --dart-define=API_BASE_URL="${API_BASE_URL}" \
+    --dart-define=FIREBASE_CONFIGURED="${FIREBASE_CONFIGURED}" \
+    --dart-define=VAPID_KEY="${VAPID_KEY}"
 
 FROM nginx:alpine
 COPY --from=builder /app/build/web /usr/share/nginx/html

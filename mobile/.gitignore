@@ -8,10 +8,10 @@ build/
 *.g.dart
 *.freezed.dart
 
-# Firebase secrets — NEVER commit these
+# Firebase native config files — contain SHA-1/private data, never commit
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
-lib/firebase_options.dart
+# lib/firebase_options.dart — web config is a public identifier; committed intentionally
 
 # IDE
 .idea/

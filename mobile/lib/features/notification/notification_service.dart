@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 
@@ -60,7 +61,9 @@ class NotificationService {
 
   Future<void> _registerToken() async {
     try {
-      final token = await _messaging.getToken();
+      final token = kIsWeb && AppConfig.vapidKey.isNotEmpty
+          ? await _messaging.getToken(vapidKey: AppConfig.vapidKey)
+          : await _messaging.getToken();
       if (token == null) return;
       await _sendTokenToBackend(token);
       debugPrint('[FCM] Token registered');
@@ -78,14 +81,14 @@ class NotificationService {
 
   Future<void> _sendTokenToBackend(String token) async {
     try {
+      final platform = kIsWeb
+          ? 'WEB'
+          : defaultTargetPlatform == TargetPlatform.iOS
+              ? 'IOS'
+              : 'ANDROID';
       await _dio.post<void>(
         '/api/users/me/fcm-token',
-        data: {
-          'token': token,
-          'platform': defaultTargetPlatform == TargetPlatform.iOS
-              ? 'IOS'
-              : 'ANDROID',
-        },
+        data: {'token': token, 'platform': platform},
       );
     } catch (e) {
       debugPrint('[FCM] Failed to send token to backend: $e');

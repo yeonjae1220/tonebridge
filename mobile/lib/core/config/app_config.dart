@@ -19,6 +19,15 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // VAPID key for FCM web push notifications.
+  // Obtain from Firebase Console → Project Settings → Cloud Messaging
+  // → Web Push certificates → Generate key pair.
+  // Pass at build time: flutter run --dart-define=VAPID_KEY=<key>
+  static const String vapidKey = String.fromEnvironment(
+    'VAPID_KEY',
+    defaultValue: '',
+  );
+
   static const Duration connectTimeout = Duration(seconds: 10);
   static const Duration receiveTimeout = Duration(seconds: 15);
 

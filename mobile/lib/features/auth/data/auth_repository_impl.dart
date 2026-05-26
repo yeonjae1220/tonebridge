@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
@@ -39,6 +40,8 @@ class AuthRepositoryImpl implements AuthRepository {
     );
 
     await GoogleSignIn.instance.initialize(
+      // Web needs clientId (GIS popup flow); native needs serverClientId to get idToken.
+      clientId: kIsWeb ? AppConfig.googleClientId : null,
       serverClientId: AppConfig.googleClientId,
     );
 
