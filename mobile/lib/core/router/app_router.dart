@@ -25,6 +25,7 @@ part 'app_router.g.dart';
 abstract final class AppRoute {
   static const String login = '/login';
   static const String onboarding = '/onboarding';
+  static const String authCallback = '/auth/callback';
   static const String feed = '/feed';
   static const String request = '/request';
   static const String profile = '/profile';
@@ -92,6 +93,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoute.onboarding,
         builder: (context, state) => const OnboardingPage(),
+      ),
+      GoRoute(
+        path: AppRoute.authCallback,
+        builder: (context, state) => const _AuthCallbackPage(),
       ),
       GoRoute(
         path: '/correct/:requestId',
@@ -191,4 +196,15 @@ GoRouter appRouter(Ref ref) {
 
   ref.onDispose(router.dispose);
   return router;
+}
+
+class _AuthCallbackPage extends StatelessWidget {
+  const _AuthCallbackPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
 }

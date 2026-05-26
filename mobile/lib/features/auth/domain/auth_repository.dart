@@ -1,28 +1,22 @@
 import 'package:tonebridge/features/auth/domain/model/user.dart';
 
-/// Port (hexagonal architecture) — the auth feature depends on this
-/// abstraction, not on the concrete HTTP implementation.
 abstract interface class AuthRepository {
   /// Signs in with Google.
-  /// - Web: uses Firebase Auth popup; falls back to redirect for PWA standalone mode.
-  /// - Native: uses the Google Sign-In SDK.
-  /// Returns null if the user cancelled or a redirect was initiated (result
-  /// will arrive via [handleRedirectResult] on the next app load).
+  /// - Web: navigates the browser to the backend OAuth initiation endpoint;
+  ///   the result arrives on the next app load via cookie-based session restore.
+  /// - Native: uses the Google Sign-In SDK and exchanges the idToken with the backend.
+  /// Returns null if the user cancelled or a browser navigation was initiated.
   Future<AuthSession?> signInWithGoogle();
-
-  /// Completes a Google sign-in that was started via a redirect flow.
-  /// Must be called on every app start on web; returns null on native or
-  /// when there is no pending redirect result.
-  Future<AuthSession?> handleRedirectResult();
 
   /// Fetches the currently authenticated user's profile.
   Future<User> getCurrentUser();
 
-  /// Refreshes a persisted mobile session using the secure refresh token.
+  /// Restores a persisted session.
+  /// - Web: calls POST /api/auth/refresh with the HttpOnly refresh-token cookie.
+  /// - Native: uses the secure refresh token from local storage.
   Future<AuthSession?> restoreSession();
 
   /// Saves the user's language preferences during onboarding.
-  /// [username] is optional — if provided, the server will update the nickname too.
   Future<void> saveLanguagePreferences({
     required String nativeLanguage,
     required List<String> fluentLanguages,

@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/platform/web_redirect.dart'
+    if (dart.library.html) 'package:tonebridge/core/platform/web_redirect_web.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/storage/secure_storage_service.dart';
 import 'package:tonebridge/features/auth/data/dto/auth_response.dart';
@@ -38,65 +39,17 @@ class AuthRepositoryImpl implements AuthRepository {
     return _signInWithGoogleNative();
   }
 
-  /// Web: Firebase Auth redirect — 팝업 차단·사용자 제스처 컨텍스트 소실·iOS Safari PWA
-  /// 문제를 피하기 위해 항상 리다이렉트 방식을 사용한다.
-  /// 인증 완료 후 앱이 재로드되면 handleRedirectResult()가 결과를 처리한다.
+  /// Web: navigates the browser to the backend OAuth endpoint.
+  /// The backend performs the OAuth flow server-side and redirects back to
+  /// /auth/callback with the access token in the URL fragment and sets an
+  /// HttpOnly refresh_token cookie.  The app restores the session on the
+  /// next load via [_restoreSessionWeb].
   Future<AuthSession?> _signInWithGoogleWeb() async {
-    if (!AppConfig.firebaseConfigured) {
-      throw Exception(
-          'Firebase가 초기화되지 않았습니다. FIREBASE_CONFIGURED 환경변수를 확인하세요.');
-    }
-
-    final provider = fb.GoogleAuthProvider()
-      ..addScope('email')
-      ..addScope('profile');
-
-    await fb.FirebaseAuth.instance.signInWithRedirect(provider);
+    navigateTo('${AppConfig.baseUrl}/api/auth/google');
     return null;
   }
 
-  /// 리다이렉트 흐름 완료 처리 — 앱 재로드 후 [handleRedirectResult]에서 호출된다.
-  Future<AuthSession?> _completeWebSignIn(
-      fb.UserCredential credential) async {
-    final googleCred = credential.credential as fb.OAuthCredential?;
-    final idToken = googleCred?.idToken;
-    if (idToken == null) {
-      throw Exception(
-          'Google idToken을 받을 수 없습니다. '
-          'Firebase Console → Authentication → Sign-in providers에서 '
-          'Google 로그인이 활성화되어 있는지 확인하세요.');
-    }
-
-    // 백엔드 자체 세션을 사용하므로 Firebase Auth 세션은 즉시 해제한다.
-    try {
-      await fb.FirebaseAuth.instance.signOut();
-    } catch (_) {}
-
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/mobile/google/id-token',
-      data: {'idToken': idToken},
-    );
-    return _saveSession(TokenResponse.fromJson(response.data!));
-  }
-
-  @override
-  Future<AuthSession?> handleRedirectResult() async {
-    if (!kIsWeb || !AppConfig.firebaseConfigured) return null;
-    try {
-      final result =
-          await fb.FirebaseAuth.instance.getRedirectResult();
-      if (result.credential == null) return null;
-      return _completeWebSignIn(result);
-    } on fb.FirebaseAuthException catch (e) {
-      // 사용자 취소는 무시, 설정 오류(unauthorized-domain 등)는 상위로 전파
-      if (e.code == 'user-cancelled' || e.code == 'popup-closed-by-user') {
-        return null;
-      }
-      rethrow;
-    }
-  }
-
-  /// Native: google_sign_in SDK → 백엔드에 idToken 전달.
+  /// Native: google_sign_in SDK → exchange idToken with backend.
   Future<AuthSession?> _signInWithGoogleNative() async {
     assert(
       AppConfig.googleClientId.isNotEmpty,
@@ -143,6 +96,34 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AuthSession?> restoreSession() async {
+    if (kIsWeb) return _restoreSessionWeb();
+    return _restoreSessionNative();
+  }
+
+  /// Web: POST /api/auth/refresh — the browser sends the HttpOnly cookie automatically.
+  Future<AuthSession?> _restoreSessionWeb() async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/auth/refresh',
+      );
+      final accessToken = response.data?['accessToken'] as String?;
+      if (accessToken == null) return null;
+
+      await _storage.saveAccessToken(accessToken);
+      final user = await getCurrentUser();
+      return AuthSession(
+        user: user,
+        accessToken: accessToken,
+        needsOnboarding: user.nativeLanguage.isEmpty,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) return null;
+      rethrow;
+    }
+  }
+
+  /// Native: stored refresh token → POST /api/auth/mobile/refresh.
+  Future<AuthSession?> _restoreSessionNative() async {
     final refreshToken = await _storage.readRefreshToken();
     if (refreshToken == null) return null;
 
@@ -249,12 +230,16 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> signOut() async {
     try {
-      final refreshToken = await _storage.readRefreshToken();
-      if (refreshToken != null) {
-        await _dio.post<void>(
-          '/api/auth/mobile/logout',
-          data: {'refreshToken': refreshToken},
-        );
+      if (kIsWeb) {
+        await _dio.post<void>('/api/auth/logout');
+      } else {
+        final refreshToken = await _storage.readRefreshToken();
+        if (refreshToken != null) {
+          await _dio.post<void>(
+            '/api/auth/mobile/logout',
+            data: {'refreshToken': refreshToken},
+          );
+        }
       }
     } finally {
       await _storage.clearAll();

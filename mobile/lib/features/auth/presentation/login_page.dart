@@ -50,7 +50,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
 
     // Startup listener: catches errors already in state when page first mounts
-    // (e.g. handleRedirectResult() fails after the OAuth redirect completes).
+    // (e.g. session restore fails on app launch).
     final authState = ref.watch(authStateProvider);
     if (authState.hasError && !_errorShown) {
       _errorShown = true;

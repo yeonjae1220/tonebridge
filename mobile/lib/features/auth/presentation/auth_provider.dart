@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/features/auth/data/auth_repository_impl.dart';
@@ -13,14 +12,6 @@ part 'auth_provider.g.dart';
 class AuthState extends _$AuthState {
   @override
   Future<AuthSession?> build() async {
-    // 웹: Google redirect 로그인 후 앱 재로드 시 결과를 처리한다.
-    // getRedirectResult()는 결과가 없으면 즉시 null을 반환하므로 오버헤드 없음.
-    if (kIsWeb) {
-      final repo = ref.read(authRepositoryProvider);
-      final redirectSession = await repo.handleRedirectResult();
-      if (redirectSession != null) return redirectSession;
-    }
-
     // Attempt to restore a previous session from secure storage.
     final storage = ref.watch(secureStorageServiceProvider);
     final token = await storage.readAccessToken();

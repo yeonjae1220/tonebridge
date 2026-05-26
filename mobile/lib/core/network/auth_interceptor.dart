@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:tonebridge/core/storage/secure_storage_service.dart';
 
 /// Intercepts every request to attach the Bearer access token.
-/// On 401, attempts a token refresh via `/api/auth/refresh` and
-/// retries the original request exactly once.
+/// On 401, attempts a token refresh and retries the original request once.
+///
+/// Web: refreshes via POST /api/auth/refresh (HttpOnly cookie, no body).
+/// Native: refreshes via POST /api/auth/mobile/refresh (stored refresh token).
 ///
 /// Parallel 401 responses are queued and replayed after the single
 /// refresh completes — preventing duplicate refresh calls.
@@ -44,14 +47,14 @@ class AuthInterceptor extends Interceptor {
       return;
     }
 
-    // Skip refresh loop for the refresh endpoint itself.
-    if (err.requestOptions.path.contains('/api/auth/mobile/refresh')) {
+    final path = err.requestOptions.path;
+    if (path.contains('/api/auth/mobile/refresh') ||
+        path.contains('/api/auth/refresh')) {
       handler.next(err);
       return;
     }
 
     if (_isRefreshing) {
-      // Queue request until ongoing refresh finishes.
       final completer = _PendingRequest(err.requestOptions);
       _queue.add(completer);
       try {
@@ -66,26 +69,41 @@ class AuthInterceptor extends Interceptor {
     _isRefreshing = true;
     try {
       final refreshDio = _refreshDioFactory();
-      final refreshToken = await _storage.readRefreshToken();
-      if (refreshToken == null) {
-        throw DioException(requestOptions: err.requestOptions);
+      final String newToken;
+
+      if (kIsWeb) {
+        // Cookie-based refresh — browser sends HttpOnly cookie automatically.
+        final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
+          '/api/auth/refresh',
+        );
+        final token = refreshResponse.data?['accessToken'] as String?;
+        if (token == null) {
+          throw DioException(requestOptions: err.requestOptions);
+        }
+        newToken = token;
+        await _storage.saveAccessToken(newToken);
+      } else {
+        final refreshToken = await _storage.readRefreshToken();
+        if (refreshToken == null) {
+          throw DioException(requestOptions: err.requestOptions);
+        }
+
+        final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
+          '/api/auth/mobile/refresh',
+          data: {'refreshToken': refreshToken},
+        );
+
+        final token = refreshResponse.data?['accessToken'] as String?;
+        final newRefreshToken =
+            refreshResponse.data?['refreshToken'] as String?;
+        if (token == null || newRefreshToken == null) {
+          throw DioException(requestOptions: err.requestOptions);
+        }
+        newToken = token;
+        await _storage.saveAccessToken(newToken);
+        await _storage.saveRefreshToken(newRefreshToken);
       }
 
-      final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
-        '/api/auth/mobile/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-
-      final newToken = refreshResponse.data?['accessToken'] as String?;
-      final newRefreshToken = refreshResponse.data?['refreshToken'] as String?;
-      if (newToken == null || newRefreshToken == null) {
-        throw DioException(requestOptions: err.requestOptions);
-      }
-
-      await _storage.saveAccessToken(newToken);
-      await _storage.saveRefreshToken(newRefreshToken);
-
-      // Replay queued requests with new token.
       for (final pending in _queue) {
         pending.requestOptions.headers['Authorization'] = 'Bearer $newToken';
         try {
@@ -98,15 +116,12 @@ class AuthInterceptor extends Interceptor {
       }
       _queue.clear();
 
-      // Retry the original request.
       err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
       final retryDio = _refreshDioFactory();
       final retryResponse = await retryDio.fetch<dynamic>(err.requestOptions);
       _isRefreshing = false;
       handler.resolve(retryResponse);
     } catch (refreshError) {
-      // Snapshot and clear the queue BEFORE awaiting clearAll so any requests
-      // that arrive during clearAll() don't get stuck in an orphaned Completer.
       final snapshot = List<_PendingRequest>.from(_queue);
       _queue.clear();
       _isRefreshing = false;
