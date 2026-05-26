@@ -75,21 +75,17 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
       );
 
       final ext = kIsWeb ? 'webm' : 'aac';
-      final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final fileName = 'voice_card_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
 
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
         final bytes = await _recorder.getWebBytes();
         await uploader.uploadBytesToUrl(
-          bytes: bytes!,
-          uploadUrl: urls['uploadUrl']!,
-        );
+            bytes: bytes, uploadUrl: urls['uploadUrl']!);
       } else {
         await uploader.uploadToUrl(
-          file: _recorder.file!,
-          uploadUrl: urls['uploadUrl']!,
-        );
+            file: _recorder.file!, uploadUrl: urls['uploadUrl']!);
       }
 
       await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);

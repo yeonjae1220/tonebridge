@@ -29,6 +29,18 @@ spec:
                 - NET_BIND_SERVICE
           ports:
             - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
           resources:
             requests:
               memory: "64Mi"
@@ -46,5 +58,5 @@ spec:
   selector:
     app: frontend
   ports:
-    - port: 3000
+    - port: 80
       targetPort: 80

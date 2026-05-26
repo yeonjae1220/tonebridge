@@ -110,23 +110,15 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     try {
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       final ext = kIsWeb ? 'webm' : 'aac';
+      final fileName = 'attempt_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final String key;
       if (kIsWeb) {
-        final bytes = await _recorder.getWebBytes();
-        final metaRes = await ref.read(dioProvider).get<Map<String, dynamic>>(
-          '/api/storage/presigned-upload',
-          queryParameters: {
-            'fileName': 'attempt_${DateTime.now().millisecondsSinceEpoch}.$ext',
-          },
+        key = await uploader.uploadBytes(
+          bytes: await _recorder.getWebBytes(),
+          fileName: fileName,
         );
-        final uploadUrl = metaRes.data!['url'] as String;
-        key = metaRes.data!['key'] as String;
-        await uploader.uploadBytesToUrl(bytes: bytes!, uploadUrl: uploadUrl);
       } else {
-        key = await uploader.upload(
-          file: _recorder.file!,
-          fileName: 'attempt_${DateTime.now().millisecondsSinceEpoch}.$ext',
-        );
+        key = await uploader.upload(file: _recorder.file!, fileName: fileName);
       }
 
       await ref
@@ -168,16 +160,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
-        final bytes = await _recorder.getWebBytes();
         await uploader.uploadBytesToUrl(
-          bytes: bytes!,
-          uploadUrl: urls['uploadUrl']!,
-        );
+            bytes: await _recorder.getWebBytes(),
+            uploadUrl: urls['uploadUrl']!);
       } else {
         await uploader.uploadToUrl(
-          file: _recorder.file!,
-          uploadUrl: urls['uploadUrl']!,
-        );
+            file: _recorder.file!, uploadUrl: urls['uploadUrl']!);
       }
       await repo.confirmNativeAudioV2(card.id, urls['audioKey']!);
 

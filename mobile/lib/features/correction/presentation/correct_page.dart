@@ -90,7 +90,14 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
         if (mounted) setState(() => _originalPlaying = playing);
       });
       if (mounted) setState(() => _originalReady = true);
-    } catch (_) {}
+    } on Exception catch (e) {
+      debugPrint('Failed to load reference audio: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('원본 음성을 불러올 수 없어요.')),
+        );
+      }
+    }
   }
 
   @override
@@ -375,24 +382,15 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
       try {
         final uploader = PresignedUploadService(dio: ref.read(dioProvider));
         final ext = kIsWeb ? 'webm' : 'aac';
+        final fileName = 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext';
         if (kIsWeb) {
-          final bytes = await _refRecorder.getWebBytes();
-          final metaRes =
-              await ref.read(dioProvider).get<Map<String, dynamic>>(
-            '/api/storage/presigned-upload',
-            queryParameters: {
-              'fileName': 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext',
-            },
+          referenceAudioUrl = await uploader.uploadBytes(
+            bytes: await _refRecorder.getWebBytes(),
+            fileName: fileName,
           );
-          final uploadUrl = metaRes.data!['url'] as String;
-          referenceAudioUrl = metaRes.data!['key'] as String;
-          await uploader.uploadBytesToUrl(
-              bytes: bytes!, uploadUrl: uploadUrl);
         } else {
           referenceAudioUrl = await uploader.upload(
-            file: _refRecorder.file!,
-            fileName: 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext',
-          );
+              file: _refRecorder.file!, fileName: fileName);
         }
       } finally {
         if (mounted) setState(() => _uploading = false);

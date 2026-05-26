@@ -96,10 +96,15 @@ class AudioRecorderService extends ChangeNotifier {
   }
 
   // Fetches recorded bytes from the web blob URL.
-  // Returns null on native (use [file] instead).
-  Future<Uint8List?> getWebBytes() async {
-    if (!kIsWeb || _webBlobUrl == null) return null;
+  // Throws [StateError] if called on native or before recording is stopped.
+  Future<Uint8List> getWebBytes() async {
+    if (!kIsWeb || _webBlobUrl == null) {
+      throw StateError('getWebBytes() requires a completed web recording');
+    }
     final response = await http.get(Uri.parse(_webBlobUrl!));
+    if (response.statusCode != 200) {
+      throw Exception('Blob URL fetch failed: ${response.statusCode}');
+    }
     return response.bodyBytes;
   }
 

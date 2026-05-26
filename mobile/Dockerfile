@@ -6,6 +6,8 @@ RUN flutter pub get
 
 COPY . .
 
+# GOOGLE_CLIENT_ID is a public OAuth identifier — safe to embed in the JS bundle.
+# Never pass real server secrets via --dart-define; use backend environment variables instead.
 ARG GOOGLE_CLIENT_ID=""
 ARG API_BASE_URL="https://tonebridge.mungji.com"
 

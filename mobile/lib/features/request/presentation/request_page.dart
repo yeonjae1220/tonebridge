@@ -246,24 +246,16 @@ class _RequestPageState extends ConsumerState<RequestPage> {
       try {
         final uploader = PresignedUploadService(dio: ref.read(dioProvider));
         final ext = kIsWeb ? 'webm' : 'aac';
+        final fileName = 'audio_${DateTime.now().millisecondsSinceEpoch}.$ext';
         final String key;
         if (kIsWeb) {
-          final bytes = await _recorder.getWebBytes();
-          final metaRes =
-              await ref.read(dioProvider).get<Map<String, dynamic>>(
-            '/api/storage/presigned-upload',
-            queryParameters: {
-              'fileName': 'audio_${DateTime.now().millisecondsSinceEpoch}.$ext',
-            },
+          key = await uploader.uploadBytes(
+            bytes: await _recorder.getWebBytes(),
+            fileName: fileName,
           );
-          final uploadUrl = metaRes.data!['url'] as String;
-          key = metaRes.data!['key'] as String;
-          await uploader.uploadBytesToUrl(bytes: bytes!, uploadUrl: uploadUrl);
         } else {
           key = await uploader.upload(
-            file: _recorder.file!,
-            fileName: 'audio_${DateTime.now().millisecondsSinceEpoch}.$ext',
-          );
+              file: _recorder.file!, fileName: fileName);
         }
         await ref.read(requestStateProvider.notifier).submitAudio(
               targetLanguage: _targetLanguage,
