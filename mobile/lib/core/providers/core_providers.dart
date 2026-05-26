@@ -13,7 +13,7 @@ part 'core_providers.g.dart';
 FlutterSecureStorage flutterSecureStorage(Ref ref) {
   return const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    wOptions: WebOptions(
+    webOptions: WebOptions(
       dbName: 'tonebridge_secure',
       publicKey: 'tonebridge_key',
     ),
