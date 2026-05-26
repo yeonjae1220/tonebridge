@@ -26,9 +26,7 @@ dependencies:
   just_audio: ^0.10.5
   path_provider: ^2.1.5
 
-  # Firebase / Push notifications
-  firebase_core: ^4.9.0
-  firebase_messaging: ^16.2.2
+  # Push notifications via SSE (sse_notification_service.dart)
 
   # Secure storage (JWT, refresh token)
   flutter_secure_storage: ^10.2.0
