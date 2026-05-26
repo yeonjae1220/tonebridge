@@ -27,6 +27,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Theme.of(context).colorScheme.error,
+        duration: const Duration(seconds: 30),
+        action: SnackBarAction(
+          label: '닫기',
+          textColor: Colors.white,
+          onPressed: () =>
+              ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+        ),
       ),
     );
   }
