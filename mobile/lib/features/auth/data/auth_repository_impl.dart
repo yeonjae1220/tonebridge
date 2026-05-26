@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -29,19 +30,93 @@ class AuthRepositoryImpl implements AuthRepository {
   final Dio _dio;
   final SecureStorageService _storage;
 
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+
   @override
   Future<AuthSession?> signInWithGoogle() async {
-    // serverClientId must be the "Web application" OAuth 2.0 Client ID from
-    // Google Cloud Console — NOT the Android/iOS client ID.
-    // A missing value causes idToken to be null at runtime.
+    if (kIsWeb) return _signInWithGoogleWeb();
+    return _signInWithGoogleNative();
+  }
+
+  /// Web: Firebase Auth popup → redirect fallback for PWA standalone mode.
+  Future<AuthSession?> _signInWithGoogleWeb() async {
+    if (!AppConfig.firebaseConfigured) {
+      throw Exception(
+          'Firebase가 초기화되지 않았습니다. FIREBASE_CONFIGURED 환경변수를 확인하세요.');
+    }
+
+    final provider = fb.GoogleAuthProvider()
+      ..addScope('email')
+      ..addScope('profile');
+
+    fb.UserCredential credential;
+    try {
+      credential =
+          await fb.FirebaseAuth.instance.signInWithPopup(provider);
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'popup-blocked') {
+        // PWA standalone 모드(iOS Safari 등)에서 팝업 차단 → 리다이렉트 폴백.
+        // 앱이 리다이렉트 후 재로드되면 handleRedirectResult()가 결과를 처리한다.
+        await fb.FirebaseAuth.instance.signInWithRedirect(provider);
+        return null;
+      }
+      if (e.code == 'popup-closed-by-user' ||
+          e.code == 'user-cancelled') {
+        return null;
+      }
+      rethrow;
+    }
+
+    return _completeWebSignIn(credential);
+  }
+
+  /// 리다이렉트 흐름 완료 처리 — 앱 재로드 후 [handleRedirectResult]에서 호출된다.
+  Future<AuthSession?> _completeWebSignIn(
+      fb.UserCredential credential) async {
+    final googleCred = credential.credential as fb.OAuthCredential?;
+    final idToken = googleCred?.idToken;
+    if (idToken == null) {
+      throw Exception(
+          'Google idToken을 받을 수 없습니다. '
+          'Firebase Console → Authentication → Sign-in providers에서 '
+          'Google 로그인이 활성화되어 있는지 확인하세요.');
+    }
+
+    // 백엔드 자체 세션을 사용하므로 Firebase Auth 세션은 즉시 해제한다.
+    try {
+      await fb.FirebaseAuth.instance.signOut();
+    } catch (_) {}
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/mobile/google/id-token',
+      data: {'idToken': idToken},
+    );
+    return _saveSession(TokenResponse.fromJson(response.data!));
+  }
+
+  @override
+  Future<AuthSession?> handleRedirectResult() async {
+    if (!kIsWeb || !AppConfig.firebaseConfigured) return null;
+    try {
+      final result =
+          await fb.FirebaseAuth.instance.getRedirectResult();
+      if (result.credential == null) return null;
+      return _completeWebSignIn(result);
+    } on fb.FirebaseAuthException {
+      return null;
+    }
+  }
+
+  /// Native: google_sign_in SDK → 백엔드에 idToken 전달.
+  Future<AuthSession?> _signInWithGoogleNative() async {
     assert(
       AppConfig.googleClientId.isNotEmpty,
-      'GOOGLE_CLIENT_ID is not set. Pass it via --dart-define=GOOGLE_CLIENT_ID=<web-client-id>',
+      'GOOGLE_CLIENT_ID is not set. '
+      'Pass it via --dart-define=GOOGLE_CLIENT_ID=<web-client-id>',
     );
 
     await GoogleSignIn.instance.initialize(
-      // Web needs clientId (GIS popup flow); native needs serverClientId to get idToken.
-      clientId: kIsWeb ? AppConfig.googleClientId : null,
+      clientId: null,
       serverClientId: AppConfig.googleClientId,
     );
 
@@ -59,7 +134,8 @@ class AuthRepositoryImpl implements AuthRepository {
       final auth = account.authentication;
       final idToken = auth.idToken;
       if (idToken == null) {
-        throw Exception('Google idToken을 받을 수 없습니다. serverClientId 설정을 확인하세요.');
+        throw Exception(
+            'Google idToken을 받을 수 없습니다. serverClientId 설정을 확인하세요.');
       }
 
       final response = await _dio.post<Map<String, dynamic>>(
@@ -68,13 +144,13 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       return _saveSession(TokenResponse.fromJson(response.data!));
     } finally {
-      // Don't cache the Google account state — each login should be explicit.
-      // Swallow signOut errors so the original exception (if any) propagates.
       try {
         await GoogleSignIn.instance.signOut();
       } catch (_) {}
     }
   }
+
+  // ── Session ───────────────────────────────────────────────────────────────
 
   @override
   Future<AuthSession?> restoreSession() async {
@@ -112,9 +188,12 @@ class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
+  // ── User ──────────────────────────────────────────────────────────────────
+
   @override
   Future<User> getCurrentUser() async {
-    final response = await _dio.get<Map<String, dynamic>>('/api/users/me');
+    final response =
+        await _dio.get<Map<String, dynamic>>('/api/users/me');
     final parsed = UserResponse.fromJson(response.data!);
     return _toUser(
       UserData(
@@ -149,6 +228,8 @@ class AuthRepositoryImpl implements AuthRepository {
       learningLanguageVariants: d.learningLanguageVariants,
     );
   }
+
+  // ── Preferences / Lifecycle ───────────────────────────────────────────────
 
   @override
   Future<void> saveLanguagePreferences({

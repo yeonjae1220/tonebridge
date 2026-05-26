@@ -50,8 +50,9 @@ class AudioRecorderService extends ChangeNotifier {
           '${dir.path}/tonebridge_rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
     }
 
+    // opus(webm) — Chrome/Firefox 지원. aacLc는 Chrome MediaRecorder 미지원.
     await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc),
+      RecordConfig(encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc),
       path: path,
     );
 

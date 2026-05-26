@@ -3,9 +3,17 @@ import 'package:tonebridge/features/auth/domain/model/user.dart';
 /// Port (hexagonal architecture) — the auth feature depends on this
 /// abstraction, not on the concrete HTTP implementation.
 abstract interface class AuthRepository {
-  /// Signs in with Google using the Google Sign-In SDK.
-  /// Returns null if the user cancelled the sign-in flow.
+  /// Signs in with Google.
+  /// - Web: uses Firebase Auth popup; falls back to redirect for PWA standalone mode.
+  /// - Native: uses the Google Sign-In SDK.
+  /// Returns null if the user cancelled or a redirect was initiated (result
+  /// will arrive via [handleRedirectResult] on the next app load).
   Future<AuthSession?> signInWithGoogle();
+
+  /// Completes a Google sign-in that was started via a redirect flow.
+  /// Must be called on every app start on web; returns null on native or
+  /// when there is no pending redirect result.
+  Future<AuthSession?> handleRedirectResult();
 
   /// Fetches the currently authenticated user's profile.
   Future<User> getCurrentUser();

@@ -19,6 +19,11 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // Whether Firebase was initialised at startup (FIREBASE_CONFIGURED=true).
+  // Guards Firebase Auth / Messaging calls so local dev without Firebase still works.
+  static const bool firebaseConfigured =
+      bool.fromEnvironment('FIREBASE_CONFIGURED');
+
   // VAPID key for FCM web push notifications.
   // Obtain from Firebase Console → Project Settings → Cloud Messaging
   // → Web Push certificates → Generate key pair.
