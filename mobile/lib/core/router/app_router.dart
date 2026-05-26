@@ -80,7 +80,10 @@ GoRouter appRouter(Ref ref) {
       if (needsOnboarding) {
         return path == AppRoute.onboarding ? null : AppRoute.onboarding;
       }
-      if (path == AppRoute.login ||
+      // After login: redirect post-auth pages and the bare root path
+      // (used by the PWA manifest start_url: "/") to the feed.
+      if (path == '/' ||
+          path == AppRoute.login ||
           path == AppRoute.onboarding ||
           path == AppRoute.authCallback) {
         return AppRoute.feed;
