@@ -11,6 +11,7 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isLoading = false;
+  bool _errorShown = false;
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
@@ -19,7 +20,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-    // Errors are surfaced via ref.listen below — no catch needed here
+    // Errors are surfaced via ref.listen / didChangeDependencies below
   }
 
   void _showError(String message) {
@@ -40,17 +41,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Show error only on transition to error state to avoid repeated snackbars
+    // Transition listener: catches sign-in errors triggered by button press
     ref.listen(authStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {
+        _errorShown = true;
         _showError(next.error.toString());
       }
     });
 
+    // Startup listener: catches errors already in state when page first mounts
+    // (e.g. handleRedirectResult() fails after the OAuth redirect completes).
+    final authState = ref.watch(authStateProvider);
+    if (authState.hasError && !_errorShown) {
+      _errorShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showError(authState.error.toString());
+      });
+    }
+    if (!authState.hasError) _errorShown = false;
+
     final theme = Theme.of(context);
-    // Disable button while either local call or provider is in-flight
-    final authLoading = ref.watch(authStateProvider).isLoading;
-    final isLoading = _isLoading || authLoading;
+    final isLoading = _isLoading || authState.isLoading;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,

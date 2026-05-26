@@ -38,7 +38,9 @@ class AuthRepositoryImpl implements AuthRepository {
     return _signInWithGoogleNative();
   }
 
-  /// Web: Firebase Auth popup → redirect fallback for PWA standalone mode.
+  /// Web: Firebase Auth redirect — 팝업 차단·사용자 제스처 컨텍스트 소실·iOS Safari PWA
+  /// 문제를 피하기 위해 항상 리다이렉트 방식을 사용한다.
+  /// 인증 완료 후 앱이 재로드되면 handleRedirectResult()가 결과를 처리한다.
   Future<AuthSession?> _signInWithGoogleWeb() async {
     if (!AppConfig.firebaseConfigured) {
       throw Exception(
@@ -49,25 +51,8 @@ class AuthRepositoryImpl implements AuthRepository {
       ..addScope('email')
       ..addScope('profile');
 
-    fb.UserCredential credential;
-    try {
-      credential =
-          await fb.FirebaseAuth.instance.signInWithPopup(provider);
-    } on fb.FirebaseAuthException catch (e) {
-      if (e.code == 'popup-blocked') {
-        // PWA standalone 모드(iOS Safari 등)에서 팝업 차단 → 리다이렉트 폴백.
-        // 앱이 리다이렉트 후 재로드되면 handleRedirectResult()가 결과를 처리한다.
-        await fb.FirebaseAuth.instance.signInWithRedirect(provider);
-        return null;
-      }
-      if (e.code == 'popup-closed-by-user' ||
-          e.code == 'user-cancelled') {
-        return null;
-      }
-      rethrow;
-    }
-
-    return _completeWebSignIn(credential);
+    await fb.FirebaseAuth.instance.signInWithRedirect(provider);
+    return null;
   }
 
   /// 리다이렉트 흐름 완료 처리 — 앱 재로드 후 [handleRedirectResult]에서 호출된다.
@@ -102,8 +87,12 @@ class AuthRepositoryImpl implements AuthRepository {
           await fb.FirebaseAuth.instance.getRedirectResult();
       if (result.credential == null) return null;
       return _completeWebSignIn(result);
-    } on fb.FirebaseAuthException {
-      return null;
+    } on fb.FirebaseAuthException catch (e) {
+      // 사용자 취소는 무시, 설정 오류(unauthorized-domain 등)는 상위로 전파
+      if (e.code == 'user-cancelled' || e.code == 'popup-closed-by-user') {
+        return null;
+      }
+      rethrow;
     }
   }
 
