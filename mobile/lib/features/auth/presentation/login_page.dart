@@ -23,17 +23,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-        duration: const Duration(seconds: 30),
-        action: SnackBarAction(
-          label: '닫기',
-          textColor: Colors.white,
-          onPressed: () =>
-              ScaffoldMessenger.of(context).hideCurrentSnackBar(),
-        ),
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그인 오류'),
+        content: SelectableText(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('확인'),
+          ),
+        ],
       ),
     );
   }
