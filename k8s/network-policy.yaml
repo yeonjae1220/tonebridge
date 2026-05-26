@@ -209,7 +209,7 @@ spec:
         - port: 53
           protocol: TCP
 ---
-# minio: backend + minio-init Job에서만 수신
+# minio: backend, minio-init Job, ingress-nginx에서 수신
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -230,6 +230,13 @@ spec:
         - podSelector:
             matchLabels:
               job-name: minio-init
+      ports:
+        - port: 9000
+    # ingress-nginx → presigned URL 프록시 허용
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
       ports:
         - port: 9000
   egress: []

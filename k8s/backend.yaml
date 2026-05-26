@@ -86,6 +86,8 @@ spec:
                   key: OPENAI_API_KEY
             - name: STORAGE_ENDPOINT
               value: http://minio:9000
+            - name: STORAGE_PUBLIC_ENDPOINT
+              value: https://tonebridge.mungji.com
             - name: STORAGE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

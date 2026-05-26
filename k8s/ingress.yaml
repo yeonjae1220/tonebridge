@@ -35,6 +35,15 @@ spec:
                 name: backend
                 port:
                   number: 8080
+          # MinIO object storage — presigned URLs are scoped to this path so
+          # browsers can upload/download audio without crossing origins.
+          - path: /tonebridge-audio
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
           - path: /
             pathType: Prefix
             backend:
