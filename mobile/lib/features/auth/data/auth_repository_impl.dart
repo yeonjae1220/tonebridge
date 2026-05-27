@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/platform/google_id_token.dart'
+    if (dart.library.js_interop) 'package:tonebridge/core/platform/google_id_token_web.dart';
 import 'package:tonebridge/core/platform/web_redirect.dart'
     if (dart.library.js_interop) 'package:tonebridge/core/platform/web_redirect_web.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
@@ -25,8 +26,8 @@ class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl({
     required Dio dio,
     required SecureStorageService storage,
-  })  : _dio = dio,
-        _storage = storage;
+  }) : _dio = dio,
+       _storage = storage;
 
   final Dio _dio;
   final SecureStorageService _storage;
@@ -57,39 +58,16 @@ class AuthRepositoryImpl implements AuthRepository {
       'Pass it via --dart-define=GOOGLE_CLIENT_ID=<web-client-id>',
     );
 
-    await GoogleSignIn.instance.initialize(
-      clientId: null,
+    final idToken = await requestGoogleIdToken(
       serverClientId: AppConfig.googleClientId,
     );
+    if (idToken == null) return null;
 
-    final GoogleSignInAccount account;
-    try {
-      account = await GoogleSignIn.instance.authenticate(
-        scopeHint: ['email', 'profile', 'openid'],
-      );
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) return null;
-      rethrow;
-    }
-
-    try {
-      final auth = account.authentication;
-      final idToken = auth.idToken;
-      if (idToken == null) {
-        throw Exception(
-            'Google idToken을 받을 수 없습니다. serverClientId 설정을 확인하세요.');
-      }
-
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/api/auth/mobile/google/id-token',
-        data: {'idToken': idToken},
-      );
-      return _saveSession(TokenResponse.fromJson(response.data!));
-    } finally {
-      try {
-        await GoogleSignIn.instance.signOut();
-      } catch (_) {}
-    }
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/mobile/google/id-token',
+      data: {'idToken': idToken},
+    );
+    return _saveSession(TokenResponse.fromJson(response.data!));
   }
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -162,8 +140,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<User> getCurrentUser() async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/api/users/me');
+    final response = await _dio.get<Map<String, dynamic>>('/api/users/me');
     final parsed = UserResponse.fromJson(response.data!);
     return _toUser(
       UserData(

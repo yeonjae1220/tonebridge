@@ -1,8 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/network/auth_interceptor.dart';
 import 'package:tonebridge/core/network/dio_client.dart';
 import 'package:tonebridge/core/storage/secure_storage_service.dart';
@@ -28,11 +26,10 @@ SecureStorageService secureStorageService(Ref ref) {
 @Riverpod(keepAlive: true)
 AuthInterceptor authInterceptor(Ref ref) {
   final storage = ref.watch(secureStorageServiceProvider);
-  // Use AppConfig.baseUrl directly — avoids reading dioProvider here
-  // which would create a circular dependency (dio → interceptor → dio).
+  // Avoid reading dioProvider here, which would create a circular dependency.
   return AuthInterceptor(
     storage: storage,
-    refreshDioFactory: () => Dio()..options.baseUrl = AppConfig.baseUrl,
+    refreshDioFactory: createUnauthenticatedDio,
   );
 }
 

@@ -38,6 +38,9 @@ public class AuthController {
     @Value("${cookie.secure:true}")
     private boolean secureCookie;
 
+    @Value("${cookie.same-site:Lax}")
+    private String sameSiteCookie;
+
     private final LoginWithGoogleUseCase loginWithGoogleUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final RefreshTokenPort refreshTokenPort;
@@ -118,22 +121,22 @@ public class AuthController {
         // and setHeader would overwrite any cookie set by other filters/interceptors.
         String secureFlag = secureCookie ? "; Secure" : "";
         response.addHeader("Set-Cookie", String.format(
-                "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly%s; SameSite=Lax",
-                REFRESH_COOKIE, refreshToken, maxAge, secureFlag));
+                "%s=%s; Max-Age=%d; Path=/api/auth; HttpOnly%s; SameSite=%s",
+                REFRESH_COOKIE, refreshToken, maxAge, secureFlag, sameSiteCookie));
         // middleware route-gating용 — 민감한 값 없음, Path=/로 모든 요청에 포함
         response.addHeader("Set-Cookie", String.format(
-                "%s=1; Max-Age=%d; Path=/%s; SameSite=Lax",
-                SESSION_COOKIE, maxAge, secureFlag));
+                "%s=1; Max-Age=%d; Path=/%s; SameSite=%s",
+                SESSION_COOKIE, maxAge, secureFlag, sameSiteCookie));
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
         String secureFlag = secureCookie ? "; Secure" : "";
         response.addHeader("Set-Cookie", String.format(
-                "%s=; Max-Age=0; Path=/api/auth; HttpOnly%s; SameSite=Lax",
-                REFRESH_COOKIE, secureFlag));
+                "%s=; Max-Age=0; Path=/api/auth; HttpOnly%s; SameSite=%s",
+                REFRESH_COOKIE, secureFlag, sameSiteCookie));
         response.addHeader("Set-Cookie", String.format(
-                "%s=; Max-Age=0; Path=/%s; SameSite=Lax",
-                SESSION_COOKIE, secureFlag));
+                "%s=; Max-Age=0; Path=/%s; SameSite=%s",
+                SESSION_COOKIE, secureFlag, sameSiteCookie));
     }
 
     private String extractRefreshCookie(HttpServletRequest request) {

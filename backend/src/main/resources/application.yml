@@ -46,7 +46,8 @@ cors:
 
 # 로컬 개발(HTTP)에서는 false — prod 프로파일에서 true로 오버라이드
 cookie:
-  secure: false
+  secure: ${COOKIE_SECURE:false}
+  same-site: ${COOKIE_SAME_SITE:Lax}
 
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-key-that-is-long-enough-for-hs256}
