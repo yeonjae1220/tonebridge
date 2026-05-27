@@ -75,7 +75,13 @@ GoRouter appRouter(Ref ref) {
       final path = state.uri.path;
 
       if (!isLoggedIn) {
-        return path == AppRoute.login ? null : AppRoute.login;
+        // Allow /auth/callback to stay — authStateProvider.build() reads the
+        // URL hash (#token=…) set by the backend OAuth redirect. Sending the
+        // user to /login here would discard the hash before it is processed.
+        if (path == AppRoute.login || path == AppRoute.authCallback) {
+          return null;
+        }
+        return AppRoute.login;
       }
       if (needsOnboarding) {
         return path == AppRoute.onboarding ? null : AppRoute.onboarding;
@@ -214,10 +220,15 @@ class _AuthCallbackPageState extends ConsumerState<_AuthCallbackPage> {
   @override
   void initState() {
     super.initState();
-    // Invalidate the auth state so build() re-runs and picks up the new
-    // HttpOnly refresh-token cookie set by the backend during OAuth.
+    // authStateProvider.build() already extracts the token from the URL hash.
+    // Invalidate only if it completed without a session (e.g. network error)
+    // so it can retry the cookie-based refresh.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.invalidate(authStateProvider);
+      if (!mounted) return;
+      final auth = ref.read(authStateProvider);
+      if (!auth.isLoading && auth.value == null) {
+        ref.invalidate(authStateProvider);
+      }
     });
   }
 
