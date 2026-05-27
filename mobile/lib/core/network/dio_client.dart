@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/network/auth_interceptor.dart';
 import 'package:tonebridge/core/network/dio_web_adapter.dart'
-    if (dart.library.js_interop) 'package:tonebridge/core/network/dio_web_adapter_web.dart';
+    if (dart.library.html) 'package:tonebridge/core/network/dio_web_adapter_web.dart';
 
 /// Factory that produces the shared [Dio] instance.
 ///
