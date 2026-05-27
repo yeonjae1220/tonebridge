@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/widgets/app_shell.dart';
+import 'package:tonebridge/features/admin/presentation/admin_page.dart';
+import 'package:tonebridge/features/admin/presentation/admin_users_page.dart';
 import 'package:tonebridge/features/auth/domain/model/user.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/auth/presentation/login_page.dart';
@@ -32,6 +34,8 @@ abstract final class AppRoute {
   static const String languageEdit = '/profile/language-edit';
   static const String wallet = '/wallet';
   static const String study = '/study';
+  static const String admin = '/admin';
+  static const String adminUsers = '/admin/users';
 
   static String correct(String requestId) => '/correct/$requestId';
   static String result(String requestId) => '/result/$requestId';
@@ -111,15 +115,23 @@ GoRouter appRouter(Ref ref) {
       ),
       GoRoute(
         path: '/correct/:requestId',
-        builder: (context, state) => CorrectPage(
-          requestId: state.pathParameters['requestId']!,
-        ),
+        builder: (context, state) =>
+            CorrectPage(requestId: state.pathParameters['requestId']!),
       ),
       GoRoute(
         path: '/result/:requestId',
-        builder: (context, state) => ResultPage(
-          requestId: state.pathParameters['requestId']!,
-        ),
+        builder: (context, state) =>
+            ResultPage(requestId: state.pathParameters['requestId']!),
+      ),
+      GoRoute(
+        path: AppRoute.admin,
+        builder: (context, state) => const AdminPage(),
+        routes: [
+          GoRoute(
+            path: 'users',
+            builder: (context, state) => const AdminUsersPage(),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -234,8 +246,6 @@ class _AuthCallbackPageState extends ConsumerState<_AuthCallbackPage> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
