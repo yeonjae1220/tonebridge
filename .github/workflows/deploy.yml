@@ -135,3 +135,27 @@ jobs:
             sudo kubectl get pods -n tonebridge -l app=frontend -o wide
             exit 1
           fi
+
+      - name: Purge Cloudflare cache for Flutter entry-point files
+        # Cloudflare Tunnel routes all traffic through CF edge, so cached immutable
+        # responses block new builds from reaching users. Purge the non-fingerprinted
+        # entry-point files on every deploy so CF fetches fresh copies from nginx.
+        # Requires CF_ZONE_ID and CF_API_TOKEN repository secrets.
+        if: ${{ secrets.CF_ZONE_ID != '' && secrets.CF_API_TOKEN != '' }}
+        env:
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          BASE="https://tonebridge.mungji.com"
+          curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "{\"files\":[
+              \"${BASE}/main.dart.js\",
+              \"${BASE}/flutter_bootstrap.js\",
+              \"${BASE}/flutter.js\",
+              \"${BASE}/index.html\",
+              \"${BASE}/flutter_service_worker.js\",
+              \"${BASE}/firebase-messaging-sw.js\"
+            ]}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge:', 'OK' if r.get('success') else 'FAILED'); [print(' -', e) for e in r.get('errors',[])]"
