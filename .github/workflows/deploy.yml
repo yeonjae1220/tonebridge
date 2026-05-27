@@ -151,20 +151,10 @@ jobs:
             exit 0
           fi
           BASE="https://tonebridge.mungji.com"
-          FILES='["'"${BASE}/main.dart.js"'","'"${BASE}/flutter_bootstrap.js"'","'"${BASE}/flutter.js"'","'"${BASE}/index.html"'","'"${BASE}/flutter_service_worker.js"'","'"${BASE}/firebase-messaging-sw.js"'"]'
-          RESULT=$(curl -s -X POST \
+          RESULT=$(curl -sf -X POST \
             "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data "{\"files\":${FILES}}")
-          echo "${RESULT}" | python3 -c "
-import sys, json
-r = json.load(sys.stdin)
-if r.get('success'):
-    print('CF cache purge: OK')
-else:
-    print('CF cache purge: FAILED')
-    for e in r.get('errors', []):
-        print(' -', e)
-    sys.exit(1)
-"
+            -d "{\"files\":[\"${BASE}/main.dart.js\",\"${BASE}/flutter_bootstrap.js\",\"${BASE}/flutter.js\",\"${BASE}/index.html\",\"${BASE}/flutter_service_worker.js\",\"${BASE}/firebase-messaging-sw.js\"]}")
+          echo "CF purge response: ${RESULT}"
+          echo "${RESULT}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge: OK' if r.get('success') else 'FAILED: '+str(r.get('errors','')))"
