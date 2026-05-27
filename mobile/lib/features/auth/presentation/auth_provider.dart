@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/features/auth/data/auth_repository_impl.dart';
@@ -15,19 +14,11 @@ class AuthState extends _$AuthState {
   Future<AuthSession?> build() async {
     final storage = ref.watch(secureStorageServiceProvider);
 
-    // On web, the backend OAuth redirect lands at:
-    //   /auth/callback#token=<urlEncodedAccessToken>
-    // Extract and persist the token FIRST so the auth interceptor
-    // can attach it to all subsequent API calls (including getCurrentUser).
-    if (kIsWeb) {
-      final fragment = Uri.base.fragment; // e.g. "token=eyJhbGc..."
-      if (fragment.isNotEmpty) {
-        final urlToken = Uri.splitQueryString(fragment)['token'];
-        if (urlToken != null && urlToken.isNotEmpty) {
-          await storage.saveAccessToken(urlToken);
-        }
-      }
-    }
+    // On web, main() captures the #token=<accessToken> fragment from the
+    // OAuth redirect URL and persists it to SecureStorage BEFORE GoRouter
+    // strips the hash via replaceState().  Reaching here, the token is
+    // already in storage if the page was loaded from an OAuth callback.
+    // We fall through to readAccessToken() below which picks it up.
 
     // Attempt to restore a previous session from secure storage.
     final token = await storage.readAccessToken();
