@@ -8,6 +8,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
@@ -71,7 +72,10 @@ public class StorageConfig {
             String publicEndpoint = (s.getPublicEndpoint() != null && !s.getPublicEndpoint().isBlank())
                     ? s.getPublicEndpoint()
                     : s.getEndpoint();
-            builder.endpointOverride(URI.create(publicEndpoint));
+            builder.endpointOverride(URI.create(publicEndpoint))
+                   .serviceConfiguration(S3Configuration.builder()
+                           .pathStyleAccessEnabled(true)
+                           .build());
         }
         // AWS S3: no endpointOverride → SDK resolves the correct regional endpoint automatically.
         return builder.build();

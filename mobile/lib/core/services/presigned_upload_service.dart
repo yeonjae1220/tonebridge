@@ -21,7 +21,11 @@ class PresignedUploadService {
     );
     final uploadUrl = metaRes.data!['uploadUrl'] as String;
     final key = metaRes.data!['audioKey'] as String;
-    await _putBytes(uploadUrl, await file.readAsBytes());
+    await _putBytes(
+      uploadUrl,
+      await file.readAsBytes(),
+      contentType: contentType,
+    );
     return key;
   }
 
