@@ -225,7 +225,13 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> deleteAccount() async {
-    await _dio.delete<void>('/api/users/me');
-    await _storage.clearAll();
+    try {
+      await _dio.delete<void>('/api/users/me');
+      if (kIsWeb) {
+        await _dio.post<void>('/api/auth/logout');
+      }
+    } finally {
+      await _storage.clearAll();
+    }
   }
 }

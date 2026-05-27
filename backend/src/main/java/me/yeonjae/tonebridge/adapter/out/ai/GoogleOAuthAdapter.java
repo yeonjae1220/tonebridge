@@ -50,6 +50,7 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
                "&response_type=code" +
                "&scope=openid%20email%20profile" +
                "&access_type=offline" +
+               "&prompt=select_account" +
                "&state=" + encode(state);
     }
 

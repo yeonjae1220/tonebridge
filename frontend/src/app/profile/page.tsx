@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
-import { api } from '@/lib/api'
+import { api, logout as logoutSession } from '@/lib/api'
 import type { UserProfile, User } from '@/types'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { ALL_LANG_LABELS } from '@/constants/languages'
@@ -41,7 +41,7 @@ function langLabel(code: string) {
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { accessToken, logout } = useAuthStore()
+  const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
 
   const [editingLanguages, setEditingLanguages] = useState(false)
@@ -128,9 +128,9 @@ export default function ProfilePage() {
 
   const deleteAccountMutation = useMutation({
     mutationFn: () => api.delete('/users/me'),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await logoutSession()
       queryClient.clear()
-      logout()
       router.replace('/login')
     },
     onError: () => setDeleteError('회원탈퇴에 실패했습니다. 다시 시도해주세요.'),
@@ -385,9 +385,9 @@ export default function ProfilePage() {
             </div>
 
             <button
-              onClick={() => {
+              onClick={async () => {
+                await logoutSession()
                 queryClient.clear()
-                logout()
                 router.replace('/login')
               }}
               className="w-full py-3 border border-red-200 text-red-500 text-sm font-semibold rounded-2xl hover:bg-red-50 transition-colors"
