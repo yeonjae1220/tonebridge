@@ -82,8 +82,12 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     final feedItems = ref.read(feedStateProvider).asData?.value ?? [];
     final myItems = ref.read(myRequestsStateProvider).asData?.value ?? [];
     final request =
-        feedItems.where((CorrectionRequestItem i) => i.id == widget.requestId).firstOrNull
-        ?? myItems.where((CorrectionRequestItem i) => i.id == widget.requestId).firstOrNull;
+        feedItems
+            .where((CorrectionRequestItem i) => i.id == widget.requestId)
+            .firstOrNull ??
+        myItems
+            .where((CorrectionRequestItem i) => i.id == widget.requestId)
+            .firstOrNull;
     if (request?.type == 'AUDIO' && request?.audioUrl != null) {
       _loadAudio(request!.audioUrl!);
     }
@@ -92,10 +96,12 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   Future<void> _loadAudio(String audioKey) async {
     if (_originalPlayer != null) return;
     try {
-      final res = await ref.read(dioProvider).get<Map<String, dynamic>>(
-        '/api/storage/presigned-download',
-        queryParameters: {'key': audioKey},
-      );
+      final res = await ref
+          .read(dioProvider)
+          .get<Map<String, dynamic>>(
+            '/api/storage/presigned-download',
+            queryParameters: {'key': audioKey},
+          );
       final url = res.data!['downloadUrl'] as String;
       _originalPlayer = AudioPlayer();
       await _originalPlayer!.setUrl(url);
@@ -114,9 +120,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     } on Exception catch (e) {
       debugPrint('Failed to load reference audio: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('원본 음성을 불러올 수 없어요.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('원본 음성을 불러올 수 없어요.')));
       }
     }
   }
@@ -155,9 +161,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
       }
       if (next.hasValue && next.value != null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('교정이 제출됐습니다!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('교정이 제출됐습니다!')));
         ref.read(submitCorrectionStateProvider.notifier).reset();
         if (!mounted) return;
         context.go(AppRoute.feed);
@@ -166,8 +172,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
 
     final explanationLen = _explanationController.text.length;
     final isValid = explanationLen >= 20;
-    final reward =
-        isAudio ? (_refRecorder.state == RecorderState.stopped ? 12 : 8) : 4;
+    final reward = isAudio
+        ? (_refRecorder.state == RecorderState.stopped ? 12 : 8)
+        : 4;
 
     return Scaffold(
       appBar: AppBar(
@@ -178,8 +185,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               '완료 시 +$reward 크레딧',
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.primary),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
             ),
           ),
         ),
@@ -327,7 +335,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
                   ? null
                   : () => _submit(isAudioRequest: isAudio),
               style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               child: isLoading
                   ? const SizedBox(
                       width: 20,
@@ -356,11 +365,13 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     final text = _timestampCommentController.text.trim();
     if (text.isEmpty) return;
     setState(() {
-      _timestampComments.add(_TsComment(
-        offsetMs: _originalPosition.inMilliseconds,
-        category: _timestampCategory,
-        comment: text,
-      ));
+      _timestampComments.add(
+        _TsComment(
+          offsetMs: _originalPosition.inMilliseconds,
+          category: _timestampCategory,
+          comment: text,
+        ),
+      );
       _timestampCommentController.clear();
     });
   }
@@ -385,9 +396,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
       await _refRecorder.start();
     } on RecorderPermissionException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -395,13 +406,14 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     if (!_formKey.currentState!.validate()) return;
 
     String? referenceAudioUrl;
-    final hasRefRecording = _refRecorder.state == RecorderState.stopped &&
+    final hasRefRecording =
+        _refRecorder.state == RecorderState.stopped &&
         (kIsWeb ? _refRecorder.webBlobUrl != null : _refRecorder.file != null);
     if (hasRefRecording) {
       setState(() => _uploading = true);
       try {
         final uploader = PresignedUploadService(dio: ref.read(dioProvider));
-        final ext = kIsWeb ? 'webm' : 'aac';
+        const ext = kIsWeb ? 'webm' : 'm4a';
         final fileName = 'ref_${DateTime.now().millisecondsSinceEpoch}.$ext';
         if (kIsWeb) {
           referenceAudioUrl = await uploader.uploadBytes(
@@ -410,7 +422,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
           );
         } else {
           referenceAudioUrl = await uploader.upload(
-              file: _refRecorder.file!, fileName: fileName);
+            file: _refRecorder.file!,
+            fileName: fileName,
+          );
         }
       } finally {
         if (mounted) setState(() => _uploading = false);
@@ -418,7 +432,9 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     }
 
     if (!mounted) return;
-    ref.read(submitCorrectionStateProvider.notifier).submit(
+    ref
+        .read(submitCorrectionStateProvider.notifier)
+        .submit(
           requestId: widget.requestId,
           correctedText: _correctedTextController.text.trim().isEmpty
               ? null
@@ -426,11 +442,13 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
           explanation: _explanationController.text.trim(),
           tags: List.from(_tags),
           timestampComments: _timestampComments
-              .map((t) => TimestampCommentInput(
-                    offsetMs: t.offsetMs,
-                    comment: t.comment,
-                    category: t.category,
-                  ))
+              .map(
+                (t) => TimestampCommentInput(
+                  offsetMs: t.offsetMs,
+                  comment: t.comment,
+                  category: t.category,
+                ),
+              )
               .toList(),
           pronunciationScore: isAudioRequest ? _pronunciationScore : null,
           intonationScore: isAudioRequest ? _intonationScore : null,
@@ -459,12 +477,11 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .titleSmall
-            ?.copyWith(fontWeight: FontWeight.w600),
-      );
+    label,
+    style: Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+  );
 }
 
 class _OriginalSection extends StatelessWidget {
@@ -513,16 +530,19 @@ class _OriginalSection extends StatelessWidget {
               if (isAudio) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '음성',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.tertiary),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                    ),
                   ),
                 ),
               ],
@@ -549,8 +569,9 @@ class _OriginalSection extends StatelessWidget {
             Text(
               '"${request!.context}"',
               style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                  fontStyle: FontStyle.italic),
+                color: theme.colorScheme.outline,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
           if (request != null && request!.feedbackGoals.isNotEmpty) ...[
@@ -558,11 +579,13 @@ class _OriginalSection extends StatelessWidget {
             Wrap(
               spacing: 6,
               children: request!.feedbackGoals
-                  .map((g) => Chip(
-                        label: Text(g),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ))
+                  .map(
+                    (g) => Chip(
+                      label: Text(g),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  )
                   .toList(),
             ),
           ],
@@ -601,9 +624,7 @@ class _AudioPlayerBar extends StatelessWidget {
       children: [
         FilledButton.tonal(
           onPressed: ready ? onToggle : null,
-          child: Icon(
-            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          ),
+          child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
         ),
         const SizedBox(width: 12),
         Text(
@@ -659,8 +680,9 @@ class _TimestampSection extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '재생 중 원하는 위치에서 코멘트를 추가하세요',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.outline),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -680,9 +702,12 @@ class _TimestampSection extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: '코멘트 입력...',
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   isDense: true,
                 ),
                 onSubmitted: (_) => onAdd(),
@@ -781,8 +806,9 @@ class _ScoreSlider extends StatelessWidget {
             child: Text(
               '$value',
               style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary),
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
               textAlign: TextAlign.end,
             ),
           ),
@@ -816,75 +842,78 @@ class _RefRecordingSection extends StatelessWidget {
             Text(
               '+4 추가 크레딧',
               style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.green.shade600, fontWeight: FontWeight.w600),
+                color: Colors.green.shade600,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           '직접 올바른 발음을 녹음해 보여주세요',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.outline),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
         const SizedBox(height: 10),
         switch (recorder.state) {
           RecorderState.idle => FilledButton.tonal(
-              onPressed: onStart,
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.mic_rounded, size: 18),
-                  SizedBox(width: 8),
-                  Text('녹음 시작'),
-                ],
-              ),
+            onPressed: onStart,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.mic_rounded, size: 18),
+                SizedBox(width: 8),
+                Text('녹음 시작'),
+              ],
             ),
+          ),
           RecorderState.recording => Row(
-              children: [
-                FilledButton(
-                  onPressed: () => recorder.stop(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: theme.colorScheme.error,
-                    foregroundColor: theme.colorScheme.onError,
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.stop_rounded, size: 18),
-                      SizedBox(width: 8),
-                      Text('중지'),
-                    ],
-                  ),
+            children: [
+              FilledButton(
+                onPressed: () => recorder.stop(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.error,
+                  foregroundColor: theme.colorScheme.onError,
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  recorder.formattedDuration,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.stop_rounded, size: 18),
+                    SizedBox(width: 8),
+                    Text('중지'),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                recorder.formattedDuration,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
           RecorderState.stopped => Row(
-              children: [
-                FilledButton.tonal(
-                  onPressed: onPlayback,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.play_arrow_rounded, size: 18),
-                      SizedBox(width: 8),
-                      Text('재생'),
-                    ],
-                  ),
+            children: [
+              FilledButton.tonal(
+                onPressed: onPlayback,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.play_arrow_rounded, size: 18),
+                    SizedBox(width: 8),
+                    Text('재생'),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => recorder.reset(),
-                  child: const Text('다시 녹음'),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => recorder.reset(),
+                child: const Text('다시 녹음'),
+              ),
+            ],
+          ),
         },
       ],
     );

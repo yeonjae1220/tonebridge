@@ -43,7 +43,9 @@ public class CardNativeAudioService implements
         StudyCard card = requireCard(command.cardId());
         requireMember(card.sessionId(), command.uploaderId());
         var presigned = storagePort.generatePresignedUploadUrl(
-                command.fileName(), "audio/aac", Duration.ofMinutes(15));
+                command.fileName(),
+                AudioContentTypes.fromFileName(command.fileName()),
+                Duration.ofMinutes(15));
         return new UploadNativeAudioUseCase.UploadUrlResult(presigned.uploadUrl(), presigned.audioKey());
     }
 

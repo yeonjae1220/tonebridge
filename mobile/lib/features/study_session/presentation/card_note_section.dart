@@ -5,8 +5,9 @@ import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class CardNoteSection extends ConsumerStatefulWidget {
-  const CardNoteSection({super.key, required this.card});
+  const CardNoteSection({required this.card, this.onSaved, super.key});
   final StudyCard card;
+  final VoidCallback? onSaved;
 
   @override
   ConsumerState<CardNoteSection> createState() => _CardNoteSectionState();
@@ -29,7 +30,10 @@ class _CardNoteSectionState extends ConsumerState<CardNoteSection> {
       await ref
           .read(studySessionRepositoryProvider)
           .updateCardNote(widget.card.id, result.isEmpty ? null : result);
-      if (mounted) ref.invalidate(cardDetailProvider(widget.card.id));
+      if (mounted) {
+        widget.onSaved?.call();
+        ref.invalidate(cardDetailProvider(widget.card.id));
+      }
     } on Exception catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -57,8 +61,11 @@ class _CardNoteSectionState extends ConsumerState<CardNoteSection> {
         children: [
           Row(
             children: [
-              Icon(Icons.sticky_note_2_outlined,
-                  size: 18, color: theme.colorScheme.primary),
+              Icon(
+                Icons.sticky_note_2_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               const Text(
                 '공유 메모',
@@ -117,13 +124,17 @@ class _NoteEditorSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('공유 메모',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const Text(
+            '공유 메모',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 4),
           Text(
             '세션 멤버 모두가 볼 수 있어요.',
             style: TextStyle(
-                fontSize: 13, color: Theme.of(context).colorScheme.outline),
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(

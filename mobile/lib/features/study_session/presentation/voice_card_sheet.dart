@@ -53,8 +53,9 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
   }
 
   Future<void> _createCard() async {
-    final hasRecording =
-        kIsWeb ? _recorder.webBlobUrl != null : _recorder.file != null;
+    final hasRecording = kIsWeb
+        ? _recorder.webBlobUrl != null
+        : _recorder.file != null;
     if (!hasRecording) return;
     setState(() => _uploading = true);
 
@@ -74,21 +75,30 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
         phrase: phrase,
       );
 
-      final ext = kIsWeb ? 'webm' : 'aac';
-      final fileName = 'voice_card_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      const ext = kIsWeb ? 'webm' : 'm4a';
+      final fileName =
+          'voice_card_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
       final uploadUrl = urls['uploadUrl'];
       final audioKey = urls['audioKey'];
       if (uploadUrl == null || audioKey == null) {
-        throw const FormatException('presigned URL response missing required keys');
+        throw const FormatException(
+          'presigned URL response missing required keys',
+        );
       }
 
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
         await uploader.uploadBytesToUrl(
-            bytes: await _recorder.getWebBytes(), uploadUrl: uploadUrl);
+          bytes: await _recorder.getWebBytes(),
+          uploadUrl: uploadUrl,
+        );
       } else {
-        await uploader.uploadToUrl(file: _recorder.file!, uploadUrl: uploadUrl);
+        await uploader.uploadToUrl(
+          file: _recorder.file!,
+          uploadUrl: uploadUrl,
+          contentType: PresignedUploadService.contentTypeForFileName(fileName),
+        );
       }
 
       await repo.confirmNativeAudioV2(card.id, audioKey);
@@ -102,8 +112,7 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
       // Card was created but audio upload failed — user can re-record from card detail.
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-              '음성 업로드에 실패했어요. 카드는 생성됐으니 카드 상세에서 다시 녹음할 수 있어요. ($e)'),
+          content: Text('음성 업로드에 실패했어요. 카드는 생성됐으니 카드 상세에서 다시 녹음할 수 있어요. ($e)'),
           backgroundColor: Theme.of(context).colorScheme.error,
           duration: const Duration(seconds: 6),
         ),
@@ -208,7 +217,9 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
                   Text(
                     '${_recorder.formattedDuration} 녹음 완료',
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(

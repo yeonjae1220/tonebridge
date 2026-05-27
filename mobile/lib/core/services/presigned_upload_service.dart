@@ -13,16 +13,14 @@ class PresignedUploadService {
   static final _s3Dio = Dio();
 
   /// Uploads [file] (native) and returns the storage key.
-  Future<String> upload({
-    required File file,
-    required String fileName,
-  }) async {
-    final metaRes = await _dio.get<Map<String, dynamic>>(
+  Future<String> upload({required File file, required String fileName}) async {
+    final contentType = contentTypeForFileName(fileName);
+    final metaRes = await _dio.post<Map<String, dynamic>>(
       '/api/storage/presigned-upload',
-      queryParameters: {'fileName': fileName},
+      data: {'fileName': fileName, 'contentType': contentType},
     );
-    final uploadUrl = metaRes.data!['url'] as String;
-    final key = metaRes.data!['key'] as String;
+    final uploadUrl = metaRes.data!['uploadUrl'] as String;
+    final key = metaRes.data!['audioKey'] as String;
     await _putBytes(uploadUrl, await file.readAsBytes());
     return key;
   }
@@ -31,8 +29,13 @@ class PresignedUploadService {
   Future<void> uploadToUrl({
     required File file,
     required String uploadUrl,
+    String? contentType,
   }) async {
-    await _putBytes(uploadUrl, await file.readAsBytes());
+    await _putBytes(
+      uploadUrl,
+      await file.readAsBytes(),
+      contentType: contentType ?? contentTypeForFileName(file.path),
+    );
   }
 
   /// Obtains a presigned URL from the backend and uploads raw [bytes] (web).
@@ -41,13 +44,14 @@ class PresignedUploadService {
     required Uint8List bytes,
     required String fileName,
   }) async {
-    final metaRes = await _dio.get<Map<String, dynamic>>(
+    const contentType = 'audio/webm';
+    final metaRes = await _dio.post<Map<String, dynamic>>(
       '/api/storage/presigned-upload',
-      queryParameters: {'fileName': fileName},
+      data: {'fileName': fileName, 'contentType': contentType},
     );
-    final uploadUrl = metaRes.data!['url'] as String;
-    final key = metaRes.data!['key'] as String;
-    await _putBytes(uploadUrl, bytes, contentType: 'audio/webm');
+    final uploadUrl = metaRes.data!['uploadUrl'] as String;
+    final key = metaRes.data!['audioKey'] as String;
+    await _putBytes(uploadUrl, bytes, contentType: contentType);
     return key;
   }
 
@@ -57,6 +61,17 @@ class PresignedUploadService {
     required String uploadUrl,
   }) async {
     await _putBytes(uploadUrl, bytes, contentType: 'audio/webm');
+  }
+
+  static String contentTypeForFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.webm')) return 'audio/webm';
+    if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
+    if (lower.endsWith('.ogg') || lower.endsWith('.opus')) return 'audio/ogg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.mp3') || lower.endsWith('.mpeg')) return 'audio/mpeg';
+    if (lower.endsWith('.3gp') || lower.endsWith('.3gpp')) return 'audio/3gpp';
+    return 'audio/aac';
   }
 
   Future<void> _putBytes(

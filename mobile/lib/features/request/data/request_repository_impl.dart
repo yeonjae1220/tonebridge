@@ -55,13 +55,4 @@ class RequestRepositoryImpl implements RequestRepository {
     );
     return CorrectionRequestItem.fromJson(response.data!);
   }
-
-  @override
-  Future<String> getUploadUrl(String fileName) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/api/storage/presigned-upload',
-      queryParameters: {'fileName': fileName},
-    );
-    return response.data!['url'] as String;
-  }
 }

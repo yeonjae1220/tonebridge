@@ -16,6 +16,4 @@ abstract interface class RequestRepository {
     String? context,
     List<String> feedbackGoals = const [],
   });
-
-  Future<String> getUploadUrl(String fileName);
 }

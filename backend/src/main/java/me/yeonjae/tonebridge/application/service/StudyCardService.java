@@ -103,7 +103,9 @@ public class StudyCardService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireMember(card.sessionId(), command.uploaderId());
         var presigned = storagePort.generatePresignedUploadUrl(
-                command.fileName(), "audio/aac", Duration.ofMinutes(15));
+                command.fileName(),
+                AudioContentTypes.fromFileName(command.fileName()),
+                Duration.ofMinutes(15));
         return new UploadUrlResult(presigned.uploadUrl(), presigned.audioKey());
     }
 

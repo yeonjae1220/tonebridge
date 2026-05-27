@@ -95,21 +95,22 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       await _nativePlayer!.play();
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('재생 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('재생 실패: $e')));
       }
     }
   }
 
   Future<void> _submitAttempt() async {
-    final hasRecording =
-        kIsWeb ? _recorder.webBlobUrl != null : _recorder.file != null;
+    final hasRecording = kIsWeb
+        ? _recorder.webBlobUrl != null
+        : _recorder.file != null;
     if (!hasRecording) return;
     setState(() => _uploading = true);
     try {
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
-      final ext = kIsWeb ? 'webm' : 'aac';
+      const ext = kIsWeb ? 'webm' : 'm4a';
       final fileName = 'attempt_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final String key;
       if (kIsWeb) {
@@ -129,9 +130,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       ref.invalidate(sessionCardsProvider(widget.sessionId));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('발음 녹음을 제출했어요!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('발음 녹음을 제출했어요!')));
         _recorder.reset();
       }
     } on Exception catch (e) {
@@ -149,26 +150,35 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
   }
 
   Future<void> _submitNativeAudio(StudyCard card) async {
-    final hasRecording =
-        kIsWeb ? _recorder.webBlobUrl != null : _recorder.file != null;
+    final hasRecording = kIsWeb
+        ? _recorder.webBlobUrl != null
+        : _recorder.file != null;
     if (!hasRecording) return;
     setState(() => _uploading = true);
     try {
       final repo = ref.read(studySessionRepositoryProvider);
-      final ext = kIsWeb ? 'webm' : 'aac';
+      const ext = kIsWeb ? 'webm' : 'm4a';
       final fileName = 'native_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final urls = await repo.getNativeAudioUploadUrlV2(card.id, fileName);
       final uploadUrl = urls['uploadUrl'];
       final audioKey = urls['audioKey'];
       if (uploadUrl == null || audioKey == null) {
-        throw const FormatException('presigned URL response missing required keys');
+        throw const FormatException(
+          'presigned URL response missing required keys',
+        );
       }
       final uploader = PresignedUploadService(dio: ref.read(dioProvider));
       if (kIsWeb) {
         await uploader.uploadBytesToUrl(
-            bytes: await _recorder.getWebBytes(), uploadUrl: uploadUrl);
+          bytes: await _recorder.getWebBytes(),
+          uploadUrl: uploadUrl,
+        );
       } else {
-        await uploader.uploadToUrl(file: _recorder.file!, uploadUrl: uploadUrl);
+        await uploader.uploadToUrl(
+          file: _recorder.file!,
+          uploadUrl: uploadUrl,
+          contentType: PresignedUploadService.contentTypeForFileName(fileName),
+        );
       }
       await repo.confirmNativeAudioV2(card.id, audioKey);
 
@@ -178,9 +188,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
 
       if (mounted) {
         setState(() => _usedInitialCard = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('원어민 발음을 등록했어요!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('원어민 발음을 등록했어요!')));
         _recorder.reset();
       }
     } on Exception catch (e) {
@@ -217,7 +227,11 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       appBar: AppBar(title: const Text('카드 학습')),
       body: cardAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('카드를 불러올 수 없어요: ${_errorMessage(e is Exception ? e : Exception(e))}')),
+        error: (e, _) => Center(
+          child: Text(
+            '카드를 불러올 수 없어요: ${_errorMessage(e is Exception ? e : Exception(e))}',
+          ),
+        ),
         data: (card) {
           final isCardCreator = currentUserId == card.createdByUserId;
           return SafeArea(
@@ -252,7 +266,13 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                     ),
                     const SizedBox(height: 24),
                   ],
-                  CardNoteSection(card: card),
+                  CardNoteSection(
+                    card: card,
+                    onSaved: () {
+                      setState(() => _usedInitialCard = false);
+                      ref.invalidate(sessionCardsProvider(widget.sessionId));
+                    },
+                  ),
                   const SizedBox(height: 24),
                   _AttemptsSection(
                     attemptsAsync: attemptsAsync,
@@ -307,10 +327,14 @@ class _FlashCard extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: showBack
-                      ? [theme.colorScheme.secondaryContainer,
-                          theme.colorScheme.secondary.withValues(alpha: 0.3)]
-                      : [theme.colorScheme.primaryContainer,
-                          theme.colorScheme.primary.withValues(alpha: 0.2)],
+                      ? [
+                          theme.colorScheme.secondaryContainer,
+                          theme.colorScheme.secondary.withValues(alpha: 0.3),
+                        ]
+                      : [
+                          theme.colorScheme.primaryContainer,
+                          theme.colorScheme.primary.withValues(alpha: 0.2),
+                        ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -369,7 +393,9 @@ class _CardFront extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+              color: theme.colorScheme.onPrimaryContainer.withValues(
+                alpha: 0.7,
+              ),
             ),
           ),
         ],
@@ -406,7 +432,8 @@ class _CardBack extends StatelessWidget {
               backgroundColor: theme.colorScheme.secondary,
               foregroundColor: theme.colorScheme.onSecondary,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           )
         else
@@ -421,7 +448,9 @@ class _CardBack extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.8),
+              color: theme.colorScheme.onSecondaryContainer.withValues(
+                alpha: 0.8,
+              ),
             ),
           ),
         ],
@@ -430,10 +459,12 @@ class _CardBack extends StatelessWidget {
           Wrap(
             spacing: 6,
             children: card.tags
-                .map((tag) => Chip(
-                      label: Text(tag, style: const TextStyle(fontSize: 11)),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ))
+                .map(
+                  (tag) => Chip(
+                    label: Text(tag, style: const TextStyle(fontSize: 11)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -472,8 +503,10 @@ class _RecordingSection extends StatelessWidget {
             children: [
               Icon(Icons.mic_rounded, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
-              const Text('내 발음 녹음',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text(
+                '내 발음 녹음',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -491,7 +524,9 @@ class _RecordingSection extends StatelessWidget {
                   },
                   icon: const Icon(Icons.fiber_manual_record_rounded),
                   label: const Text('녹음 시작'),
-                  style: FilledButton.styleFrom(backgroundColor: theme.colorScheme.error),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                  ),
                 )
               else if (recorder.state == RecorderState.recording)
                 Column(
@@ -499,9 +534,10 @@ class _RecordingSection extends StatelessWidget {
                     Text(
                       recorder.formattedDuration,
                       style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.error),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.error,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     FilledButton.icon(
@@ -559,8 +595,12 @@ class _AttemptsSection extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            Text('시도 기록을 불러올 수 없어요.',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(
+              '시도 기록을 불러올 수 없어요.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const Spacer(),
             TextButton.icon(
               onPressed: () => ref.invalidate(cardAttemptsProvider(cardId)),
@@ -575,15 +615,19 @@ class _AttemptsSection extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('시도 기록',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              '시도 기록',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 12),
-            ...attempts.map((a) => _AttemptItem(
-                  attempt: a,
-                  cardId: cardId,
-                  canAddNote: canAddNote,
-                  onNoteAdded: () => ref.invalidate(cardAttemptsProvider(cardId)),
-                )),
+            ...attempts.map(
+              (a) => _AttemptItem(
+                attempt: a,
+                cardId: cardId,
+                canAddNote: canAddNote,
+                onNoteAdded: () => ref.invalidate(cardAttemptsProvider(cardId)),
+              ),
+            ),
           ],
         );
       },
@@ -632,13 +676,18 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
           children: [
             Row(
               children: [
-                Icon(Icons.person_rounded,
-                    size: 16, color: theme.colorScheme.outline),
+                Icon(
+                  Icons.person_rounded,
+                  size: 16,
+                  color: theme.colorScheme.outline,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   _formatDate(attempt.attemptedAt),
                   style: TextStyle(
-                      fontSize: 12, color: theme.colorScheme.outline),
+                    fontSize: 12,
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
                 const Spacer(),
                 IconButton(
@@ -678,7 +727,8 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
                   child: Text(
                     attempt.correctionNote!,
                     style: TextStyle(
-                        color: theme.colorScheme.onSecondaryContainer),
+                      color: theme.colorScheme.onSecondaryContainer,
+                    ),
                   ),
                 ),
               ],
@@ -712,6 +762,3 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
-
-
-
