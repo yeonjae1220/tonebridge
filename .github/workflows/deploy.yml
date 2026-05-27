@@ -140,22 +140,31 @@ jobs:
         # Cloudflare Tunnel routes all traffic through CF edge, so cached immutable
         # responses block new builds from reaching users. Purge the non-fingerprinted
         # entry-point files on every deploy so CF fetches fresh copies from nginx.
-        # Requires CF_ZONE_ID and CF_API_TOKEN repository secrets.
-        if: ${{ secrets.CF_ZONE_ID != '' && secrets.CF_API_TOKEN != '' }}
+        # Requires CF_ZONE_ID and CF_API_TOKEN repository secrets. Skips gracefully if absent.
+        continue-on-error: true
         env:
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
         run: |
+          if [ -z "${CF_ZONE_ID}" ] || [ -z "${CF_API_TOKEN}" ]; then
+            echo "CF_ZONE_ID or CF_API_TOKEN not set — skipping Cloudflare cache purge"
+            exit 0
+          fi
           BASE="https://tonebridge.mungji.com"
-          curl -s -X POST \
+          FILES='["'"${BASE}/main.dart.js"'","'"${BASE}/flutter_bootstrap.js"'","'"${BASE}/flutter.js"'","'"${BASE}/index.html"'","'"${BASE}/flutter_service_worker.js"'","'"${BASE}/firebase-messaging-sw.js"'"]'
+          RESULT=$(curl -s -X POST \
             "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data "{\"files\":[
-              \"${BASE}/main.dart.js\",
-              \"${BASE}/flutter_bootstrap.js\",
-              \"${BASE}/flutter.js\",
-              \"${BASE}/index.html\",
-              \"${BASE}/flutter_service_worker.js\",
-              \"${BASE}/firebase-messaging-sw.js\"
-            ]}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge:', 'OK' if r.get('success') else 'FAILED'); [print(' -', e) for e in r.get('errors',[])]"
+            --data "{\"files\":${FILES}}")
+          echo "${RESULT}" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if r.get('success'):
+    print('CF cache purge: OK')
+else:
+    print('CF cache purge: FAILED')
+    for e in r.get('errors', []):
+        print(' -', e)
+    sys.exit(1)
+"
