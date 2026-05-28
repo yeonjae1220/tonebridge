@@ -46,7 +46,9 @@ public class ClaudeAiAdapter implements AiQualityCheckPort, AiFallbackPort {
                                    String original, String corrected, String explanation, int reward, boolean isAudio) {
         boolean passed;
         try {
-            passed = checkWithClaude(original, corrected, explanation);
+            passed = properties.getAi().isEnabled()
+                    ? checkWithClaude(original, corrected, explanation)
+                    : meetsMinimumCriteria(explanation);
         } catch (Exception e) {
             log.warn("Claude quality check failed for {}, using heuristic: {}", correctionId, e.getMessage());
             passed = meetsMinimumCriteria(explanation);
@@ -58,6 +60,9 @@ public class ClaudeAiAdapter implements AiQualityCheckPort, AiFallbackPort {
 
     @Override
     public FallbackResult generateFallback(String originalText, String targetLanguage, String context) {
+        if (!properties.getAi().isEnabled()) {
+            return buildHeuristicFallback(originalText);
+        }
         String apiKey = properties.getAi().getClaudeApiKey();
         if (apiKey == null || apiKey.isBlank()) {
             return buildHeuristicFallback(originalText);

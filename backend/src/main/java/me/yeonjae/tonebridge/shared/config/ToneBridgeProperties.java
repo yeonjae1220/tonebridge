@@ -49,6 +49,7 @@ public class ToneBridgeProperties {
 
     @Getter @Setter
     public static class Ai {
+        private boolean enabled = false;
         private String claudeApiKey;
         private String claudeModel = "claude-sonnet-4-6";
         private String openaiApiKey;

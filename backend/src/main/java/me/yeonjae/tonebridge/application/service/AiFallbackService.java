@@ -21,6 +21,11 @@ public class AiFallbackService {
     private final AiFallbackProcessor processor;
 
     public void processFallbacks() {
+        if (!properties.getAi().isEnabled()) {
+            log.debug("AI fallback skipped because tonebridge.ai.enabled=false");
+            return;
+        }
+
         ToneBridgeProperties.Correction correctionProps = properties.getCorrection();
         int fallbackHours = correctionProps.getAiFallbackAfterHours();
         int batchSize = correctionProps.getFallbackBatchSize();

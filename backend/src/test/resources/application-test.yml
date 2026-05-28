@@ -39,6 +39,7 @@ tonebridge:
     bucket: tonebridge-audio
     region: us-east-1
   ai:
+    enabled: false
     claude-api-key: test-key
     claude-model: claude-sonnet-4-6
   credit:
