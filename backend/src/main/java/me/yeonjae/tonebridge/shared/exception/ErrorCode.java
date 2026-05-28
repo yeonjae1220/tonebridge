@@ -56,6 +56,7 @@ public enum ErrorCode {
     ATTEMPT_NOT_FOUND(HttpStatus.NOT_FOUND, "CARD_002", "발음 시도를 찾을 수 없습니다"),
     NOT_ATTEMPT_REVIEWER(HttpStatus.FORBIDDEN, "CARD_003", "교정 권한이 없습니다"),
     CANNOT_ATTEMPT_OWN_CARD(HttpStatus.BAD_REQUEST, "CARD_004", "자신이 만든 카드에 발음 시도를 제출할 수 없습니다"),
+    CARD_HAS_HISTORY(HttpStatus.CONFLICT, "CARD_005", "학습 이력이 있는 카드는 다른 세션으로 이동할 수 없습니다"),
 
     // General
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_001", "서버 오류가 발생했습니다"),

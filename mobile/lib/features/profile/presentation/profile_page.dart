@@ -37,6 +37,11 @@ class ProfilePage extends ConsumerWidget {
                 extra: profileAsync.value,
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '설정',
+            onPressed: () => context.push(AppRoute.profileSettings),
+          ),
         ],
       ),
       body: profileAsync.when(
@@ -65,6 +70,10 @@ class ProfilePage extends ConsumerWidget {
             children: [
               _ProfileHeader(profile: profile),
               const SizedBox(height: 20),
+              _CreditShortcut(
+                credits: ref.watch(authStateProvider).value?.user.credits ?? 0,
+              ),
+              const SizedBox(height: 20),
               _StatsRow(profile: profile),
               const SizedBox(height: 20),
               // Reputation bar
@@ -77,8 +86,6 @@ class ProfilePage extends ConsumerWidget {
               const SizedBox(height: 20),
               _LanguageSection(profile: profile),
               const SizedBox(height: 32),
-              const _AccountActionsSection(),
-              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -88,6 +95,36 @@ class ProfilePage extends ConsumerWidget {
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
+
+class _CreditShortcut extends StatelessWidget {
+  const _CreditShortcut({required this.credits});
+  final int credits;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: ListTile(
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.account_balance_wallet_rounded,
+            color: theme.colorScheme.onPrimaryContainer,
+          ),
+        ),
+        title: const Text('크레딧 지갑'),
+        subtitle: Text('보유 크레딧 $credits'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push(AppRoute.wallet),
+      ),
+    );
+  }
+}
 
 class _ProfileHeader extends ConsumerWidget {
   const _ProfileHeader({required this.profile});
@@ -655,85 +692,6 @@ class _LanguageRow extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
               );
             }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AccountActionsSection extends ConsumerWidget {
-  const _AccountActionsSection();
-
-  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('회원탈퇴'),
-        content: const Text(
-          '정말로 탈퇴하시겠습니까?\n탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            child: const Text('탈퇴하기'),
-          ),
-        ],
-      ),
-    );
-    if (!(confirmed ?? false)) return;
-    try {
-      await ref.read(authStateProvider.notifier).deleteAccount();
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('회원탈퇴에 실패했습니다. 다시 시도해주세요.')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        OutlinedButton(
-          onPressed: () => ref.read(authStateProvider.notifier).signOut(),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: theme.colorScheme.error,
-            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.4)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Text(
-            '로그아웃',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton(
-          onPressed: () => _confirmDeleteAccount(context, ref),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: theme.colorScheme.error,
-            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.7)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Text(
-            '회원탈퇴',
-            style: TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ],

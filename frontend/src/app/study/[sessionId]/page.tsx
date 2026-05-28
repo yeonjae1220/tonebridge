@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,6 +15,7 @@ export default function StudySessionPage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
+  const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -41,6 +42,15 @@ export default function StudySessionPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
   })
 
+  const createCardMutation = useMutation({
+    mutationFn: (payload: { phrase: string; context: string | null; tags: string[] }) =>
+      api.post(`/sessions/${sessionId}/cards`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+      setCardSheet(null)
+    },
+  })
+
   const deleteCardMutation = useMutation({
     mutationFn: (cardId: string) => api.delete(`/cards/${cardId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
@@ -62,7 +72,7 @@ export default function StudySessionPage() {
           {sessionLoading ? (
             <div className="h-7 w-40 bg-gray-200 animate-pulse rounded-lg" />
           ) : (
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold text-gray-900">{session?.title ?? '스터디 세션'}</h1>
               {session && (
                 <p className="text-xs text-gray-400">
@@ -73,6 +83,14 @@ export default function StudySessionPage() {
                 </p>
               )}
             </div>
+          )}
+          {session?.status === 'ACTIVE' && (
+            <button
+              onClick={() => setCardSheet({ mode: 'create' })}
+              className="px-3 py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+            >
+              카드 추가
+            </button>
           )}
         </div>
 
@@ -91,7 +109,15 @@ export default function StudySessionPage() {
           <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">🃏</p>
             <p className="text-sm font-semibold text-gray-700">아직 학습 카드가 없어요</p>
-            <p className="text-xs text-gray-400 mt-1">모바일 앱에서 카드를 추가할 수 있습니다.</p>
+            <p className="text-xs text-gray-400 mt-1">친구와 연습할 표현을 바로 추가해보세요.</p>
+            {session?.status === 'ACTIVE' && (
+              <button
+                onClick={() => setCardSheet({ mode: 'create' })}
+                className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+              >
+                첫 카드 추가
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -135,17 +161,7 @@ export default function StudySessionPage() {
                   {canManage && (
                     <div className="flex gap-2 mt-4">
                       <button
-                        onClick={() => {
-                          const phrase = window.prompt('표현', card.phrase)
-                          if (phrase == null || phrase.trim() === '') return
-                          const context = window.prompt('상황 설명', card.context ?? '')
-                          if (context == null) return
-                          updateCardMutation.mutate({
-                            ...card,
-                            phrase: phrase.trim(),
-                            context: context.trim() || null,
-                          })
-                        }}
+                        onClick={() => setCardSheet({ mode: 'edit', card })}
                         className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
                         수정
@@ -168,6 +184,95 @@ export default function StudySessionPage() {
           </div>
         )}
       </div>
+      {cardSheet && (
+        <CardSheet
+          initial={cardSheet.mode === 'edit' ? cardSheet.card : undefined}
+          pending={createCardMutation.isPending || updateCardMutation.isPending}
+          onClose={() => setCardSheet(null)}
+          onSubmit={(payload) => {
+            if (cardSheet.mode === 'edit') {
+              updateCardMutation.mutate({ ...cardSheet.card, ...payload })
+              setCardSheet(null)
+            } else {
+              createCardMutation.mutate(payload)
+            }
+          }}
+        />
+      )}
     </main>
+  )
+}
+
+function CardSheet({
+  initial,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  initial?: StudyCard
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: { phrase: string; context: string | null; tags: string[] }) => void
+}) {
+  const [phrase, setPhrase] = useState(initial?.phrase ?? '')
+  const [context, setContext] = useState(initial?.context ?? '')
+  const [tagText, setTagText] = useState(initial?.tags.join(', ') ?? '')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const trimmed = phrase.trim()
+    if (!trimmed) return
+    onSubmit({
+      phrase: trimmed,
+      context: context.trim() || null,
+      tags: tagText.split(',').map((tag) => tag.trim()).filter(Boolean),
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">{initial ? '카드 수정' : '새 카드 추가'}</h2>
+          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">표현</span>
+          <textarea
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            rows={3}
+            autoFocus
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="친구와 연습할 표현"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">상황</span>
+          <input
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="예: 회의에서 다시 물어볼 때"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">태그</span>
+          <input
+            value={tagText}
+            onChange={(e) => setTagText(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="쉼표로 구분"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending || !phrase.trim()}
+          className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+        >
+          {pending ? '저장 중...' : '저장'}
+        </button>
+      </form>
+    </div>
   )
 }

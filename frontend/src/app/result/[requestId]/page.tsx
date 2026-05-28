@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import { Correction, CorrectionRequest } from '@/types'
+import { Correction, CorrectionRequest, StudySession } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
@@ -117,6 +117,9 @@ export default function ResultPage() {
   const { data: currentUser } = useCurrentUser()
   const sseRef = useRef<EventSource | null>(null)
   const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null)
+  const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
+  const [editingCorrection, setEditingCorrection] = useState<Correction | null>(null)
+  const [savingCorrection, setSavingCorrection] = useState<Correction | null>(null)
   const waveContainerRef = useRef<HTMLDivElement>(null)
   const ws = useWaveSurfer(waveContainerRef, originalAudioUrl)
 
@@ -131,6 +134,12 @@ export default function ResultPage() {
   })
 
   const request = myRequests?.find((r) => r.id === requestId)
+
+  const { data: sessions = [] } = useQuery<StudySession[]>({
+    queryKey: ['sessions'],
+    queryFn: () => api.get('/sessions').then((r) => r.data),
+    enabled: !!accessToken,
+  })
 
   useEffect(() => {
     if (request?.type === 'AUDIO' && request.audioUrl) {
@@ -193,6 +202,19 @@ export default function ResultPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
   })
 
+  const createCardMutation = useMutation({
+    mutationFn: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) =>
+      api.post(`/sessions/${payload.sessionId}/cards`, {
+        phrase: payload.phrase,
+        context: payload.context,
+        tags: payload.tags,
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'cards'] })
+      setSavingCorrection(null)
+    },
+  })
+
   const deleteRequestMutation = useMutation({
     mutationFn: () => api.delete(`/correction-requests/${requestId}`),
     onSuccess: () => {
@@ -224,19 +246,7 @@ export default function ResultPage() {
               <div className="ml-auto flex gap-2">
                 {request.status === 'PENDING' && (
                   <button
-                    onClick={() => {
-                      const contentText = isAudio
-                        ? request.contentText
-                        : window.prompt('원문', request.contentText ?? '')
-                      if (!isAudio && contentText == null) return
-                      const contextText = window.prompt('상황 설명', request.context ?? '')
-                      if (contextText == null) return
-                      updateRequestMutation.mutate({
-                        ...request,
-                        contentText: isAudio ? request.contentText : contentText?.trim(),
-                        context: contextText.trim() || undefined,
-                      })
-                    }}
+                    onClick={() => setEditingRequest(request)}
                     className="text-xs text-amber-700 hover:text-amber-900"
                   >
                     수정
@@ -302,19 +312,7 @@ export default function ResultPage() {
                     {canManage && (
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            const explanation = window.prompt('설명 수정', correction.explanation ?? '')
-                            if (explanation == null || explanation.trim() === '') return
-                            const correctedText = isAudio
-                              ? correction.correctedText
-                              : window.prompt('수정 문장', correction.correctedText ?? '')
-                            if (!isAudio && correctedText == null) return
-                            updateCorrectionMutation.mutate({
-                              ...correction,
-                              explanation: explanation.trim(),
-                              correctedText: isAudio ? correction.correctedText : correctedText?.trim(),
-                            })
-                          }}
+                          onClick={() => setEditingCorrection(correction)}
                           className="text-xs text-gray-500 hover:text-blue-600"
                         >
                           수정
@@ -366,6 +364,12 @@ export default function ResultPage() {
 
                     {correction.status !== 'REJECTED' && (
                       <div className="border-t border-gray-50 pt-4">
+                        <button
+                          onClick={() => setSavingCorrection(correction)}
+                          className="mb-3 w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                        >
+                          스터디 카드로 저장
+                        </button>
                         <p className="text-xs text-gray-500 mb-2">이 첨삭이 도움이 됐나요?</p>
                         <div className="flex gap-2">
                           <button
@@ -394,6 +398,224 @@ export default function ResultPage() {
           </div>
         )}
       </div>
+      {editingRequest && (
+        <RequestEditSheet
+          request={editingRequest}
+          isAudio={editingRequest.type === 'AUDIO'}
+          pending={updateRequestMutation.isPending}
+          onClose={() => setEditingRequest(null)}
+          onSubmit={(payload) => {
+            updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
+              onSuccess: () => setEditingRequest(null),
+            })
+          }}
+        />
+      )}
+      {editingCorrection && (
+        <CorrectionEditSheet
+          correction={editingCorrection}
+          isAudio={isAudio}
+          pending={updateCorrectionMutation.isPending}
+          onClose={() => setEditingCorrection(null)}
+          onSubmit={(payload) => {
+            updateCorrectionMutation.mutate({ ...editingCorrection, ...payload }, {
+              onSuccess: () => setEditingCorrection(null),
+            })
+          }}
+        />
+      )}
+      {savingCorrection && request && (
+        <SaveCardSheet
+          correction={savingCorrection}
+          request={request}
+          sessions={sessions.filter((s) => s.status === 'ACTIVE')}
+          pending={createCardMutation.isPending}
+          onClose={() => setSavingCorrection(null)}
+          onSubmit={(payload) => createCardMutation.mutate(payload)}
+          onStudy={() => router.push('/study')}
+        />
+      )}
     </main>
+  )
+}
+
+function RequestEditSheet({
+  request,
+  isAudio,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  request: CorrectionRequest
+  isAudio: boolean
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: Partial<CorrectionRequest>) => void
+}) {
+  const [contentText, setContentText] = useState(request.contentText ?? '')
+  const [context, setContext] = useState(request.context ?? '')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    onSubmit({
+      contentText: isAudio ? request.contentText : contentText.trim(),
+      context: context.trim() || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <SheetHeader title="요청 수정" onClose={onClose} />
+        {!isAudio && (
+          <textarea
+            value={contentText}
+            onChange={(e) => setContentText(e.target.value)}
+            rows={4}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        )}
+        <input
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="상황 설명"
+        />
+        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+          {pending ? '저장 중...' : '저장'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function CorrectionEditSheet({
+  correction,
+  isAudio,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  correction: Correction
+  isAudio: boolean
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: Partial<Correction>) => void
+}) {
+  const [correctedText, setCorrectedText] = useState(correction.correctedText ?? '')
+  const [explanation, setExplanation] = useState(correction.explanation ?? '')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!explanation.trim()) return
+    onSubmit({
+      correctedText: isAudio ? correction.correctedText : correctedText.trim(),
+      explanation: explanation.trim(),
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <SheetHeader title="첨삭 수정" onClose={onClose} />
+        {!isAudio && (
+          <textarea
+            value={correctedText}
+            onChange={(e) => setCorrectedText(e.target.value)}
+            rows={3}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="수정 문장"
+          />
+        )}
+        <textarea
+          value={explanation}
+          onChange={(e) => setExplanation(e.target.value)}
+          rows={4}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="설명"
+        />
+        <button type="submit" disabled={pending || !explanation.trim()} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+          {pending ? '저장 중...' : '저장'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function SaveCardSheet({
+  correction,
+  request,
+  sessions,
+  pending,
+  onClose,
+  onSubmit,
+  onStudy,
+}: {
+  correction: Correction
+  request: CorrectionRequest
+  sessions: StudySession[]
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) => void
+  onStudy: () => void
+}) {
+  const [sessionId, setSessionId] = useState(sessions[0]?.id ?? '')
+  const [phrase, setPhrase] = useState(correction.correctedText || request.contentText || request.context || '음성 첨삭 카드')
+  const [context, setContext] = useState(correction.explanation || request.context || '')
+
+  useEffect(() => {
+    if (!sessionId && sessions[0]?.id) {
+      setSessionId(sessions[0].id)
+    }
+  }, [sessionId, sessions])
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!sessionId || !phrase.trim()) return
+    onSubmit({
+      sessionId,
+      phrase: phrase.trim(),
+      context: context.trim() || null,
+      tags: correction.tags?.length ? correction.tags : request.feedbackGoals,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <SheetHeader title="스터디 카드로 저장" onClose={onClose} />
+        {sessions.length === 0 ? (
+          <div className="py-6 text-center">
+            <p className="text-sm font-semibold text-gray-700">진행 중인 연습이 없어요</p>
+            <p className="text-xs text-gray-400 mt-1">친구와 연습을 먼저 시작하면 카드를 저장할 수 있습니다.</p>
+            <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold">
+              친구와 연습 시작
+            </button>
+          </div>
+        ) : (
+          <>
+            <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white">
+              {sessions.map((session) => (
+                <option key={session.id} value={session.id}>{session.title ?? '친구와 연습'}</option>
+              ))}
+            </select>
+            <textarea value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
+            <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder="카드 설명" />
+            <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-40">
+              {pending ? '저장 중...' : '카드 저장'}
+            </button>
+          </>
+        )}
+      </form>
+    </div>
+  )
+}
+
+function SheetHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+      <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+    </div>
   )
 }

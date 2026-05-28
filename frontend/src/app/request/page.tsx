@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 
 const FEEDBACK_GOALS = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스']
@@ -18,6 +19,47 @@ function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
   const s = (seconds % 60).toString().padStart(2, '0')
   return `${m}:${s}`
+}
+
+function RecordedAudioPreview({
+  audioUrl,
+  onReset,
+}: {
+  audioUrl: string
+  onReset: () => void
+}) {
+  const waveformRef = useRef<HTMLDivElement | null>(null)
+  const { playing, currentTime, duration, ready, togglePlay } = useWaveSurfer(waveformRef, audioUrl)
+
+  return (
+    <div className="w-full rounded-2xl bg-gray-50 border border-gray-100 p-4">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={togglePlay}
+          disabled={!ready}
+          className="w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center disabled:opacity-40"
+          aria-label={playing ? '정지' : '재생'}
+        >
+          {playing ? 'Ⅱ' : '▶'}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div ref={waveformRef} className="w-full cursor-pointer" />
+          <div className="mt-1 flex justify-between text-[11px] text-gray-400 font-mono">
+            <span>{formatDuration(Math.floor(currentTime))}</span>
+            <span>{formatDuration(Math.floor(duration))}</span>
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-3 w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-white transition-colors"
+      >
+        다시 녹음
+      </button>
+    </div>
+  )
 }
 
 export default function RequestPage() {
@@ -97,126 +139,104 @@ export default function RequestPage() {
           <p className="text-sm text-gray-500 mt-1">원어민에게 교정을 받으세요</p>
         </div>
 
-        {/* Tab */}
-        <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          {(['TEXT', 'AUDIO'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setError('') }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {t === 'TEXT' ? '텍스트' : '음성'}
-            </button>
-          ))}
-        </div>
-
-        {/* Language + Variant */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-          <label className="text-sm font-semibold text-gray-700">교정 언어</label>
-          <LanguagePicker
-            value={targetLanguage}
-            variant={targetVariant}
-            onLanguageChange={(code) => {
-              setTargetLanguage(code)
-              setTargetVariant(null)
-            }}
-            onVariantChange={setTargetVariant}
-          />
-        </div>
-
-        {/* Content */}
-        {tab === 'TEXT' ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-            <label className="text-sm font-semibold text-gray-700">교정할 문장</label>
-            <textarea
-              value={contentText}
-              onChange={(e) => setContentText(e.target.value)}
-              placeholder="교정 받고 싶은 문장을 입력하세요..."
-              rows={5}
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            <label className="text-sm font-semibold text-gray-700 mt-1">문맥 (선택)</label>
-            <input
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              placeholder="예: 일본 회사에 이메일을 보낼 때..."
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-4">
-            <label className="text-sm font-semibold text-gray-700">음성 녹음</label>
-            <div className="flex flex-col items-center gap-4">
-              {recorder.state === 'idle' && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-5">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-3">무엇을 교정받을까요?</p>
+            <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+              {(['TEXT', 'AUDIO'] as const).map((t) => (
                 <button
-                  onClick={recorder.start}
-                  className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-lg transition-colors"
+                  key={t}
+                  onClick={() => { setTab(t); setError('') }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
-                  <span className="text-2xl">🎙</span>
+                  {t === 'TEXT' ? '텍스트' : '음성'}
                 </button>
-              )}
-              {recorder.state === 'recording' && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
-                    <span className="text-white text-2xl">⏹</span>
-                  </div>
-                  <button
-                    onClick={recorder.stop}
-                    className="mt-1 px-4 py-1.5 rounded-full bg-gray-900 text-white text-sm font-medium"
-                  >
-                    녹음 중지
-                  </button>
-                  <span className="text-sm text-gray-500 font-mono">
-                    {formatDuration(recorder.duration)}
-                  </span>
-                </div>
-              )}
-              {recorder.state === 'stopped' && recorder.audioUrl && (
-                <div className="w-full flex flex-col gap-3">
-                  <audio controls src={recorder.audioUrl} className="w-full" />
-                  <button
-                    onClick={recorder.reset}
-                    className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    다시 녹음
-                  </button>
-                </div>
-              )}
+              ))}
             </div>
-            <label className="text-sm font-semibold text-gray-700">문맥 (선택)</label>
+          </div>
+
+          {tab === 'TEXT' ? (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-gray-700">교정받을 내용</span>
+              <textarea
+                value={contentText}
+                onChange={(e) => setContentText(e.target.value)}
+                placeholder="교정 받고 싶은 문장을 입력하세요..."
+                rows={6}
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </label>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">음성 녹음</p>
+              <div className="flex flex-col items-center gap-4">
+                {recorder.state === 'idle' && (
+                  <button
+                    onClick={recorder.start}
+                    className="w-full py-4 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold shadow-sm transition-colors"
+                  >
+                    녹음 시작
+                  </button>
+                )}
+                {recorder.state === 'recording' && (
+                  <div className="w-full flex items-center justify-between rounded-xl bg-red-50 border border-red-100 px-4 py-3">
+                    <span className="text-sm text-red-600 font-mono">{formatDuration(recorder.duration)}</span>
+                    <button onClick={recorder.stop} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium">
+                      녹음 중지
+                    </button>
+                  </div>
+                )}
+                {recorder.state === 'stopped' && recorder.audioUrl && (
+                  <RecordedAudioPreview audioUrl={recorder.audioUrl} onReset={recorder.reset} />
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-3">
+            <label className="text-sm font-semibold text-gray-700">교정 언어</label>
+            <LanguagePicker
+              value={targetLanguage}
+              variant={targetVariant}
+              onLanguageChange={(code) => {
+                setTargetLanguage(code)
+                setTargetVariant(null)
+              }}
+              onVariantChange={setTargetVariant}
+            />
+          </div>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-gray-700">상황</span>
             <input
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder="예: 일본 친구에게 전화할 때..."
+              placeholder={tab === 'TEXT' ? '예: 일본 회사에 이메일을 보낼 때...' : '예: 일본 친구에게 전화할 때...'}
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-          </div>
-        )}
+          </label>
 
-        {/* Goals */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-          <label className="text-sm font-semibold text-gray-700">피드백 목표 (선택)</label>
-          <div className="flex flex-wrap gap-2">
-            {FEEDBACK_GOALS.map((goal) => (
-              <button
-                key={goal}
-                onClick={() => toggleGoal(goal)}
-                className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                  selectedGoals.includes(goal)
-                    ? 'bg-blue-100 text-blue-700 border-blue-300'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
-                }`}
-              >
-                {goal}
-              </button>
-            ))}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-3">피드백 초점</p>
+            <div className="flex flex-wrap gap-2">
+              {FEEDBACK_GOALS.map((goal) => (
+                <button
+                  key={goal}
+                  onClick={() => toggleGoal(goal)}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    selectedGoals.includes(goal)
+                      ? 'bg-blue-100 text-blue-700 border-blue-300'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  {goal}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Cost + submit */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-600">사용 크레딧</span>
             <span className="text-lg font-bold text-blue-600">-{creditCost}</span>

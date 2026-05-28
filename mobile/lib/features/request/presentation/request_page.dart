@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +35,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   bool _uploading = false;
 
   late final AudioRecorderService _recorder;
-  AudioPlayer? _playbackPlayer;
 
   @override
   void initState() {
@@ -54,7 +55,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     _contextController.dispose();
     _recorder.removeListener(_onRecorderChange);
     _recorder.dispose();
-    _playbackPlayer?.dispose();
     super.dispose();
   }
 
@@ -156,7 +156,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                     _AudioRecorderWidget(
                       recorder: _recorder,
                       onStart: _startRecording,
-                      onPlayback: _startPlayback,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -288,27 +287,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     }
   }
 
-  Future<void> _startPlayback() async {
-    try {
-      await _playbackPlayer?.stop();
-      await _playbackPlayer?.dispose();
-      _playbackPlayer = AudioPlayer();
-      if (kIsWeb) {
-        final blobUrl = _recorder.webBlobUrl;
-        if (blobUrl == null) return;
-        await _playbackPlayer!.setUrl(blobUrl);
-      } else {
-        final path = _recorder.file?.path;
-        if (path == null) return;
-        await _playbackPlayer!.setFilePath(path);
-      }
-      await _playbackPlayer!.play();
-    } on Exception catch (e) {
-      if (!mounted) return;
-      _showError('녹음 재생에 실패했어요. ${_friendlyError(e)}');
-    }
-  }
-
   Future<void> _startRecording() async {
     try {
       await _recorder.start();
@@ -429,31 +407,148 @@ class _AudioRecorderWidget extends StatelessWidget {
   const _AudioRecorderWidget({
     required this.recorder,
     required this.onStart,
-    required this.onPlayback,
   });
 
   final AudioRecorderService recorder;
   final Future<void> Function() onStart;
-  final VoidCallback onPlayback;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return switch (recorder.state) {
-      RecorderState.idle => _RecordButton(onTap: onStart, theme: theme),
+      RecorderState.idle => _OpenRecordSheetButton(
+          onTap: () => _showRecorderSheet(context),
+          theme: theme,
+        ),
       RecorderState.recording => _RecordingIndicator(
         duration: recorder.formattedDuration,
         onStop: () => recorder.stop(),
         theme: theme,
       ),
       RecorderState.stopped => _RecordingStopped(
-        duration: recorder.formattedDuration,
-        onPlayback: onPlayback,
-        onReset: () => recorder.reset(),
+        recorder: recorder,
         theme: theme,
       ),
     };
+  }
+
+  void _showRecorderSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      isDismissible: recorder.state != RecorderState.recording,
+      builder: (_) => _RecorderSheet(
+        recorder: recorder,
+        onStart: onStart,
+      ),
+    );
+  }
+}
+
+class _OpenRecordSheetButton extends StatelessWidget {
+  const _OpenRecordSheetButton({required this.onTap, required this.theme});
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.mic_rounded),
+          label: const Text('녹음하기'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+          ),
+        ),
+      );
+}
+
+class _RecorderSheet extends StatefulWidget {
+  const _RecorderSheet({
+    required this.recorder,
+    required this.onStart,
+  });
+
+  final AudioRecorderService recorder;
+  final Future<void> Function() onStart;
+
+  @override
+  State<_RecorderSheet> createState() => _RecorderSheetState();
+}
+
+class _RecorderSheetState extends State<_RecorderSheet> {
+  @override
+  void initState() {
+    super.initState();
+    widget.recorder.addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    widget.recorder.removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                '음성 녹음',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (widget.recorder.state != RecorderState.recording)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          switch (widget.recorder.state) {
+            RecorderState.idle => _RecordButton(onTap: widget.onStart, theme: theme),
+            RecorderState.recording => _RecordingIndicator(
+                duration: widget.recorder.formattedDuration,
+                onStop: () => widget.recorder.stop(),
+                theme: theme,
+              ),
+            RecorderState.stopped => _RecordingStopped(
+                recorder: widget.recorder,
+                theme: theme,
+              ),
+          },
+          if (widget.recorder.state == RecorderState.stopped) ...[
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('이 녹음 사용'),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -551,53 +646,216 @@ class _RecordingIndicator extends StatelessWidget {
   );
 }
 
-class _RecordingStopped extends StatelessWidget {
+class _RecordingStopped extends StatefulWidget {
   const _RecordingStopped({
-    required this.duration,
-    required this.onPlayback,
-    required this.onReset,
+    required this.recorder,
     required this.theme,
   });
-  final String duration;
-  final VoidCallback onPlayback;
-  final VoidCallback onReset;
+  final AudioRecorderService recorder;
   final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.audio_file_rounded, color: theme.colorScheme.secondary),
-            const SizedBox(width: 12),
-            Text(
-              duration,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
+  State<_RecordingStopped> createState() => _RecordingStoppedState();
+}
+
+class _RecordingStoppedState extends State<_RecordingStopped> {
+  late final AudioPlayer _player;
+  bool _sourceReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = AudioPlayer();
+    _prepare();
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _prepare() async {
+    try {
+      if (kIsWeb) {
+        final url = widget.recorder.webBlobUrl;
+        if (url == null) return;
+        await _player.setUrl(url);
+      } else {
+        final path = widget.recorder.file?.path;
+        if (path == null) return;
+        await _player.setFilePath(path);
+      }
+      if (mounted) setState(() => _sourceReady = true);
+    } on Exception {
+      if (mounted) setState(() => _sourceReady = false);
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (!_sourceReady) return;
+    if (_player.playing) {
+      await _player.pause();
+    } else {
+      if (_player.position >= (_player.duration ?? widget.recorder.duration)) {
+        await _player.seek(Duration.zero);
+      }
+      await _player.play();
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _seek(double fraction) async {
+    final total = _player.duration ?? widget.recorder.duration;
+    if (total == Duration.zero) return;
+    await _player.seek(total * fraction.clamp(0.0, 1.0));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          StreamBuilder<Duration>(
+            stream: _player.positionStream,
+            initialData: Duration.zero,
+            builder: (context, positionSnapshot) {
+              final position = positionSnapshot.data ?? Duration.zero;
+              final total = _player.duration ?? widget.recorder.duration;
+              final fraction = total.inMilliseconds <= 0
+                  ? 0.0
+                  : position.inMilliseconds / total.inMilliseconds;
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      IconButton.filled(
+                        icon: Icon(
+                          _player.playing
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                        ),
+                        onPressed: _sourceReady ? _toggle : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapDown: (details) {
+                              _seek(details.localPosition.dx / constraints.maxWidth);
+                            },
+                            onHorizontalDragUpdate: (details) {
+                              _seek(details.localPosition.dx / constraints.maxWidth);
+                            },
+                            child: SizedBox(
+                              height: 56,
+                              child: CustomPaint(
+                                painter: _WaveformPainter(
+                                  progress: fraction.clamp(0.0, 1.0),
+                                  activeColor: theme.colorScheme.primary,
+                                  inactiveColor: theme.colorScheme.onSecondaryContainer
+                                      .withValues(alpha: 0.24),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        _format(position),
+                        style: theme.textTheme.labelMedium,
+                      ),
+                      const Spacer(),
+                      Text(
+                        _format(total),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _player.stop();
+                    widget.recorder.reset();
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('다시 녹음'),
+                ),
               ),
-            ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.play_arrow_rounded),
-              onPressed: onPlayback,
-              color: theme.colorScheme.primary,
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
-      const SizedBox(height: 8),
-      TextButton.icon(
-        onPressed: onReset,
-        icon: const Icon(Icons.refresh_rounded, size: 16),
-        label: const Text('다시 녹음'),
-      ),
-    ],
-  );
+    );
+  }
+
+  String _format(Duration duration) {
+    final minutes = duration.inMinutes.toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+class _WaveformPainter extends CustomPainter {
+  const _WaveformPainter({
+    required this.progress,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  final double progress;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barWidth = 3.0;
+    const gap = 3.0;
+    final count = math.max(1, (size.width / (barWidth + gap)).floor());
+    final activeUntil = count * progress;
+    final centerY = size.height / 2;
+
+    for (int i = 0; i < count; i++) {
+      final t = i / count;
+      final wave = 0.38 + 0.52 * math.sin(t * math.pi * 8).abs();
+      final accent = 0.72 + 0.28 * math.sin((i * 19) % 31).abs();
+      final height = math.max(8.0, size.height * wave * accent);
+      final x = i * (barWidth + gap);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, centerY - height / 2, barWidth, height),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(
+        rect,
+        Paint()..color = i <= activeUntil ? activeColor : inactiveColor,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaveformPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.activeColor != activeColor ||
+      oldDelegate.inactiveColor != inactiveColor;
 }

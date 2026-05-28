@@ -119,6 +119,22 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   }
 
   @override
+  Future<StudyCard> moveCard({
+    required String cardId,
+    required String targetSessionId,
+    required int position,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/cards/$cardId/move',
+      data: {
+        'targetSessionId': targetSessionId,
+        'position': position,
+      },
+    );
+    return StudyCard.fromJson(response.data!);
+  }
+
+  @override
   Future<void> deleteCard(String cardId) async {
     await _dio.delete<void>('/api/cards/$cardId');
   }

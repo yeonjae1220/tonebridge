@@ -11,5 +11,6 @@ public interface StudyCardPort {
     Optional<StudyCard> findById(UUID id);
     List<StudyCard> findBySessionId(UUID sessionId);
     StudyCard updateContent(UUID id, String phrase, String context, List<String> tags);
+    StudyCard move(UUID id, UUID targetSessionId, int position);
     void softDelete(UUID id);
 }

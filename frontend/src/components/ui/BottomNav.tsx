@@ -37,17 +37,6 @@ const TABS = [
     ),
   },
   {
-    href: '/wallet',
-    label: '지갑',
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2" />
-        <path d="M16 12h2" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M2 10h20" />
-      </svg>
-    ),
-  },
-  {
     href: '/profile',
     label: '프로필',
     icon: (active: boolean) => (

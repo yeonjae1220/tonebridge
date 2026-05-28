@@ -11,10 +11,11 @@ import 'package:tonebridge/features/study_session/presentation/voice_card_sheet.
 
 // ── Sort enum ─────────────────────────────────────────────────────────────────
 
-enum _CardSort { newest, oldest, alphabetical, byStatus }
+enum _CardSort { manual, newest, oldest, alphabetical, byStatus }
 
 extension _CardSortLabel on _CardSort {
   String get label => switch (this) {
+        _CardSort.manual => '내 순서',
         _CardSort.newest => '최신순',
         _CardSort.oldest => '오래된순',
         _CardSort.alphabetical => '가나다순',
@@ -38,7 +39,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   bool _fabExpanded = false;
   bool _isSearchActive = false;
   String _searchQuery = '';
-  _CardSort _sortOrder = _CardSort.newest;
+  _CardSort _sortOrder = _CardSort.manual;
   final _searchController = TextEditingController();
 
   @override
@@ -76,6 +77,8 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
     }
 
     result = switch (_sortOrder) {
+      _CardSort.manual => [...result]
+        ..sort((a, b) => a.position.compareTo(b.position)),
       _CardSort.newest => [...result]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
       _CardSort.oldest => [...result]
@@ -222,6 +225,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
                 allCards.where((c) => c.cardStatus == CardStatus.recorded).length;
             final corrected =
                 allCards.where((c) => c.cardStatus == CardStatus.corrected).length;
+            final canReorder = !_isSearchActive && _sortOrder == _CardSort.manual;
 
             return CustomScrollView(
               slivers: [
@@ -265,12 +269,30 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
                       ),
                     ),
                   )
+                else if (canReorder)
+                  SliverToBoxAdapter(
+                    child: ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                      itemCount: cards.length,
+                      onReorder: (oldIndex, newIndex) =>
+                          _moveWithinSession(cards, oldIndex, newIndex),
+                      itemBuilder: (_, i) => _CardListItem(
+                        key: ValueKey(cards[i].id),
+                        card: cards[i],
+                        sessionId: widget.sessionId,
+                        showDragHandle: true,
+                      ),
+                    ),
+                  )
                 else
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                     sliver: SliverList.builder(
                       itemCount: cards.length,
                       itemBuilder: (_, i) => _CardListItem(
+                        key: ValueKey(cards[i].id),
                         card: cards[i],
                         sessionId: widget.sessionId,
                       ),
@@ -294,6 +316,29 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _moveWithinSession(
+    List<StudyCard> cards,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (oldIndex < newIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+    final card = cards[oldIndex];
+    try {
+      await ref.read(studySessionRepositoryProvider).moveCard(
+            cardId: card.id,
+            targetSessionId: widget.sessionId,
+            position: newIndex,
+          );
+      ref.invalidate(sessionCardsProvider(widget.sessionId));
+    } on Exception catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('카드 이동 실패: $e')),
+      );
+    }
   }
 
   Future<void> _confirmEndSession(BuildContext context) async {
@@ -553,14 +598,24 @@ class _StatusChip extends StatelessWidget {
 
 // ── Card List Item ────────────────────────────────────────────────────────────
 
-class _CardListItem extends StatelessWidget {
-  const _CardListItem({required this.card, required this.sessionId});
+enum _CardItemAction { move }
+
+class _CardListItem extends ConsumerWidget {
+  const _CardListItem({
+    super.key,
+    required this.card,
+    required this.sessionId,
+    this.showDragHandle = false,
+  });
   final StudyCard card;
   final String sessionId;
+  final bool showDragHandle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final currentUserId = ref.watch(authStateProvider).value?.user.id;
+    final canManage = currentUserId == card.createdByUserId;
 
     final (statusIcon, statusColor, statusLabel) = switch (card.cardStatus) {
       CardStatus.corrected => (
@@ -598,26 +653,132 @@ class _CardListItem extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(statusLabel,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: statusColor,
-                      fontWeight: FontWeight.w600)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(statusLabel,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600)),
+                ),
+                if (canManage)
+                  PopupMenuButton<_CardItemAction>(
+                    tooltip: '카드 메뉴',
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.more_vert_rounded, size: 20),
+                    onSelected: (action) {
+                      if (action == _CardItemAction.move) {
+                        _showMoveCardSheet(context, ref);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: _CardItemAction.move,
+                        child: Row(
+                          children: [
+                            Icon(Icons.open_with_rounded),
+                            SizedBox(width: 8),
+                            Text('다른 세션으로 이동'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
-            Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outline),
+            Icon(
+              showDragHandle
+                  ? Icons.drag_indicator_rounded
+                  : Icons.chevron_right_rounded,
+              color: theme.colorScheme.outline,
+            ),
           ],
         ),
         onTap: () => context.push(
           AppRoute.cardDetail(sessionId, card.id),
           extra: card,
         ),
+      ),
+    );
+  }
+
+  void _showMoveCardSheet(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.read(studySessionListStateProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (_) => sessionsAsync.when(
+        loading: () => const SizedBox(
+          height: 180,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (e, __) => SizedBox(
+          height: 180,
+          child: Center(child: Text('세션을 불러오지 못했어요: $e')),
+        ),
+        data: (sessions) {
+          final targets = sessions
+              .where((s) => s.id != sessionId && s.status == 'ACTIVE')
+              .toList();
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '카드 이동',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                if (targets.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: Text('이동할 수 있는 다른 세션이 없어요.')),
+                  )
+                else
+                  ...targets.map(
+                    (session) => ListTile(
+                      title: Text(session.title ?? '스터디 세션'),
+                      subtitle: Text('${session.memberIds.length}명 참여 중'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          await ref.read(studySessionRepositoryProvider).moveCard(
+                                cardId: card.id,
+                                targetSessionId: session.id,
+                                position: 0,
+                              );
+                          ref.invalidate(sessionCardsProvider(sessionId));
+                          ref.invalidate(sessionCardsProvider(session.id));
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('카드를 이동했어요')),
+                          );
+                        } on Exception catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(content: Text('카드 이동 실패: $e')),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

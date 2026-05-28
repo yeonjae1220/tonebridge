@@ -13,6 +13,7 @@ public record StudyCard(
         String nativeAudioUrl,
         String explanation,
         List<String> tags,
+        int position,
         Instant createdAt,
         LearnerAttempt latestAttempt,
         String note
@@ -23,16 +24,16 @@ public record StudyCard(
 
     public StudyCard withNativeAudio(String audioUrl) {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                audioUrl, explanation, tags, createdAt, latestAttempt, note);
+                audioUrl, explanation, tags, position, createdAt, latestAttempt, note);
     }
 
     public StudyCard withLatestAttempt(LearnerAttempt attempt) {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                nativeAudioUrl, explanation, tags, createdAt, attempt, note);
+                nativeAudioUrl, explanation, tags, position, createdAt, attempt, note);
     }
 
     public StudyCard withNote(String newNote) {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                nativeAudioUrl, explanation, tags, createdAt, latestAttempt, newNote);
+                nativeAudioUrl, explanation, tags, position, createdAt, latestAttempt, newNote);
     }
 }

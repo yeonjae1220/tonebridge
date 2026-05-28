@@ -44,6 +44,9 @@ public class StudyCardEntity {
     @Column(name = "tags", length = 500)
     private String tagsRaw;
 
+    @Column(nullable = false)
+    private int displayOrder;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -77,6 +80,11 @@ public class StudyCardEntity {
         this.editCount++;
     }
 
+    public void updatePlacement(UUID sessionId, int displayOrder) {
+        this.sessionId = sessionId;
+        this.displayOrder = displayOrder;
+    }
+
     public void softDelete() {
         if (deletedAt == null) {
             deletedAt = Instant.now();
@@ -85,7 +93,7 @@ public class StudyCardEntity {
 
     public StudyCard toDomain() {
         return new StudyCard(id, sessionId, createdByUserId, phrase, context,
-                nativeAudioUrl, explanation, parseList(tagsRaw), createdAt, null, note);
+                nativeAudioUrl, explanation, parseList(tagsRaw), displayOrder, createdAt, null, note);
     }
 
     public static StudyCardEntity fromDomain(StudyCard c) {
@@ -98,6 +106,7 @@ public class StudyCardEntity {
                 .nativeAudioUrl(c.nativeAudioUrl())
                 .explanation(c.explanation())
                 .tagsRaw(joinList(c.tags()))
+                .displayOrder(c.position())
                 .createdAt(c.createdAt())
                 .updatedAt(c.createdAt())
                 .note(c.note())

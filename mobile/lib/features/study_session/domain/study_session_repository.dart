@@ -24,6 +24,11 @@ abstract interface class StudySessionRepository {
     String? context,
     List<String> tags,
   });
+  Future<StudyCard> moveCard({
+    required String cardId,
+    required String targetSessionId,
+    required int position,
+  });
   Future<void> deleteCard(String cardId);
   Future<Map<String, String>> getNativeAudioUploadUrl(String cardId, String fileName);
   Future<StudyCard> confirmNativeAudio(String cardId, String audioKey);

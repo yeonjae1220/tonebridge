@@ -31,7 +31,7 @@ public class StudyCardJpaAdapter implements StudyCardPort {
     @Override
     @Transactional(readOnly = true)
     public List<StudyCard> findBySessionId(UUID sessionId) {
-        return repository.findBySessionIdAndDeletedAtIsNullOrderByCreatedAtDesc(sessionId)
+        return repository.findBySessionIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtDesc(sessionId)
                 .stream().map(StudyCardEntity::toDomain).toList();
     }
 
@@ -44,10 +44,40 @@ public class StudyCardJpaAdapter implements StudyCardPort {
     }
 
     @Override
+    public StudyCard move(UUID id, UUID targetSessionId, int position) {
+        StudyCardEntity moving = repository.findActiveById(id)
+                .orElseThrow(() -> new IllegalStateException("Study card not found for move: id=" + id));
+        UUID sourceSessionId = moving.getSessionId();
+
+        List<StudyCardEntity> sourceCards =
+                repository.findBySessionIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtDesc(sourceSessionId);
+        if (!sourceSessionId.equals(targetSessionId)) {
+            sourceCards.removeIf(card -> card.getId().equals(id));
+            reindex(sourceCards, sourceSessionId);
+        }
+
+        List<StudyCardEntity> targetCards =
+                repository.findBySessionIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtDesc(targetSessionId);
+        targetCards.removeIf(card -> card.getId().equals(id));
+        int targetIndex = Math.max(0, Math.min(position, targetCards.size()));
+        targetCards.add(targetIndex, moving);
+        reindex(targetCards, targetSessionId);
+
+        return repository.save(moving).toDomain();
+    }
+
+    @Override
     public void softDelete(UUID id) {
         StudyCardEntity entity = repository.findActiveById(id)
                 .orElseThrow(() -> new IllegalStateException("Study card not found for delete: id=" + id));
         entity.softDelete();
         repository.save(entity);
+    }
+
+    private void reindex(List<StudyCardEntity> cards, UUID sessionId) {
+        for (int i = 0; i < cards.size(); i++) {
+            cards.get(i).updatePlacement(sessionId, i);
+        }
+        repository.saveAll(cards);
     }
 }

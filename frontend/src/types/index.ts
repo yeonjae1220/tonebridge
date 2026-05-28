@@ -166,6 +166,7 @@ export interface StudyCard {
   nativeAudioUrl: string | null
   explanation: string | null
   tags: string[]
+  position: number
   createdAt: string
   latestAttempt: LearnerAttempt | null
   note?: string | null

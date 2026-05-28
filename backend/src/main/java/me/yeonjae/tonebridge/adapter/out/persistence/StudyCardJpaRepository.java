@@ -12,5 +12,5 @@ public interface StudyCardJpaRepository extends JpaRepository<StudyCardEntity, U
     @Query("SELECT c FROM StudyCardEntity c WHERE c.id = :id AND c.deletedAt IS NULL")
     Optional<StudyCardEntity> findActiveById(@Param("id") UUID id);
 
-    List<StudyCardEntity> findBySessionIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID sessionId);
+    List<StudyCardEntity> findBySessionIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtDesc(UUID sessionId);
 }

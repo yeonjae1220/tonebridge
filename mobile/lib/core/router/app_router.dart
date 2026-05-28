@@ -15,6 +15,7 @@ import 'package:tonebridge/features/feed/presentation/feed_page.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/presentation/language_edit_page.dart';
 import 'package:tonebridge/features/profile/presentation/profile_page.dart';
+import 'package:tonebridge/features/profile/presentation/profile_settings_page.dart';
 import 'package:tonebridge/features/request/presentation/request_page.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/card_detail_page.dart';
@@ -32,7 +33,8 @@ abstract final class AppRoute {
   static const String request = '/request';
   static const String profile = '/profile';
   static const String languageEdit = '/profile/language-edit';
-  static const String wallet = '/wallet';
+  static const String wallet = '/profile/wallet';
+  static const String profileSettings = '/profile/settings';
   static const String study = '/study';
   static const String admin = '/admin';
   static const String adminUsers = '/admin/users';
@@ -172,15 +174,15 @@ GoRouter appRouter(Ref ref) {
                       return LanguageEditPage(profile: extra);
                     },
                   ),
+                  GoRoute(
+                    path: 'wallet',
+                    builder: (context, state) => const WalletPage(),
+                  ),
+                  GoRoute(
+                    path: 'settings',
+                    builder: (context, state) => const ProfileSettingsPage(),
+                  ),
                 ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoute.wallet,
-                builder: (context, state) => const WalletPage(),
               ),
             ],
           ),

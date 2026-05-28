@@ -45,6 +45,7 @@ export default function ProfilePage() {
   const queryClient = useQueryClient()
 
   const [editingLanguages, setEditingLanguages] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [nativeLang, setNativeLang] = useState('')
   const [fluentLangs, setFluentLangs] = useState<string[]>([])
   const [learningLangs, setLearningLangs] = useState<string[]>([])
@@ -67,7 +68,7 @@ export default function ProfilePage() {
   const { data: me } = useQuery<User>({
     queryKey: ['me'],
     queryFn: () => api.get('/users/me').then((r) => r.data),
-    enabled: !!accessToken && editingLanguages,
+    enabled: !!accessToken,
   })
 
   useEffect(() => {
@@ -206,6 +207,57 @@ export default function ProfilePage() {
     )
   }
 
+  if (showSettings) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <div className="max-w-lg mx-auto px-4 py-8">
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              onClick={() => setShowSettings(false)}
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
+              aria-label="뒤로가기"
+            >
+              ←
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">설정</h1>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <button
+              onClick={async () => {
+                await logoutSession()
+                queryClient.clear()
+                router.replace('/login')
+              }}
+              className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">로그아웃</span>
+                <span className="block text-xs text-gray-400 mt-0.5">현재 브라우저에서 로그아웃합니다</span>
+              </span>
+              <span className="text-gray-300">›</span>
+            </button>
+            <div className="h-px bg-gray-100" />
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleteAccountMutation.isPending}
+              className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-red-50 transition-colors disabled:opacity-40"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-red-600">
+                  {deleteAccountMutation.isPending ? '탈퇴 중...' : '회원탈퇴'}
+                </span>
+                <span className="block text-xs text-gray-400 mt-0.5">확인 후 계정과 데이터를 삭제합니다</span>
+              </span>
+              <span className="text-red-200">›</span>
+            </button>
+          </div>
+          {deleteError && <p className="mt-3 text-xs text-red-500 text-center">{deleteError}</p>}
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8">
@@ -218,6 +270,13 @@ export default function ProfilePage() {
             ←
           </button>
           <h1 className="text-2xl font-bold text-gray-900">내 프로필</h1>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="ml-auto p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
+            aria-label="설정"
+          >
+            ⚙
+          </button>
         </div>
 
         {profileLoading && (
@@ -309,6 +368,17 @@ export default function ProfilePage() {
               </button>
             </div>
 
+            <button
+              onClick={() => router.push('/wallet')}
+              className="bg-white rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-gray-500 mb-1">크레딧 지갑</span>
+                <span className="block text-2xl font-black text-blue-600">{me?.credits ?? '—'}</span>
+              </span>
+              <span className="text-gray-300 text-2xl">›</span>
+            </button>
+
             {/* 스트릭 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">연속 교정 스트릭</p>
@@ -384,29 +454,6 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <button
-              onClick={async () => {
-                await logoutSession()
-                queryClient.clear()
-                router.replace('/login')
-              }}
-              className="w-full py-3 border border-red-200 text-red-500 text-sm font-semibold rounded-2xl hover:bg-red-50 transition-colors"
-            >
-              로그아웃
-            </button>
-
-            <div className="flex flex-col gap-2">
-              {deleteError && (
-                <p className="text-xs text-red-500 text-center">{deleteError}</p>
-              )}
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteAccountMutation.isPending}
-                className="w-full py-3 border border-red-400 text-red-600 text-sm font-semibold rounded-2xl hover:bg-red-50 transition-colors disabled:opacity-40"
-              >
-                {deleteAccountMutation.isPending ? '탈퇴 중...' : '회원탈퇴'}
-              </button>
-            </div>
           </div>
         )}
       </div>

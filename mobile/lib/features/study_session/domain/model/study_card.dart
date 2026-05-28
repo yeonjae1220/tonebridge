@@ -17,6 +17,7 @@ abstract class StudyCard with _$StudyCard {
     String? nativeAudioUrl,
     String? explanation,
     @Default([]) List<String> tags,
+    @Default(0) int position,
     required DateTime createdAt,
     LearnerAttempt? latestAttempt,
     String? note,

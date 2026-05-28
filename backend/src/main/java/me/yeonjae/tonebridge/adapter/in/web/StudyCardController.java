@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.LearnerAttemptResponse;
@@ -37,6 +38,7 @@ public class StudyCardController {
     private final UpdateCardNoteUseCase updateCardNoteUseCase;
     private final UpdateNativeAudioNoteUseCase updateNativeAudioNoteUseCase;
     private final UpdateStudyCardUseCase updateCardUseCase;
+    private final MoveStudyCardUseCase moveCardUseCase;
     private final DeleteStudyCardUseCase deleteCardUseCase;
 
     @PostMapping("/sessions/{sessionId}/cards")
@@ -64,6 +66,16 @@ public class StudyCardController {
             @Valid @RequestBody UpdateCardDto dto) {
         var card = updateCardUseCase.update(
                 new UpdateStudyCardUseCase.Command(cardId, userId, dto.phrase(), dto.context(), dto.tags()));
+        return ResponseEntity.ok(StudyCardResponse.from(card));
+    }
+
+    @PatchMapping("/cards/{cardId}/move")
+    public ResponseEntity<StudyCardResponse> moveCard(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @Valid @RequestBody MoveCardDto dto) {
+        var card = moveCardUseCase.move(
+                new MoveStudyCardUseCase.Command(cardId, userId, dto.targetSessionId(), dto.position()));
         return ResponseEntity.ok(StudyCardResponse.from(card));
     }
 
@@ -200,6 +212,7 @@ public class StudyCardController {
 
     record CreateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
     record UpdateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
+    record MoveCardDto(@NotNull UUID targetSessionId, @Min(0) int position) {}
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}
     record SubmitAttemptDto(@NotBlank String audioKey) {}

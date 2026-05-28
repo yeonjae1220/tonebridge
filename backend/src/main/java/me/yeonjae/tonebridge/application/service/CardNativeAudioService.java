@@ -41,7 +41,7 @@ public class CardNativeAudioService implements
     @Transactional(readOnly = true)
     public UploadNativeAudioUseCase.UploadUrlResult getUploadUrl(AddCardNativeAudioUseCase.GetUrlCommand command) {
         StudyCard card = requireCard(command.cardId());
-        requireMember(card.sessionId(), command.uploaderId());
+        requireActiveMember(card.sessionId(), command.uploaderId());
         var presigned = storagePort.generatePresignedUploadUrl(
                 command.fileName(),
                 AudioContentTypes.fromFileName(command.fileName()),
@@ -52,7 +52,7 @@ public class CardNativeAudioService implements
     @Override
     public CardNativeAudio confirm(AddCardNativeAudioUseCase.ConfirmCommand command) {
         StudyCard card = requireCard(command.cardId());
-        requireMember(card.sessionId(), command.uploaderId());
+        requireActiveMember(card.sessionId(), command.uploaderId());
         CardNativeAudio audio = new CardNativeAudio(null, command.cardId(), command.audioKey(), null, null);
         return nativeAudioPort.save(audio);
     }
@@ -84,7 +84,7 @@ public class CardNativeAudioService implements
         CardNativeAudio audio = nativeAudioPort.findById(audioId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.FILE_NOT_FOUND));
         StudyCard card = requireCard(cardId);
-        requireMember(card.sessionId(), requesterId);
+        requireActiveMember(card.sessionId(), requesterId);
         nativeAudioPort.deleteByIdAndCardId(audioId, cardId);
         storagePort.deleteObject(audio.audioKey());
     }
@@ -96,7 +96,7 @@ public class CardNativeAudioService implements
         CardNativeAudio audio = nativeAudioPort.findById(audioId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.FILE_NOT_FOUND));
         StudyCard card = requireCard(audio.cardId());
-        requireMember(card.sessionId(), requesterId);
+        requireActiveMember(card.sessionId(), requesterId);
         return nativeAudioPort.save(audio.withNote(note));
     }
 
@@ -112,6 +112,17 @@ public class CardNativeAudioService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
         if (!session.hasMember(userId)) {
             throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
+        }
+    }
+
+    private void requireActiveMember(UUID sessionId, UUID userId) {
+        var session = sessionPort.findById(sessionId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
+        if (!session.hasMember(userId)) {
+            throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
+        }
+        if (!session.isActive()) {
+            throw new ToneBridgeException(ErrorCode.SESSION_ALREADY_ENDED);
         }
     }
 }

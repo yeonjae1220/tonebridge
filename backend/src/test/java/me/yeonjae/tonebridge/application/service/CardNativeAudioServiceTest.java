@@ -8,6 +8,8 @@ import me.yeonjae.tonebridge.application.port.out.StudySessionPort;
 import me.yeonjae.tonebridge.domain.session.SessionStatus;
 import me.yeonjae.tonebridge.domain.session.StudySession;
 import me.yeonjae.tonebridge.domain.studycard.StudyCard;
+import me.yeonjae.tonebridge.shared.exception.ErrorCode;
+import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +91,37 @@ class CardNativeAudioServiceTest {
                 "native_123.m4a", "audio/mp4", Duration.ofMinutes(15));
     }
 
+    @Test
+    void cannotCreateNativeAudioUploadUrlForEndedSession() {
+        UUID cardId = UUID.randomUUID();
+        UUID uploaderId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        StudyCard card = card(cardId, sessionId, uploaderId);
+        StudySession endedSession = new StudySession(
+                sessionId,
+                "study",
+                uploaderId,
+                List.of(uploaderId),
+                SessionStatus.ENDED,
+                Instant.now()
+        );
+
+        when(cardPort.findById(cardId)).thenReturn(Optional.of(card));
+        when(sessionPort.findById(sessionId)).thenReturn(Optional.of(endedSession));
+
+        assertThatThrownBy(() -> service.getUploadUrl(new AddCardNativeAudioUseCase.GetUrlCommand(
+                cardId, uploaderId, "native_123.webm"
+        )))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SESSION_ALREADY_ENDED);
+        verify(storagePort, never()).generatePresignedUploadUrl(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
     private StudyCard card(UUID cardId, UUID sessionId, UUID creatorId) {
         return new StudyCard(
                 cardId,
@@ -97,6 +132,7 @@ class CardNativeAudioServiceTest {
                 null,
                 null,
                 List.of(),
+                0,
                 Instant.now(),
                 null,
                 null

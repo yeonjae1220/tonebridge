@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -19,6 +19,7 @@ export default function StudyPage() {
   const [selectedFriendId, setSelectedFriendId] = useState('')
   const [sessionTitle, setSessionTitle] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
+  const [renamingSession, setRenamingSession] = useState<StudySession | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -77,7 +78,10 @@ export default function StudyPage() {
     <main className="min-h-screen bg-gray-50 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">스터디</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">친구와 연습</h1>
+            <p className="text-sm text-gray-500 mt-0.5">표현을 주고받고 발음까지 같이 확인하세요</p>
+          </div>
           <button
             onClick={() => { setShowNewSession(true); setCreateError(null) }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
@@ -86,14 +90,14 @@ export default function StudyPage() {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            새 세션
+            연습 시작
           </button>
         </div>
 
         {/* 새 세션 생성 패널 */}
         {showNewSession && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
-            <p className="text-sm font-semibold text-gray-700 mb-4">새 스터디 세션</p>
+            <p className="text-sm font-semibold text-gray-700 mb-4">친구와 새 연습</p>
 
             <div className="flex flex-col gap-3">
               <div>
@@ -123,7 +127,7 @@ export default function StudyPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">세션 제목 (선택)</label>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">연습 이름 (선택)</label>
                 <input
                   type="text"
                   value={sessionTitle}
@@ -169,14 +173,14 @@ export default function StudyPage() {
         ) : sessions.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">📖</p>
-            <p className="text-sm font-semibold text-gray-700">아직 스터디 세션이 없어요</p>
-            <p className="text-xs text-gray-400 mt-1">친구와 함께 스터디 세션을 시작해보세요!</p>
+            <p className="text-sm font-semibold text-gray-700">아직 같이 연습 중인 친구가 없어요</p>
+            <p className="text-xs text-gray-400 mt-1">친구를 골라 첫 표현을 주고받아보세요.</p>
           </div>
         ) : (
           <>
             {activeSessions.length > 0 && (
               <section className="mb-4">
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">진행 중 ({activeSessions.length})</h2>
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">연습 중 ({activeSessions.length})</h2>
                 <div className="flex flex-col gap-3">
                   {activeSessions.map((session) => {
                     const canManage = currentUser?.id === session.createdBy
@@ -190,12 +194,7 @@ export default function StudyPage() {
                             endMutation.mutate(session.id)
                           }
                         } : undefined}
-                        onRename={canManage ? () => {
-                          const title = window.prompt('세션 제목', session.title ?? '')
-                          if (title !== null) {
-                            updateMutation.mutate({ sessionId: session.id, title: title.trim() || null })
-                          }
-                        } : undefined}
+                        onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm('세션을 삭제할까요?')) {
                             deleteMutation.mutate(session.id)
@@ -221,12 +220,7 @@ export default function StudyPage() {
                         session={session}
                         onOpen={() => router.push(`/study/${session.id}`)}
                         ended
-                        onRename={canManage ? () => {
-                          const title = window.prompt('세션 제목', session.title ?? '')
-                          if (title !== null) {
-                            updateMutation.mutate({ sessionId: session.id, title: title.trim() || null })
-                          }
-                        } : undefined}
+                        onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm('세션을 삭제할까요?')) {
                             deleteMutation.mutate(session.id)
@@ -241,7 +235,64 @@ export default function StudyPage() {
           </>
         )}
       </div>
+      {renamingSession && (
+        <RenameSessionSheet
+          session={renamingSession}
+          pending={updateMutation.isPending}
+          onClose={() => setRenamingSession(null)}
+          onSubmit={(title) => {
+            updateMutation.mutate({ sessionId: renamingSession.id, title }, {
+              onSuccess: () => setRenamingSession(null),
+            })
+          }}
+        />
+      )}
     </main>
+  )
+}
+
+function RenameSessionSheet({
+  session,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  session: StudySession
+  pending: boolean
+  onClose: () => void
+  onSubmit: (title: string | null) => void
+}) {
+  const [title, setTitle] = useState(session.title ?? '')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    onSubmit(title.trim() || null)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">연습 이름 변경</h2>
+          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+          maxLength={50}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="예: 영어 회화 연습"
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+        >
+          {pending ? '저장 중...' : '저장'}
+        </button>
+      </form>
+    </div>
   )
 }
 
@@ -261,7 +312,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
       <div className="flex items-start justify-between gap-3">
         <button onClick={onOpen} className="flex-1 text-left">
           <p className="text-sm font-semibold text-gray-900 leading-snug">
-            {session.title ?? '스터디 세션'}
+            {session.title ?? '친구와 연습'}
           </p>
           <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt)} · 멤버 {session.memberIds.length}명</p>
         </button>
@@ -269,7 +320,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
           {!ended && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-              진행 중
+              연습 중
             </span>
           )}
           {ended && (
@@ -282,7 +333,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
           onClick={onOpen}
           className="flex-1 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
         >
-          카드 보기
+          카드 열기
         </button>
         {!ended && onEnd && (
           <button

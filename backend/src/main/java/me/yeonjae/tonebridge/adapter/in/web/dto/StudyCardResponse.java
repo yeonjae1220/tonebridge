@@ -15,6 +15,7 @@ public record StudyCardResponse(
         String nativeAudioUrl,
         String explanation,
         List<String> tags,
+        int position,
         Instant createdAt,
         LearnerAttemptResponse latestAttempt,
         String note
@@ -23,7 +24,7 @@ public record StudyCardResponse(
         return new StudyCardResponse(
                 c.id(), c.sessionId(), c.createdByUserId(),
                 c.phrase(), c.context(), c.nativeAudioUrl(), c.explanation(),
-                c.tags(), c.createdAt(),
+                c.tags(), c.position(), c.createdAt(),
                 c.latestAttempt() != null ? LearnerAttemptResponse.from(c.latestAttempt()) : null,
                 c.note());
     }
