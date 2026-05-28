@@ -12,9 +12,25 @@ type TimestampCommentWithId = TimestampComment & { id: string }
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage } from '@/i18n/messages'
 
-const COMMON_TAGS = ['문법', '자연스러움', '원어민 표현', '발음', '억양', '포멀', '캐주얼']
-const TIMESTAMP_CATEGORIES = ['발음', '억양', '속도', '강세', '연음']
+const COMMON_TAGS = [
+  { key: 'goal.grammar', value: '문법' },
+  { key: 'goal.naturalness', value: '자연스러움' },
+  { key: 'correct.tag.native', value: '원어민 표현' },
+  { key: 'goal.pronunciation', value: '발음' },
+  { key: 'goal.intonation', value: '억양' },
+  { key: 'correct.tag.formal', value: '포멀' },
+  { key: 'goal.casual', value: '캐주얼' },
+] as const
+const TIMESTAMP_CATEGORIES = [
+  { key: 'goal.pronunciation', value: '발음' },
+  { key: 'goal.intonation', value: '억양' },
+  { key: 'correct.category.speed', value: '속도' },
+  { key: 'correct.category.stress', value: '강세' },
+  { key: 'correct.category.liaison', value: '연음' },
+] as const
 
 function ScoreSlider({
   label,
@@ -54,6 +70,7 @@ export default function CorrectPage() {
   const params = useParams()
   const requestId = params.requestId as string
   const { accessToken } = useAuthStore()
+  const { t } = useI18n()
 
   const [correctedText, setCorrectedText] = useState('')
   const [explanation, setExplanation] = useState('')
@@ -62,7 +79,7 @@ export default function CorrectPage() {
 
   const [timestampComments, setTimestampComments] = useState<TimestampCommentWithId[]>([])
   const [pendingComment, setPendingComment] = useState('')
-  const [pendingCategory, setPendingCategory] = useState(TIMESTAMP_CATEGORIES[0])
+  const [pendingCategory, setPendingCategory] = useState<string>(TIMESTAMP_CATEGORIES[0].value)
   const [pronunciationScore, setPronunciationScore] = useState(5)
   const [intonationScore, setIntonationScore] = useState(5)
   const [fluencyScore, setFluencyScore] = useState(5)
@@ -117,7 +134,7 @@ export default function CorrectPage() {
       })
     },
     onSuccess: () => router.push('/feed'),
-    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '제출 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('correct.submitFailed')),
   })
 
   const toggleTag = (tag: string) => {
@@ -152,17 +169,17 @@ export default function CorrectPage() {
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">첨삭 작성</h1>
-            <p className="text-xs text-gray-400 mt-0.5">완료 시 +{reward} 크레딧</p>
+            <h1 className="text-xl font-bold text-gray-900">{t('correct.title')}</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{formatMessage(t('correct.reward'), { count: reward })}</p>
           </div>
         </div>
 
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs font-semibold text-amber-600">원문</p>
+            <p className="text-xs font-semibold text-amber-600">{t('result.original')}</p>
             {isAudio && (
-              <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-700 rounded-full font-medium">음성</span>
+              <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-700 rounded-full font-medium">{t('common.audio')}</span>
             )}
           </div>
           {isAudio ? (
@@ -174,7 +191,7 @@ export default function CorrectPage() {
                   disabled={!ws.ready}
                   className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-amber-600 transition-colors"
                 >
-                  {ws.playing ? '⏸ 일시정지' : '▶ 재생'}
+                  {ws.playing ? `⏸ ${t('common.pause')}` : `▶ ${t('common.play')}`}
                 </button>
                 <span className="text-xs text-amber-600 font-mono">
                   {formatTime(ws.currentTime)} / {formatTime(ws.duration)}
@@ -199,8 +216,8 @@ export default function CorrectPage() {
         {/* Timestamp comments */}
         {isAudio && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-            <label className="text-sm font-semibold text-gray-700">구간 코멘트</label>
-            <p className="text-xs text-gray-400">재생 중 원하는 위치에서 코멘트를 추가하세요</p>
+            <label className="text-sm font-semibold text-gray-700">{t('correct.timestampTitle')}</label>
+            <p className="text-xs text-gray-400">{t('correct.timestampHelp')}</p>
             <div className="flex gap-2">
               <select
                 value={pendingCategory}
@@ -208,13 +225,13 @@ export default function CorrectPage() {
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               >
                 {TIMESTAMP_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c.value} value={c.value}>{t(c.key)}</option>
                 ))}
               </select>
               <input
                 value={pendingComment}
                 onChange={(e) => setPendingComment(e.target.value)}
-                placeholder="코멘트 입력..."
+                placeholder={t('correct.commentPlaceholder')}
                 onKeyDown={(e) => e.key === 'Enter' && addTimestampComment()}
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
@@ -249,10 +266,10 @@ export default function CorrectPage() {
         {/* Scores */}
         {isAudio && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-4">
-            <label className="text-sm font-semibold text-gray-700">점수 평가</label>
-            <ScoreSlider label="발음 정확도" value={pronunciationScore} onChange={setPronunciationScore} />
-            <ScoreSlider label="억양 자연스러움" value={intonationScore} onChange={setIntonationScore} />
-            <ScoreSlider label="이해 가능성" value={fluencyScore} onChange={setFluencyScore} />
+            <label className="text-sm font-semibold text-gray-700">{t('correct.scoreTitle')}</label>
+            <ScoreSlider label={t('correct.pronunciationAccuracy')} value={pronunciationScore} onChange={setPronunciationScore} />
+            <ScoreSlider label={t('correct.intonationNaturalness')} value={intonationScore} onChange={setIntonationScore} />
+            <ScoreSlider label={t('correct.fluency')} value={fluencyScore} onChange={setFluencyScore} />
           </div>
         )}
 
@@ -260,17 +277,17 @@ export default function CorrectPage() {
         {isAudio && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-700">원어민 재녹음 (선택)</label>
-              <span className="text-xs text-green-600 font-medium">+4 추가 크레딧</span>
+              <label className="text-sm font-semibold text-gray-700">{t('correct.referenceAudio')}</label>
+              <span className="text-xs text-green-600 font-medium">{t('correct.extraCredits')}</span>
             </div>
-            <p className="text-xs text-gray-400">직접 올바른 발음을 녹음해 보여주세요</p>
+            <p className="text-xs text-gray-400">{t('correct.referenceHelp')}</p>
             <div className="flex items-center gap-3">
               {refRecorder.state === 'idle' && (
                 <button
                   onClick={refRecorder.start}
                   className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
                 >
-                  🎙 녹음 시작
+                  🎙 {t('correct.startRecording')}
                 </button>
               )}
               {refRecorder.state === 'recording' && (
@@ -278,13 +295,13 @@ export default function CorrectPage() {
                   onClick={refRecorder.stop}
                   className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium animate-pulse"
                 >
-                  ⏹ 중지
+                  ⏹ {t('correct.recordingStop')}
                 </button>
               )}
               {refRecorder.state === 'stopped' && refRecorder.audioUrl && (
                 <div className="flex-1 flex gap-2 items-center">
                   <audio controls src={refRecorder.audioUrl} className="flex-1 h-8" />
-                  <button onClick={refRecorder.reset} className="text-xs text-gray-400 hover:text-gray-600">다시</button>
+                  <button onClick={refRecorder.reset} className="text-xs text-gray-400 hover:text-gray-600">{t('correct.recordAgainShort')}</button>
                 </div>
               )}
             </div>
@@ -294,11 +311,11 @@ export default function CorrectPage() {
         {/* Corrected text (TEXT only) */}
         {!isAudio && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-            <label className="text-sm font-semibold text-gray-700">수정 문장</label>
+            <label className="text-sm font-semibold text-gray-700">{t('result.correctedText')}</label>
             <textarea
               value={correctedText}
               onChange={(e) => setCorrectedText(e.target.value)}
-              placeholder="자연스럽게 수정한 문장을 입력하세요..."
+              placeholder={t('correct.correctedTextPlaceholder')}
               rows={4}
               className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
@@ -308,15 +325,15 @@ export default function CorrectPage() {
         {/* Explanation */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-semibold text-gray-700">설명</label>
+            <label className="text-sm font-semibold text-gray-700">{t('result.explanation')}</label>
             <span className={`text-xs ${explanation.length >= 20 ? 'text-green-500' : 'text-gray-400'}`}>
-              {explanation.length}/20 최소
+              {explanation.length}/20 {t('correct.minimum')}
             </span>
           </div>
           <textarea
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
-            placeholder={isAudio ? '발음, 억양, 속도 등에 대한 피드백을 작성해주세요...' : '왜 어색한지, 어떻게 고쳐야 하는지 설명해주세요...'}
+            placeholder={isAudio ? t('correct.explanationAudioPlaceholder') : t('correct.explanationTextPlaceholder')}
             rows={4}
             className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
@@ -324,19 +341,19 @@ export default function CorrectPage() {
 
         {/* Tags */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-          <label className="text-sm font-semibold text-gray-700">태그 (선택)</label>
+          <label className="text-sm font-semibold text-gray-700">{t('correct.tagsOptional')}</label>
           <div className="flex flex-wrap gap-2">
             {COMMON_TAGS.map((tag) => (
               <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
+                key={tag.value}
+                onClick={() => toggleTag(tag.value)}
                 className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
-                  selectedTags.includes(tag)
+                  selectedTags.includes(tag.value)
                     ? 'bg-blue-100 text-blue-700 border-blue-300'
                     : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
                 }`}
               >
-                {tag}
+                {t(tag.key)}
               </button>
             ))}
           </div>
@@ -349,7 +366,7 @@ export default function CorrectPage() {
           disabled={!isValid || mutation.isPending || uploadingRef}
           className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-semibold disabled:opacity-40 hover:bg-blue-600 transition-colors"
         >
-          {mutation.isPending || uploadingRef ? '제출 중...' : '첨삭 제출하기'}
+          {mutation.isPending || uploadingRef ? t('correct.submitting') : t('correct.submit')}
         </button>
       </div>
     </main>

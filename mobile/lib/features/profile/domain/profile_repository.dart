@@ -5,6 +5,7 @@ abstract interface class ProfileRepository {
   Future<void> updateNickname(String username);
   Future<void> updateLanguages({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,

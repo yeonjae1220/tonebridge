@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import type { StudyCard, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -15,6 +16,7 @@ export default function StudySessionPage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
+  const { t } = useI18n()
   const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function StudySessionPage() {
           <button
             onClick={() => router.back()}
             className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="뒤로가기"
+            aria-label="back"
           >
             ←
           </button>
@@ -73,12 +75,12 @@ export default function StudySessionPage() {
             <div className="h-7 w-40 bg-gray-200 animate-pulse rounded-lg" />
           ) : (
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900">{session?.title ?? '스터디 세션'}</h1>
+              <h1 className="text-xl font-bold text-gray-900">{session?.title ?? t('study.cards.sessionDefault')}</h1>
               {session && (
                 <p className="text-xs text-gray-400">
-                  {formatDate(session.createdAt)} · 멤버 {session.memberIds.length}명
+                  {formatDate(session.createdAt)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}
                   {session.status === 'ACTIVE' && (
-                    <span className="ml-2 text-green-600 font-medium">진행 중</span>
+                    <span className="ml-2 text-green-600 font-medium">{t('study.active')}</span>
                   )}
                 </p>
               )}
@@ -89,15 +91,15 @@ export default function StudySessionPage() {
               onClick={() => setCardSheet({ mode: 'create' })}
               className="px-3 py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
             >
-              카드 추가
+              {t('study.cards.add')}
             </button>
           )}
         </div>
 
         {cardsError ? (
           <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
-            <p className="text-sm text-red-500 font-medium">카드를 불러오지 못했어요</p>
-            <p className="text-xs text-gray-400 mt-1">잠시 후 다시 시도해주세요.</p>
+            <p className="text-sm text-red-500 font-medium">{t('study.cards.loadFailed')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
           </div>
         ) : cardsLoading ? (
           <div className="flex flex-col gap-3">
@@ -108,14 +110,14 @@ export default function StudySessionPage() {
         ) : cards.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">🃏</p>
-            <p className="text-sm font-semibold text-gray-700">아직 학습 카드가 없어요</p>
-            <p className="text-xs text-gray-400 mt-1">친구와 연습할 표현을 바로 추가해보세요.</p>
+            <p className="text-sm font-semibold text-gray-700">{t('study.cards.emptyTitle')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('study.cards.emptySubtitle')}</p>
             {session?.status === 'ACTIVE' && (
               <button
                 onClick={() => setCardSheet({ mode: 'create' })}
                 className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
               >
-                첫 카드 추가
+                {t('study.cards.first')}
               </button>
             )}
           </div>
@@ -145,11 +147,11 @@ export default function StudySessionPage() {
                   )}
                   {card.latestAttempt && (
                     <div className="border-t border-gray-50 pt-3 mt-2">
-                      <p className="text-xs font-semibold text-gray-500 mb-1">내 최근 시도</p>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">{t('study.cards.latestAttempt')}</p>
                       <div className="flex items-center gap-3">
                         {card.latestAttempt.score !== null && (
                           <span className={`text-sm font-bold ${card.latestAttempt.score >= 80 ? 'text-green-600' : card.latestAttempt.score >= 60 ? 'text-yellow-600' : 'text-red-500'}`}>
-                            {card.latestAttempt.score}점
+                            {card.latestAttempt.score}{t('study.cards.score')}
                           </span>
                         )}
                         {card.latestAttempt.correctionNote && (
@@ -164,17 +166,17 @@ export default function StudySessionPage() {
                         onClick={() => setCardSheet({ mode: 'edit', card })}
                         className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
-                        수정
+                        {t('common.edit')}
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm('이 카드를 삭제할까요?')) {
+                          if (window.confirm(t('study.cards.confirmDelete'))) {
                             deleteCardMutation.mutate(card.id)
                           }
                         }}
                         className="flex-1 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
                       >
-                        삭제
+                        {t('common.delete')}
                       </button>
                     </div>
                   )}
@@ -217,6 +219,7 @@ function CardSheet({
   const [phrase, setPhrase] = useState(initial?.phrase ?? '')
   const [context, setContext] = useState(initial?.context ?? '')
   const [tagText, setTagText] = useState(initial?.tags.join(', ') ?? '')
+  const { t } = useI18n()
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -233,36 +236,36 @@ function CardSheet({
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
       <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{initial ? '카드 수정' : '새 카드 추가'}</h2>
+          <h2 className="text-lg font-bold text-gray-900">{initial ? t('study.cards.edit') : t('study.cards.new')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
         </div>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-gray-500">표현</span>
+          <span className="text-xs font-semibold text-gray-500">{t('study.cards.phrase')}</span>
           <textarea
             value={phrase}
             onChange={(e) => setPhrase(e.target.value)}
             rows={3}
             autoFocus
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="친구와 연습할 표현"
+            placeholder={t('study.cards.phrasePlaceholder')}
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-gray-500">상황</span>
+          <span className="text-xs font-semibold text-gray-500">{t('study.cards.context')}</span>
           <input
             value={context}
             onChange={(e) => setContext(e.target.value)}
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="예: 회의에서 다시 물어볼 때"
+            placeholder={t('study.cards.contextPlaceholder')}
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-gray-500">태그</span>
+          <span className="text-xs font-semibold text-gray-500">{t('study.cards.tags')}</span>
           <input
             value={tagText}
             onChange={(e) => setTagText(e.target.value)}
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="쉼표로 구분"
+            placeholder={t('study.cards.tagsPlaceholder')}
           />
         </label>
         <button
@@ -270,7 +273,7 @@ function CardSheet({
           disabled={pending || !phrase.trim()}
           className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
         >
-          {pending ? '저장 중...' : '저장'}
+          {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
     </div>

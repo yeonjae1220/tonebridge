@@ -8,15 +8,14 @@ import { api } from '@/lib/api'
 import { isAdminToken } from '@/lib/jwtUtils'
 import type { AdminUserSummary, PageResponse } from '@/types'
 import type { AxiosError } from 'axios'
-
-const LANG_LABELS: Record<string, string> = {
-  ko: '한국어', ja: '일본어', zh: '중국어', en: '영어', es: '스페인어', fr: '프랑스어',
-}
+import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage, languageDisplayName } from '@/i18n/messages'
 
 export default function AdminUsersPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
+  const { language, t } = useI18n()
   const [page, setPage] = useState(0)
   const [adjustingId, setAdjustingId] = useState<string | null>(null)
   const [deltaInput, setDeltaInput] = useState('')
@@ -63,11 +62,11 @@ export default function AdminUsersPage() {
           <button
             onClick={() => router.push('/admin')}
             className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="뒤로가기"
+            aria-label="back"
           >
             ←
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">사용자 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('admin.users')}</h1>
         </div>
 
         {isLoading && (
@@ -79,7 +78,7 @@ export default function AdminUsersPage() {
         )}
 
         {!isLoading && users.length === 0 && (
-          <p className="text-center text-gray-400 py-16">사용자가 없습니다.</p>
+          <p className="text-center text-gray-400 py-16">{t('admin.emptyUsers')}</p>
         )}
 
         <div className="flex flex-col gap-3">
@@ -94,23 +93,23 @@ export default function AdminUsersPage() {
                     <span className="font-bold text-gray-900 truncate">{user.username}</span>
                     {user.isAdmin && (
                       <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                        관리자
+                        {t('admin.adminBadge')}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className="text-xs text-gray-600">
-                      {LANG_LABELS[user.nativeLanguage] ?? user.nativeLanguage} 원어민
+                      {formatMessage(t('profile.nativeSpeaker'), { language: languageDisplayName(user.nativeLanguage, language) })}
                     </span>
                     <span className="text-xs text-blue-600 font-semibold">
-                      {user.credits}크레딧
+                      {formatMessage(t('admin.credits'), { count: user.credits })}
                     </span>
                     <span className="text-xs text-orange-600">
-                      스트릭 {user.correctionStreak}일
+                      {formatMessage(t('admin.streak'), { count: user.correctionStreak })}
                     </span>
                     <span className="text-xs text-gray-500">
-                      평판 {user.reputationScore.toFixed(1)}
+                      {formatMessage(t('admin.reputation'), { score: user.reputationScore.toFixed(1) })}
                     </span>
                   </div>
                 </div>
@@ -122,7 +121,7 @@ export default function AdminUsersPage() {
                   }}
                   className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors shrink-0"
                 >
-                  크레딧 조정
+                  {t('admin.adjustCredits')}
                 </button>
               </div>
 
@@ -132,7 +131,7 @@ export default function AdminUsersPage() {
                     type="number"
                     value={deltaInput}
                     onChange={(e) => setDeltaInput(e.target.value)}
-                    placeholder="예: 10 또는 -5"
+                    placeholder={t('admin.deltaPlaceholder')}
                     className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <button
@@ -144,13 +143,13 @@ export default function AdminUsersPage() {
                     disabled={adjustMutation.isPending}
                     className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50"
                   >
-                    적용
+                    {t('admin.apply')}
                   </button>
                   <button
                     onClick={() => { setAdjustingId(null); setDeltaInput('') }}
                     className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
                   >
-                    취소
+                    {t('common.cancel')}
                   </button>
                 </div>
               )}
@@ -165,7 +164,7 @@ export default function AdminUsersPage() {
               disabled={page === 0}
               className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-gray-50 transition-colors"
             >
-              이전
+              {t('admin.previous')}
             </button>
             <span className="text-sm text-gray-500">
               {page + 1} / {totalPages}
@@ -175,7 +174,7 @@ export default function AdminUsersPage() {
               disabled={page >= totalPages - 1}
               className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-gray-50 transition-colors"
             >
-              다음
+              {t('admin.next')}
             </button>
           </div>
         )}

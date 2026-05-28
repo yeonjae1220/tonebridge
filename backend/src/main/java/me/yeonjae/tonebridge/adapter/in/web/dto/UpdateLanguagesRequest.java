@@ -11,6 +11,7 @@ import java.util.Map;
 
 public record UpdateLanguagesRequest(
         @NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeLanguage,
+        @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String uiLanguage,
         @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String nativeDialect,
         // @Size(max = 50) bounds the list to prevent CSV overflow of VARCHAR(1024)
         @NotNull @Size(max = 50) List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[a-zA-Z0-9_-]+$") String> fluentLanguages,

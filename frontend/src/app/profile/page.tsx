@@ -7,19 +7,21 @@ import { useAuthStore } from '@/stores/authStore'
 import { api, logout as logoutSession } from '@/lib/api'
 import type { UserProfile, User } from '@/types'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
-import { ALL_LANG_LABELS } from '@/constants/languages'
+import { ALL_LANG_LABELS, UI_LANGUAGES } from '@/constants/languages'
+import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage, languageDisplayName } from '@/i18n/messages'
 
-const LEVEL_META: Record<string, { label: string; color: string; bg: string }> = {
-  NATIVE: { label: '원어민', color: 'text-blue-700', bg: 'bg-blue-50' },
-  VERIFIED_CORRECTOR: { label: '인증 교정자', color: 'text-purple-700', bg: 'bg-purple-50' },
-  EXPERT_COACH: { label: '전문 코치', color: 'text-amber-700', bg: 'bg-amber-50' },
-}
+const LEVEL_META = {
+  NATIVE: { key: 'profile.level.native', color: 'text-blue-700', bg: 'bg-blue-50' },
+  VERIFIED_CORRECTOR: { key: 'profile.level.verified', color: 'text-purple-700', bg: 'bg-purple-50' },
+  EXPERT_COACH: { key: 'profile.level.expert', color: 'text-amber-700', bg: 'bg-amber-50' },
+} as const
 
-const BADGE_META: Record<string, { label: string; icon: string; desc: string }> = {
-  STREAK_7DAY: { label: '7일 스트릭', icon: '🔥', desc: '7일 연속 교정 달성' },
-  FAST_RESPONDER: { label: '빠른 응답', icon: '⚡', desc: '60분 이내 교정 5회 달성' },
-  AUDIO_EXPERT: { label: '음성 전문가', icon: '🎙', desc: '음성 교정 10회 달성' },
-}
+const BADGE_META = {
+  STREAK_7DAY: { labelKey: 'profile.badge.streak7.label', icon: '🔥', descKey: 'profile.badge.streak7.desc' },
+  FAST_RESPONDER: { labelKey: 'profile.badge.fast.label', icon: '⚡', descKey: 'profile.badge.fast.desc' },
+  AUDIO_EXPERT: { labelKey: 'profile.badge.audio.label', icon: '🎙', descKey: 'profile.badge.audio.desc' },
+} as const
 
 function ReputationBar({ score }: { score: number }) {
   const pct = Math.min(100, (score / 10) * 100)
@@ -35,7 +37,7 @@ function ReputationBar({ score }: { score: number }) {
   )
 }
 
-function langLabel(code: string) {
+function fallbackLangLabel(code: string) {
   return ALL_LANG_LABELS[code] ?? code
 }
 
@@ -43,10 +45,12 @@ export default function ProfilePage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
+  const { language, setLanguage, t } = useI18n()
 
   const [editingLanguages, setEditingLanguages] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [nativeLang, setNativeLang] = useState('')
+  const [uiLang, setUiLang] = useState<string>(language)
   const [fluentLangs, setFluentLangs] = useState<string[]>([])
   const [learningLangs, setLearningLangs] = useState<string[]>([])
   const [langError, setLangError] = useState<string | null>(null)
@@ -74,6 +78,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (me && editingLanguages) {
       setNativeLang(me.nativeLanguage)
+      setUiLang(me.uiLanguage)
       setFluentLangs(me.fluentLanguages)
       setLearningLangs(me.learningLanguages)
     }
@@ -83,16 +88,53 @@ export default function ProfilePage() {
     mutationFn: () =>
       api.patch('/users/me/languages', {
         nativeLanguage: nativeLang,
+        uiLanguage: uiLang,
         fluentLanguages: fluentLangs,
         learningLanguages: learningLangs,
+        nativeDialect: me?.nativeDialect,
+        fluentLanguageVariants: me?.fluentLanguageVariants ?? {},
+        learningLanguageVariants: me?.learningLanguageVariants ?? {},
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
+      setLanguage(uiLang)
       setEditingLanguages(false)
       setLangError(null)
     },
-    onError: () => setLangError('저장에 실패했습니다. 다시 시도해주세요.'),
+    onError: () => setLangError(t('profile.saveFailed')),
+  })
+
+  const updateUiLanguageMutation = useMutation({
+    mutationFn: (next: string) => {
+      if (!me) throw new Error('User profile is not loaded')
+      return api.patch('/users/me/languages', {
+        nativeLanguage: me.nativeLanguage,
+        uiLanguage: next,
+        fluentLanguages: me.fluentLanguages,
+        learningLanguages: me.learningLanguages,
+        nativeDialect: me.nativeDialect,
+        fluentLanguageVariants: me.fluentLanguageVariants ?? {},
+        learningLanguageVariants: me.learningLanguageVariants ?? {},
+      })
+    },
+    onMutate: (next) => {
+      const previousLanguage = language
+      const previousUiLang = uiLang
+      setLangError(null)
+      setUiLang(next)
+      setLanguage(next)
+      return { previousLanguage, previousUiLang }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+    },
+    onError: (_error, _next, context) => {
+      setUiLang(context?.previousUiLang ?? me?.uiLanguage ?? language)
+      setLanguage(context?.previousLanguage ?? me?.uiLanguage ?? language)
+      setLangError(t('common.retryLater'))
+    },
   })
 
   const updateNicknameMutation = useMutation({
@@ -105,9 +147,9 @@ export default function ProfilePage() {
     },
     onError: (err: { response?: { status?: number } }) => {
       if (err?.response?.status === 409) {
-        setNicknameError('이미 사용 중인 닉네임입니다.')
+        setNicknameError(t('profile.nicknameTaken'))
       } else {
-        setNicknameError('저장에 실패했습니다. 다시 시도해주세요.')
+        setNicknameError(t('profile.saveFailed'))
       }
     },
   })
@@ -121,7 +163,7 @@ export default function ProfilePage() {
   const handleNicknameSave = () => {
     const trimmed = nicknameInput.trim()
     if (!/^[a-zA-Z0-9_]{2,20}$/.test(trimmed)) {
-      setNicknameError('닉네임은 2~20자의 영문, 숫자, 언더스코어만 사용할 수 있습니다.')
+      setNicknameError(t('profile.nicknameInvalid'))
       return
     }
     updateNicknameMutation.mutate(trimmed)
@@ -134,11 +176,11 @@ export default function ProfilePage() {
       queryClient.clear()
       router.replace('/login')
     },
-    onError: () => setDeleteError('회원탈퇴에 실패했습니다. 다시 시도해주세요.'),
+    onError: () => setDeleteError(t('profile.deleteFailed')),
   })
 
   const handleDeleteAccount = () => {
-    if (!window.confirm('정말로 탈퇴하시겠습니까?\n탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.')) return
+    if (!window.confirm(t('profile.deleteConfirm'))) return
     setDeleteError(null)
     deleteAccountMutation.mutate()
   }
@@ -146,6 +188,7 @@ export default function ProfilePage() {
   if (!accessToken) return null
 
   const levelMeta = profile ? (LEVEL_META[profile.correctorLevel] ?? LEVEL_META.NATIVE) : null
+  const langLabel = (code: string) => languageDisplayName(code, language) || fallbackLangLabel(code)
 
   if (editingLanguages) {
     return (
@@ -155,16 +198,16 @@ export default function ProfilePage() {
             <button
               onClick={() => setEditingLanguages(false)}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-              aria-label="취소"
+              aria-label={t('common.cancel')}
             >
               ←
             </button>
-            <h1 className="text-xl font-bold text-gray-900">언어 설정 변경</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t('profile.languageSettingsTitle')}</h1>
           </div>
 
           <div className="flex flex-col gap-6">
             <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">모국어</p>
+              <p className="text-sm font-semibold text-gray-700">{t('profile.nativeLanguage')}</p>
               <LanguagePicker
                 value={nativeLang}
                 onLanguageChange={setNativeLang}
@@ -173,7 +216,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">구사 언어 (복수 선택)</p>
+              <p className="text-sm font-semibold text-gray-700">{t('profile.fluentLanguages')}</p>
               <LanguagePicker
                 multiSelect
                 value={fluentLangs}
@@ -183,7 +226,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">학습 언어 (복수 선택)</p>
+              <p className="text-sm font-semibold text-gray-700">{t('profile.learningLanguages')}</p>
               <LanguagePicker
                 multiSelect
                 value={learningLangs}
@@ -199,7 +242,7 @@ export default function ProfilePage() {
               disabled={!nativeLang || updateLangMutation.isPending}
               className="w-full py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-colors disabled:opacity-40"
             >
-              {updateLangMutation.isPending ? '저장 중...' : '저장하기'}
+              {updateLangMutation.isPending ? t('common.saving') : t('profile.saveChanges')}
             </button>
           </div>
         </div>
@@ -215,14 +258,35 @@ export default function ProfilePage() {
             <button
               onClick={() => setShowSettings(false)}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-              aria-label="뒤로가기"
+              aria-label="back"
             >
               ←
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">설정</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4">
+              <label htmlFor="ui-language" className="block text-sm font-semibold text-gray-900">
+                {t('settings.uiLanguage')}
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">{t('settings.uiLanguageSubtitle')}</p>
+              <select
+                id="ui-language"
+                value={uiLang}
+                onChange={(event) => updateUiLanguageMutation.mutate(event.target.value)}
+                disabled={!me || updateUiLanguageMutation.isPending}
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white"
+              >
+                {UI_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {languageDisplayName(lang.code, language)}
+                  </option>
+                ))}
+              </select>
+              {langError && <p className="mt-2 text-xs text-red-500">{langError}</p>}
+            </div>
+            <div className="h-px bg-gray-100" />
             <button
               onClick={async () => {
                 await logoutSession()
@@ -232,8 +296,8 @@ export default function ProfilePage() {
               className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <span>
-                <span className="block text-sm font-semibold text-gray-900">로그아웃</span>
-                <span className="block text-xs text-gray-400 mt-0.5">현재 브라우저에서 로그아웃합니다</span>
+                <span className="block text-sm font-semibold text-gray-900">{t('settings.logout')}</span>
+                <span className="block text-xs text-gray-400 mt-0.5">{t('settings.logoutSubtitle')}</span>
               </span>
               <span className="text-gray-300">›</span>
             </button>
@@ -245,9 +309,9 @@ export default function ProfilePage() {
             >
               <span>
                 <span className="block text-sm font-semibold text-red-600">
-                  {deleteAccountMutation.isPending ? '탈퇴 중...' : '회원탈퇴'}
+                  {deleteAccountMutation.isPending ? t('common.saving') : t('settings.deleteAccount')}
                 </span>
-                <span className="block text-xs text-gray-400 mt-0.5">확인 후 계정과 데이터를 삭제합니다</span>
+                <span className="block text-xs text-gray-400 mt-0.5">{t('settings.deleteAccountSubtitle')}</span>
               </span>
               <span className="text-red-200">›</span>
             </button>
@@ -265,15 +329,19 @@ export default function ProfilePage() {
           <button
             onClick={() => router.back()}
             className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="뒤로가기"
+            aria-label="back"
           >
             ←
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">내 프로필</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('profile.title')}</h1>
           <button
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              setUiLang(me?.uiLanguage ?? language)
+              setLangError(null)
+              setShowSettings(true)
+            }}
             className="ml-auto p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="설정"
+            aria-label={t('settings.title')}
           >
             ⚙
           </button>
@@ -295,7 +363,7 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   {editingNickname ? (
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="nickname-input" className="sr-only">닉네임</label>
+                      <label htmlFor="nickname-input" className="sr-only">{t('profile.nickname')}</label>
                       <div className="flex gap-2">
                         <input
                           id="nickname-input"
@@ -303,7 +371,7 @@ export default function ProfilePage() {
                           value={nicknameInput}
                           onChange={(e) => setNicknameInput(e.target.value)}
                           maxLength={20}
-                          placeholder="닉네임 (2~20자, 영문/숫자/_)"
+                          placeholder={t('profile.nicknamePlaceholder')}
                           className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
                           onKeyDown={(e) => e.key === 'Enter' && handleNicknameSave()}
                           autoFocus
@@ -313,13 +381,13 @@ export default function ProfilePage() {
                           disabled={updateNicknameMutation.isPending}
                           className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
                         >
-                          {updateNicknameMutation.isPending ? '저장...' : '저장'}
+                          {updateNicknameMutation.isPending ? t('common.saving') : t('common.save')}
                         </button>
                         <button
                           onClick={() => setEditingNickname(false)}
                           className="px-3 py-1.5 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                          취소
+                          {t('common.cancel')}
                         </button>
                       </div>
                       {nicknameError && <p className="text-xs text-red-500">{nicknameError}</p>}
@@ -330,7 +398,7 @@ export default function ProfilePage() {
                       <button
                         onClick={handleNicknameEdit}
                         className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-                        aria-label="닉네임 변경"
+                        aria-label={t('profile.nicknameEdit')}
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -341,13 +409,13 @@ export default function ProfilePage() {
                   )}
                   {!editingNickname && (
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {langLabel(profile.nativeLanguage)} 원어민
+                      {formatMessage(t('profile.nativeSpeaker'), { language: langLabel(profile.nativeLanguage) })}
                     </p>
                   )}
                 </div>
                 {levelMeta && !editingNickname && (
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${levelMeta.bg} ${levelMeta.color} ml-2 flex-shrink-0`}>
-                    {levelMeta.label}
+                    {t(levelMeta.key)}
                   </span>
                 )}
               </div>
@@ -364,7 +432,7 @@ export default function ProfilePage() {
                 onClick={() => setEditingLanguages(true)}
                 className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                언어 설정 변경
+                {t('profile.editLanguages')}
               </button>
             </div>
 
@@ -373,7 +441,7 @@ export default function ProfilePage() {
               className="bg-white rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <span>
-                <span className="block text-sm font-semibold text-gray-500 mb-1">크레딧 지갑</span>
+                <span className="block text-sm font-semibold text-gray-500 mb-1">{t('profile.wallet')}</span>
                 <span className="block text-2xl font-black text-blue-600">{me?.credits ?? '—'}</span>
               </span>
               <span className="text-gray-300 text-2xl">›</span>
@@ -381,40 +449,40 @@ export default function ProfilePage() {
 
             {/* 스트릭 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-sm font-semibold text-gray-500 mb-3">연속 교정 스트릭</p>
+              <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.streakTitle')}</p>
               <div className="flex items-end gap-2">
                 <span className="text-4xl font-black text-orange-500">{profile.correctionStreak}</span>
-                <span className="text-base font-semibold text-gray-500 mb-1">일 연속</span>
+                <span className="text-base font-semibold text-gray-500 mb-1">{t('profile.streakDays')}</span>
                 {profile.correctionStreak >= 7 && (
-                  <span className="ml-auto text-2xl" title="7일 스트릭 달성">🔥</span>
+                  <span className="ml-auto text-2xl" title={t('profile.badge.streak7.label')}>🔥</span>
                 )}
               </div>
               {profile.correctionStreak === 0 ? (
-                <p className="text-xs text-gray-400 mt-2">오늘 교정을 시작해서 스트릭을 쌓으세요!</p>
+                <p className="text-xs text-gray-400 mt-2">{t('profile.streakStart')}</p>
               ) : profile.correctionStreak > 0 && profile.correctionStreak % 7 === 0 ? (
                 <p className="text-xs text-orange-600 mt-2 font-medium">
-                  🎉 {profile.correctionStreak}일 달성! 보너스 크레딧이 지급됐어요.
+                  🎉 {formatMessage(t('profile.streakBonus'), { count: profile.correctionStreak })}
                 </p>
               ) : null}
             </div>
 
             {/* 신뢰도 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-sm font-semibold text-gray-500 mb-3">교정 신뢰도</p>
+              <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.reputationTitle')}</p>
               <ReputationBar score={profile.reputationScore} />
               <p className="text-xs text-gray-400 mt-2">
-                최근 교정에 대한 &apos;도움됨&apos; 평가를 기반으로 산정됩니다.
+                {t('profile.reputationHelp')}
               </p>
             </div>
 
             {/* 뱃지 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-sm font-semibold text-gray-500 mb-3">획득한 뱃지</p>
+              <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.badgesTitle')}</p>
               {profile.badges.length === 0 ? (
                 <div className="text-center py-6 text-gray-400">
                   <p className="text-3xl mb-2">🏅</p>
-                  <p className="text-sm">아직 획득한 뱃지가 없어요</p>
-                  <p className="text-xs mt-1">교정 활동으로 뱃지를 모아보세요!</p>
+                  <p className="text-sm">{t('profile.noBadges')}</p>
+                  <p className="text-xs mt-1">{t('profile.noBadgesHelp')}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -425,8 +493,8 @@ export default function ProfilePage() {
                       <div key={badge.badgeType} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                         <span className="text-2xl">{meta.icon}</span>
                         <div>
-                          <p className="text-sm font-semibold text-gray-800">{meta.label}</p>
-                          <p className="text-xs text-gray-500">{meta.desc}</p>
+                          <p className="text-sm font-semibold text-gray-800">{t(meta.labelKey)}</p>
+                          <p className="text-xs text-gray-500">{t(meta.descKey)}</p>
                         </div>
                       </div>
                     )
@@ -436,7 +504,7 @@ export default function ProfilePage() {
 
               {profile.badges.length < Object.keys(BADGE_META).length && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-400 mb-2">획득 가능한 뱃지</p>
+                  <p className="text-xs font-semibold text-gray-400 mb-2">{t('profile.availableBadges')}</p>
                   <div className="flex flex-col gap-2">
                     {Object.entries(BADGE_META)
                       .filter(([key]) => !profile.badges.some((b) => b.badgeType === key))
@@ -444,8 +512,8 @@ export default function ProfilePage() {
                         <div key={key} className="flex items-center gap-3 p-3 opacity-40 grayscale">
                           <span className="text-2xl">{meta.icon}</span>
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{meta.label}</p>
-                            <p className="text-xs text-gray-500">{meta.desc}</p>
+                            <p className="text-sm font-semibold text-gray-800">{t(meta.labelKey)}</p>
+                            <p className="text-xs text-gray-500">{t(meta.descKey)}</p>
                           </div>
                         </div>
                       ))}

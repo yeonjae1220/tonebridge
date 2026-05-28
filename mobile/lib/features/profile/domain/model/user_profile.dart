@@ -9,6 +9,7 @@ abstract class UserProfile with _$UserProfile {
     required String id,
     required String username,
     required String nativeLanguage,
+    @Default('ko') String uiLanguage,
     required List<String> fluentLanguages,
     @Default([]) List<String> learningLanguages,
     required int correctionStreak,

@@ -37,6 +37,7 @@ void main() {
       when(
         () => mockRepo.updateLanguages(
           nativeLanguage: any(named: 'nativeLanguage'),
+          uiLanguage: any(named: 'uiLanguage'),
           fluentLanguages: any(named: 'fluentLanguages'),
           learningLanguages: any(named: 'learningLanguages'),
         ),
@@ -46,6 +47,7 @@ void main() {
       final container = makeContainer();
       final result = await container.read(languageEditProvider.notifier).save(
             nativeLanguage: 'ko',
+            uiLanguage: 'ko',
             fluentLanguages: ['en'],
             learningLanguages: ['ja', 'zh'],
           );
@@ -54,6 +56,7 @@ void main() {
       verify(
         () => mockRepo.updateLanguages(
           nativeLanguage: 'ko',
+          uiLanguage: 'ko',
           fluentLanguages: ['en'],
           learningLanguages: ['ja', 'zh'],
         ),
@@ -66,6 +69,7 @@ void main() {
       when(
         () => mockRepo.updateLanguages(
           nativeLanguage: any(named: 'nativeLanguage'),
+          uiLanguage: any(named: 'uiLanguage'),
           fluentLanguages: any(named: 'fluentLanguages'),
           learningLanguages: any(named: 'learningLanguages'),
         ),
@@ -74,6 +78,7 @@ void main() {
       final container = makeContainer();
       final result = await container.read(languageEditProvider.notifier).save(
             nativeLanguage: 'ko',
+            uiLanguage: 'ko',
             fluentLanguages: ['en'],
             learningLanguages: ['ja'],
           );
@@ -86,6 +91,7 @@ void main() {
       when(
         () => mockRepo.updateLanguages(
           nativeLanguage: any(named: 'nativeLanguage'),
+          uiLanguage: any(named: 'uiLanguage'),
           fluentLanguages: any(named: 'fluentLanguages'),
           learningLanguages: any(named: 'learningLanguages'),
         ),
@@ -95,11 +101,13 @@ void main() {
       final container = makeContainer();
       await container.read(languageEditProvider.notifier).save(
             nativeLanguage: 'ko',
+            uiLanguage: 'ko',
             fluentLanguages: ['en'],
             learningLanguages: ['ja'],
           );
       await container.read(languageEditProvider.notifier).save(
             nativeLanguage: 'ko',
+            uiLanguage: 'ko',
             fluentLanguages: ['en', 'fr'],
             learningLanguages: ['ja'],
           );
@@ -107,6 +115,7 @@ void main() {
       expect(container.read(languageEditProvider).hasValue, isTrue);
       verify(() => mockRepo.updateLanguages(
             nativeLanguage: any(named: 'nativeLanguage'),
+            uiLanguage: any(named: 'uiLanguage'),
             fluentLanguages: any(named: 'fluentLanguages'),
             learningLanguages: any(named: 'learningLanguages'),
           )).called(2);

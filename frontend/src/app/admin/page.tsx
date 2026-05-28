@@ -8,10 +8,8 @@ import { api } from '@/lib/api'
 import { isAdminToken } from '@/lib/jwtUtils'
 import type { AdminStats } from '@/types'
 import type { AxiosError } from 'axios'
-
-const LANG_LABELS: Record<string, string> = {
-  ko: '한국어', ja: '일본어', zh: '중국어', en: '영어', es: '스페인어', fr: '프랑스어',
-}
+import { useI18n } from '@/i18n/I18nProvider'
+import { languageDisplayName } from '@/i18n/messages'
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -26,6 +24,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 export default function AdminDashboardPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
+  const { language, t } = useI18n()
 
   const isAdmin = accessToken ? isAdminToken(accessToken) : false
 
@@ -59,12 +58,12 @@ export default function AdminDashboardPage() {
             <button
               onClick={() => router.back()}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
-              aria-label="뒤로가기"
+              aria-label="back"
             >
               ←
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">관리자 대시보드</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{t('admin.dashboard')}</h1>
               <p className="text-xs text-gray-400 mt-0.5">Admin only</p>
             </div>
           </div>
@@ -72,7 +71,7 @@ export default function AdminDashboardPage() {
             onClick={() => router.push('/admin/users')}
             className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
           >
-            사용자 관리
+            {t('admin.users')}
           </button>
         </div>
 
@@ -87,20 +86,20 @@ export default function AdminDashboardPage() {
         {stats && (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3">
-              <StatCard label="전체 요청" value={stats.totalRequests.toLocaleString()} />
-              <StatCard label="대기 중" value={stats.pendingRequests.toLocaleString()} />
-              <StatCard label="완료됨" value={stats.completedRequests.toLocaleString()} />
+              <StatCard label={t('admin.totalRequests')} value={stats.totalRequests.toLocaleString()} />
+              <StatCard label={t('admin.pendingRequests')} value={stats.pendingRequests.toLocaleString()} />
+              <StatCard label={t('admin.completedRequests')} value={stats.completedRequests.toLocaleString()} />
               <StatCard
-                label="AI 품질 통과율"
+                label={t('admin.aiPassRate')}
                 value={`${passRatePct}%`}
-                sub="승인 / (승인 + 반려)"
+                sub={t('admin.aiPassRateSub')}
               />
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-sm font-semibold text-gray-500 mb-3">언어별 대기 요청</p>
+              <p className="text-sm font-semibold text-gray-500 mb-3">{t('admin.pendingByLanguage')}</p>
               {Object.keys(stats.pendingByLanguage).length === 0 ? (
-                <p className="text-sm text-gray-400">대기 중인 요청이 없습니다.</p>
+                <p className="text-sm text-gray-400">{t('admin.noPending')}</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {Object.entries(stats.pendingByLanguage)
@@ -112,7 +111,7 @@ export default function AdminDashboardPage() {
                       return (
                         <div key={lang} className="flex items-center gap-3">
                           <span className="text-sm font-medium text-gray-700 w-16 shrink-0">
-                            {LANG_LABELS[lang] ?? lang}
+                            {languageDisplayName(lang, language)}
                           </span>
                           <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
@@ -123,7 +122,7 @@ export default function AdminDashboardPage() {
                           <span className={`text-sm font-bold w-8 text-right ${isHot ? 'text-red-600' : 'text-gray-700'}`}>
                             {count}
                           </span>
-                          {isHot && <span className="text-xs text-red-500 font-semibold">과부하</span>}
+                          {isHot && <span className="text-xs text-red-500 font-semibold">{t('admin.overloaded')}</span>}
                         </div>
                       )
                     })}

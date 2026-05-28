@@ -10,8 +10,12 @@ export interface User {
   email: string
   username: string
   nativeLanguage: string
+  uiLanguage: string
+  nativeDialect?: string | null
   fluentLanguages: string[]
   learningLanguages: string[]
+  fluentLanguageVariants?: Record<string, string>
+  learningLanguageVariants?: Record<string, string>
   credits: number
   reputationScore: number
   correctorLevel: 'NATIVE' | 'VERIFIED_CORRECTOR' | 'EXPERT_COACH'
@@ -23,6 +27,7 @@ export interface UserProfile {
   id: string
   username: string
   nativeLanguage: string
+  uiLanguage: string
   fluentLanguages: string[]
   correctionStreak: number
   reputationScore: number

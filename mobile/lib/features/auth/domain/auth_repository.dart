@@ -19,6 +19,7 @@ abstract interface class AuthRepository {
   /// Saves the user's language preferences during onboarding.
   Future<void> saveLanguagePreferences({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? username,

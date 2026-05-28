@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { LanguageVariant } from '@/types'
 import { ALL_LANG_LABELS } from '@/constants/languages'
+import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage, languageDisplayName } from '@/i18n/messages'
 
 interface DialectSheetProps {
   languageCode: string
@@ -12,13 +14,14 @@ interface DialectSheetProps {
   onClose: () => void
 }
 
-const VARIANT_TYPE_LABELS: Record<string, string> = {
-  DIALECT: '방언',
-  ACCENT: '악센트',
-  SCRIPT: '문자 체계',
-}
+const VARIANT_TYPE_LABELS = {
+  DIALECT: 'language.type.dialect',
+  ACCENT: 'language.type.accent',
+  SCRIPT: 'language.type.script',
+} as const
 
 export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose }: DialectSheetProps) {
+  const { language, t } = useI18n()
   const { data: variantsMap, isLoading, isError } = useQuery<Record<string, LanguageVariant[]>>({
     queryKey: ['language-variants'],
     queryFn: () => api.get('/languages/variants').then((r) => r.data),
@@ -26,7 +29,7 @@ export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose 
   })
 
   const variants = variantsMap?.[languageCode] ?? []
-  const langLabel = ALL_LANG_LABELS[languageCode] ?? languageCode
+  const langLabel = languageDisplayName(languageCode, language) || (ALL_LANG_LABELS[languageCode] ?? languageCode)
 
   const grouped = variants.reduce<Record<string, LanguageVariant[]>>((acc, v) => {
     const key = v.variantType
@@ -41,12 +44,12 @@ export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose 
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-base font-bold text-gray-900">
-            {langLabel} — 방언/변형 선택
+            {formatMessage(t('language.variantTitle'), { language: langLabel })}
           </h2>
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            aria-label="닫기"
+            aria-label={t('language.close')}
           >
             ✕
           </button>
@@ -62,30 +65,30 @@ export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose 
                 : 'border-gray-200 hover:border-gray-300 text-gray-700'
             }`}
           >
-            <span className="text-sm font-semibold">표준어 (지역 무관)</span>
+            <span className="text-sm font-semibold">{t('language.standard')}</span>
             {selectedVariant === null && <span className="text-blue-500">✓</span>}
           </button>
 
           {isLoading && (
-            <div className="py-8 text-center text-sm text-gray-400">불러오는 중...</div>
+            <div className="py-8 text-center text-sm text-gray-400">{t('common.loading')}</div>
           )}
 
           {isError && (
             <p className="text-sm text-red-400 text-center py-4">
-              방언/변형 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+              {t('language.variantLoadFailed')}
             </p>
           )}
 
           {!isLoading && !isError && variants.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">
-              등록된 방언/변형 정보가 없습니다
+              {t('language.noVariants')}
             </p>
           )}
 
           {Object.entries(grouped).map(([type, items]) => (
             <div key={type}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                {VARIANT_TYPE_LABELS[type] ?? type}
+                {type in VARIANT_TYPE_LABELS ? t(VARIANT_TYPE_LABELS[type as keyof typeof VARIANT_TYPE_LABELS]) : type}
               </p>
               <div className="flex flex-col gap-2">
                 {items.map((v) => (

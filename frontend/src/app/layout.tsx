@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'ToneBridge',
-  description: '언어 교정 기여 커뮤니티 — 남의 언어를 교정해주면 내 언어도 교정받는다',
+  description: 'A language correction exchange community',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

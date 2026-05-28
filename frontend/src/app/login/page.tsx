@@ -2,9 +2,11 @@
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useI18n } from '@/i18n/I18nProvider'
 
 function LoginInner() {
   const searchParams = useSearchParams()
+  const { t } = useI18n()
 
   const handleGoogleLogin = () => {
     const redirect = searchParams.get('redirect')
@@ -21,7 +23,7 @@ function LoginInner() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">ToneBridge</h1>
-          <p className="mt-2 text-sm text-gray-500">남의 언어를 교정하고, 내 언어도 교정받으세요</p>
+          <p className="mt-2 text-sm text-gray-500">{t('login.subtitle')}</p>
         </div>
 
         <button
@@ -29,11 +31,11 @@ function LoginInner() {
           className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors font-medium text-gray-700"
         >
           <GoogleIcon />
-          Google로 시작하기
+          {t('login.google')}
         </button>
 
         <p className="text-center text-xs text-gray-400">
-          가입하면 30 크레딧을 드립니다
+          {t('login.bonus')}
         </p>
       </div>
     </main>

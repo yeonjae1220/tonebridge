@@ -148,6 +148,7 @@ class AuthRepositoryImpl implements AuthRepository {
         email: parsed.email,
         username: parsed.username,
         nativeLanguage: parsed.nativeLanguage,
+        uiLanguage: parsed.uiLanguage,
         fluentLanguages: parsed.fluentLanguages,
         learningLanguages: parsed.learningLanguages,
         credits: parsed.credits,
@@ -166,6 +167,7 @@ class AuthRepositoryImpl implements AuthRepository {
       email: d.email,
       username: d.username,
       nativeLanguage: d.nativeLanguage,
+      uiLanguage: d.uiLanguage,
       fluentLanguages: d.fluentLanguages,
       learningLanguages: d.learningLanguages,
       credits: d.credits,
@@ -181,6 +183,7 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> saveLanguagePreferences({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? username,
@@ -193,6 +196,7 @@ class AuthRepositoryImpl implements AuthRepository {
       data: {
         if (username != null && username.isNotEmpty) 'username': username,
         'nativeLanguage': nativeLanguage,
+        'uiLanguage': uiLanguage,
         'fluentLanguages': fluentLanguages,
         'learningLanguages': learningLanguages,
         if (nativeDialect != null) 'nativeDialect': nativeDialect,

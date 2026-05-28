@@ -3,10 +3,12 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
+import { useI18n } from '@/i18n/I18nProvider'
 
 function AuthCallbackInner() {
   const router = useRouter()
   const setAccessToken = useAuthStore((s) => s.setAccessToken)
+  const { t } = useI18n()
 
   useEffect(() => {
     // 백엔드는 항상 URL 프래그먼트(#token=...)로 access token을 전달
@@ -36,16 +38,17 @@ function AuthCallbackInner() {
 
   return (
     <main className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500 text-sm animate-pulse">로그인 중...</p>
+      <p className="text-gray-500 text-sm animate-pulse">{t('auth.loading')}</p>
     </main>
   )
 }
 
 export default function AuthCallbackPage() {
+  const { t } = useI18n()
   return (
     <Suspense fallback={
       <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 text-sm animate-pulse">로그인 중...</p>
+        <p className="text-gray-500 text-sm animate-pulse">{t('auth.loading')}</p>
       </main>
     }>
       <AuthCallbackInner />

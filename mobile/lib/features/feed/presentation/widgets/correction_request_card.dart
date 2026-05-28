@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tonebridge/core/constants/languages.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
 
-class CorrectionRequestCard extends StatelessWidget {
+class CorrectionRequestCard extends ConsumerWidget {
   const CorrectionRequestCard({
     super.key,
     required this.item,
@@ -21,8 +22,9 @@ class CorrectionRequestCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final isAudio = item.type == 'AUDIO';
 
     return Card(
@@ -31,8 +33,9 @@ class CorrectionRequestCard extends StatelessWidget {
           ? RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                  width: 1.5),
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
             )
           : null,
       child: InkWell(
@@ -64,24 +67,24 @@ class CorrectionRequestCard extends StatelessWidget {
                       },
                       itemBuilder: (_) => [
                         if (onEdit != null)
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'edit',
                             child: Row(
                               children: [
-                                Icon(Icons.edit_outlined),
-                                SizedBox(width: 8),
-                                Text('수정'),
+                                const Icon(Icons.edit_outlined),
+                                const SizedBox(width: 8),
+                                Text(strings.edit),
                               ],
                             ),
                           ),
                         if (onDelete != null)
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'delete',
                             child: Row(
                               children: [
-                                Icon(Icons.delete_outline),
-                                SizedBox(width: 8),
-                                Text('삭제'),
+                                const Icon(Icons.delete_outline),
+                                const SizedBox(width: 8),
+                                Text(strings.delete),
                               ],
                             ),
                           ),
@@ -100,10 +103,11 @@ class CorrectionRequestCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '음성 교정 요청',
+                      strings.audioCorrectionRequest,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -162,11 +166,10 @@ class _LanguageBadge extends ConsumerWidget {
     final variantsAsync = ref.watch(languageVariantsProvider);
     final resolvedVariant = switch (variant) {
       null || '' => null,
-      final vc => variantsAsync.whenOrNull(
-              data: (all) => all[language]
-                  ?.where((v) => v.code == vc)
-                  .firstOrNull
-                  ?.label,
+      final vc =>
+        variantsAsync.whenOrNull(
+              data: (all) =>
+                  all[language]?.where((v) => v.code == vc).firstOrNull?.label,
             ) ??
             vc,
     };
@@ -192,13 +195,14 @@ class _LanguageBadge extends ConsumerWidget {
   }
 }
 
-class _TypeBadge extends StatelessWidget {
+class _TypeBadge extends ConsumerWidget {
   const _TypeBadge({required this.isAudio});
   final bool isAudio;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -208,7 +212,7 @@ class _TypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isAudio ? '음성' : '텍스트',
+        isAudio ? strings.audio : strings.text,
         style: theme.textTheme.labelSmall?.copyWith(
           color: isAudio
               ? theme.colorScheme.onTertiaryContainer

@@ -11,6 +11,7 @@ public record User(
         String email,
         String username,
         String nativeLanguage,
+        String uiLanguage,
         List<String> fluentLanguages,
         List<String> learningLanguages,
         String nativeDialect,
@@ -25,37 +26,37 @@ public record User(
         boolean isAdmin
 ) {
     public User withCredits(int newCredits) {
-        return new User(id, email, username, nativeLanguage, fluentLanguages,
+        return new User(id, email, username, nativeLanguage, uiLanguage, fluentLanguages,
                 learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
                 newCredits, reputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
     public User withStreak(int newStreak, LocalDate newLastCorrectionDate) {
-        return new User(id, email, username, nativeLanguage, fluentLanguages,
+        return new User(id, email, username, nativeLanguage, uiLanguage, fluentLanguages,
                 learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
                 credits, reputationScore, correctorLevel,
                 newStreak, newLastCorrectionDate, createdAt, isAdmin);
     }
 
     public User withReputation(double newReputationScore) {
-        return new User(id, email, username, nativeLanguage, fluentLanguages,
+        return new User(id, email, username, nativeLanguage, uiLanguage, fluentLanguages,
                 learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
                 credits, newReputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
-    public User withLanguages(String nativeLanguage, List<String> fluentLanguages,
+    public User withLanguages(String nativeLanguage, String uiLanguage, List<String> fluentLanguages,
             List<String> learningLanguages, String nativeDialect,
             Map<String, String> fluentLanguageVariants, Map<String, String> learningLanguageVariants) {
-        return new User(id, email, username, nativeLanguage, fluentLanguages,
+        return new User(id, email, username, nativeLanguage, uiLanguage, fluentLanguages,
                 learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
                 credits, reputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);
     }
 
     public User withUsername(String newUsername) {
-        return new User(id, email, newUsername, nativeLanguage, fluentLanguages,
+        return new User(id, email, newUsername, nativeLanguage, uiLanguage, fluentLanguages,
                 learningLanguages, nativeDialect, fluentLanguageVariants, learningLanguageVariants,
                 credits, reputationScore, correctorLevel,
                 correctionStreak, lastCorrectionDate, createdAt, isAdmin);

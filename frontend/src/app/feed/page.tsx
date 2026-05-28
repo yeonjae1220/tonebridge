@@ -8,15 +8,25 @@ import { api } from '@/lib/api'
 import { CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
+import { useI18n } from '@/i18n/I18nProvider'
 
-function timeAgo(iso: string) {
+type TFunction = ReturnType<typeof useI18n>['t']
+
+function formatMessage(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+    template,
+  )
+}
+
+function timeAgo(iso: string, t: TFunction) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
-  if (m < 1) return '방금'
-  if (m < 60) return `${m}분 전`
+  if (m < 1) return t('feed.time.now')
+  if (m < 60) return formatMessage(t('feed.time.minutesAgo'), { count: m })
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}시간 전`
-  return `${Math.floor(h / 24)}일 전`
+  if (h < 24) return formatMessage(t('feed.time.hoursAgo'), { count: h })
+  return formatMessage(t('feed.time.daysAgo'), { count: Math.floor(h / 24) })
 }
 
 function rewardLabel(req: CorrectionRequest) {
@@ -26,17 +36,18 @@ function rewardLabel(req: CorrectionRequest) {
 
 function GuestBanner() {
   const router = useRouter()
+  const { t } = useI18n()
   return (
     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
-        <p className="text-sm font-semibold text-blue-800">로그인하면 실시간 교정 피드를 볼 수 있습니다</p>
-        <p className="text-xs text-blue-600 mt-0.5">교정에 참여하고 크레딧을 벌어보세요</p>
+        <p className="text-sm font-semibold text-blue-800">{t('feed.guestTitle')}</p>
+        <p className="text-xs text-blue-600 mt-0.5">{t('feed.guestSubtitle')}</p>
       </div>
       <button
         onClick={() => router.push('/login?redirect=/feed')}
         className="shrink-0 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
       >
-        로그인하기
+        {t('feed.login')}
       </button>
     </div>
   )
@@ -45,6 +56,7 @@ function GuestBanner() {
 export default function FeedPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
+  const { t } = useI18n()
   const isGuest = !accessToken
 
   const { data: currentUser } = useCurrentUser()
@@ -99,8 +111,8 @@ export default function FeedPage() {
       <div className="max-w-lg mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">첨삭 피드</h1>
-            <p className="text-sm text-gray-500 mt-0.5">교정해서 크레딧 버세요</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('feed.title')}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t('feed.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
             {currentUser && currentUser.correctionStreak > 0 && (
@@ -108,14 +120,14 @@ export default function FeedPage() {
                 onClick={() => router.push('/profile')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl text-sm font-semibold text-orange-700 hover:bg-orange-100 transition-colors"
               >
-                🔥 {currentUser.correctionStreak}일
+                🔥 {formatMessage(t('feed.streakDays'), { count: currentUser.correctionStreak })}
               </button>
             )}
             <button
               onClick={handleRequestClick}
               className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
             >
-              요청하기
+              {t('feed.request')}
             </button>
           </div>
         </div>
@@ -133,7 +145,7 @@ export default function FeedPage() {
         {!isGuest && !isLoading && (!requests || requests.length === 0) && (
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">📭</p>
-            <p className="text-sm">현재 내 언어 능력으로 교정할 수 있는 요청이 없습니다</p>
+            <p className="text-sm">{t('feed.empty')}</p>
           </div>
         )}
 
@@ -164,20 +176,20 @@ export default function FeedPage() {
                     )}
                     {req.type === 'AUDIO' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
-                        🎙 음성
+                        🎙 {t('common.audio')}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold text-green-600">{rewardLabel(req)} 크레딧</span>
-                    <span className="text-xs text-gray-400">{timeAgo(req.createdAt)}</span>
+                    <span className="text-sm font-bold text-green-600">{rewardLabel(req)} {t('feed.credits')}</span>
+                    <span className="text-xs text-gray-400">{timeAgo(req.createdAt, t)}</span>
                   </div>
                 </div>
 
                 {req.type === 'TEXT' ? (
                   <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
                 ) : (
-                  <p className="text-sm text-gray-400 italic mb-3">🎙 음성 교정 요청 — 재생해서 확인하세요</p>
+                  <p className="text-sm text-gray-400 italic mb-3">🎙 {t('feed.audioRequest')}</p>
                 )}
 
                 {req.feedbackGoals && req.feedbackGoals.length > 0 && (

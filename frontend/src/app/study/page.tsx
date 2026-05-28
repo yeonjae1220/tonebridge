@@ -8,12 +8,14 @@ import { api } from '@/lib/api'
 import type { Friend, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export default function StudyPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
+  const { t } = useI18n()
 
   const [showNewSession, setShowNewSession] = useState(false)
   const [selectedFriendId, setSelectedFriendId] = useState('')
@@ -50,7 +52,7 @@ export default function StudyPage() {
       setSessionTitle('')
       setCreateError(null)
     },
-    onError: () => setCreateError('스터디 세션 생성에 실패했습니다. 다시 시도해주세요.'),
+    onError: () => setCreateError(t('study.createFailed')),
   })
 
   const endMutation = useMutation({
@@ -79,8 +81,8 @@ export default function StudyPage() {
       <div className="max-w-lg mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">친구와 연습</h1>
-            <p className="text-sm text-gray-500 mt-0.5">표현을 주고받고 발음까지 같이 확인하세요</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('study.title')}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t('study.subtitle')}</p>
           </div>
           <button
             onClick={() => { setShowNewSession(true); setCreateError(null) }}
@@ -90,26 +92,26 @@ export default function StudyPage() {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            연습 시작
+            {t('study.startPractice')}
           </button>
         </div>
 
         {/* 새 세션 생성 패널 */}
         {showNewSession && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
-            <p className="text-sm font-semibold text-gray-700 mb-4">친구와 새 연습</p>
+            <p className="text-sm font-semibold text-gray-700 mb-4">{t('study.newPractice')}</p>
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">함께 공부할 친구 *</label>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">{t('study.friendRequired')}</label>
                 {friends.length === 0 ? (
                   <p className="text-sm text-gray-400 py-2">
-                    친구가 없습니다.{' '}
+                    {t('study.noFriends')}{' '}
                     <button
                       onClick={() => router.push('/friends')}
                       className="text-blue-500 underline"
                     >
-                      친구를 추가해보세요
+                      {t('study.addFriend')}
                     </button>
                   </p>
                 ) : (
@@ -118,7 +120,7 @@ export default function StudyPage() {
                     onChange={(e) => setSelectedFriendId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-white transition-colors"
                   >
-                    <option value="">친구를 선택하세요</option>
+                    <option value="">{t('study.selectFriend')}</option>
                     {friends.map((f) => (
                       <option key={f.id} value={f.id}>{f.username}</option>
                     ))}
@@ -127,12 +129,12 @@ export default function StudyPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">연습 이름 (선택)</label>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">{t('study.nameOptional')}</label>
                 <input
                   type="text"
                   value={sessionTitle}
                   onChange={(e) => setSessionTitle(e.target.value)}
-                  placeholder="예: 영어 회화 연습"
+                  placeholder={t('study.namePlaceholder')}
                   maxLength={50}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 transition-colors"
                 />
@@ -146,13 +148,13 @@ export default function StudyPage() {
                   disabled={!selectedFriendId || createMutation.isPending}
                   className="flex-1 py-2.5 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 disabled:opacity-40 transition-colors"
                 >
-                  {createMutation.isPending ? '생성 중...' : '시작하기'}
+                  {createMutation.isPending ? t('study.creating') : t('common.start')}
                 </button>
                 <button
                   onClick={() => { setShowNewSession(false); setCreateError(null) }}
                   className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors"
                 >
-                  취소
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -161,8 +163,8 @@ export default function StudyPage() {
 
         {isError ? (
           <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
-            <p className="text-sm text-red-500 font-medium">세션 목록을 불러오지 못했어요</p>
-            <p className="text-xs text-gray-400 mt-1">잠시 후 다시 시도해주세요.</p>
+            <p className="text-sm text-red-500 font-medium">{t('study.loadFailed')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
           </div>
         ) : isLoading ? (
           <div className="flex flex-col gap-3">
@@ -173,14 +175,14 @@ export default function StudyPage() {
         ) : sessions.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">📖</p>
-            <p className="text-sm font-semibold text-gray-700">아직 같이 연습 중인 친구가 없어요</p>
-            <p className="text-xs text-gray-400 mt-1">친구를 골라 첫 표현을 주고받아보세요.</p>
+            <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
           </div>
         ) : (
           <>
             {activeSessions.length > 0 && (
               <section className="mb-4">
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">연습 중 ({activeSessions.length})</h2>
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.active')} ({activeSessions.length})</h2>
                 <div className="flex flex-col gap-3">
                   {activeSessions.map((session) => {
                     const canManage = currentUser?.id === session.createdBy
@@ -190,13 +192,13 @@ export default function StudyPage() {
                         session={session}
                         onOpen={() => router.push(`/study/${session.id}`)}
                         onEnd={canManage ? () => {
-                          if (window.confirm('세션을 종료할까요?')) {
+                          if (window.confirm(t('study.confirmEnd'))) {
                             endMutation.mutate(session.id)
                           }
                         } : undefined}
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
-                          if (window.confirm('세션을 삭제할까요?')) {
+                          if (window.confirm(t('study.confirmDelete'))) {
                             deleteMutation.mutate(session.id)
                           }
                         } : undefined}
@@ -210,7 +212,7 @@ export default function StudyPage() {
 
             {endedSessions.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">종료됨 ({endedSessions.length})</h2>
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.ended')} ({endedSessions.length})</h2>
                 <div className="flex flex-col gap-3">
                   {endedSessions.map((session) => {
                     const canManage = currentUser?.id === session.createdBy
@@ -222,7 +224,7 @@ export default function StudyPage() {
                         ended
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
-                          if (window.confirm('세션을 삭제할까요?')) {
+                          if (window.confirm(t('study.confirmDelete'))) {
                             deleteMutation.mutate(session.id)
                           }
                         } : undefined}
@@ -263,6 +265,7 @@ function RenameSessionSheet({
   onSubmit: (title: string | null) => void
 }) {
   const [title, setTitle] = useState(session.title ?? '')
+  const { t } = useI18n()
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -273,7 +276,7 @@ function RenameSessionSheet({
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
       <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">연습 이름 변경</h2>
+          <h2 className="text-lg font-bold text-gray-900">{t('study.renameTitle')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
         </div>
         <input
@@ -282,14 +285,14 @@ function RenameSessionSheet({
           autoFocus
           maxLength={50}
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="예: 영어 회화 연습"
+          placeholder={t('study.namePlaceholder')}
         />
         <button
           type="submit"
           disabled={pending}
           className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
         >
-          {pending ? '저장 중...' : '저장'}
+          {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
     </div>
@@ -307,24 +310,25 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended }: SessionCardProps) {
+  const { t } = useI18n()
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
       <div className="flex items-start justify-between gap-3">
         <button onClick={onOpen} className="flex-1 text-left">
           <p className="text-sm font-semibold text-gray-900 leading-snug">
-            {session.title ?? '친구와 연습'}
+            {session.title ?? t('study.practiceDefault')}
           </p>
-          <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt)} · 멤버 {session.memberIds.length}명</p>
+          <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}</p>
         </button>
         <div className="flex items-center gap-2 flex-shrink-0">
           {!ended && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-              연습 중
+              {t('study.active')}
             </span>
           )}
           {ended && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">종료</span>
+            <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">{t('study.ended')}</span>
           )}
         </div>
       </div>
@@ -333,7 +337,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
           onClick={onOpen}
           className="flex-1 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
         >
-          카드 열기
+          {t('study.openCards')}
         </button>
         {!ended && onEnd && (
           <button
@@ -341,7 +345,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
             disabled={ending}
             className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
-            세션 종료
+            {t('study.endSession')}
           </button>
         )}
         {onRename && (
@@ -349,7 +353,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
             onClick={onRename}
             className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
           >
-            수정
+            {t('common.edit')}
           </button>
         )}
         {onDelete && (
@@ -357,7 +361,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
             onClick={onDelete}
             className="px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
           >
-            삭제
+            {t('common.delete')}
           </button>
         )}
       </div>

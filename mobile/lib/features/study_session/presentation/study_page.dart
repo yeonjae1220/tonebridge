@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/friend/domain/model/friend.dart';
 import 'package:tonebridge/features/friend/domain/model/user_search_result.dart';
@@ -17,12 +18,15 @@ class _PendingRequestsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     final pendingAsync = ref.watch(pendingFriendRequestsProvider);
     return pendingAsync.when(
       loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
       error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
       data: (requests) {
-        if (requests.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+        if (requests.isEmpty) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
         final theme = Theme.of(context);
         return SliverToBoxAdapter(
           child: Container(
@@ -39,11 +43,14 @@ class _PendingRequestsSection extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                   child: Row(
                     children: [
-                      Icon(Icons.person_add_rounded,
-                          size: 18, color: theme.colorScheme.onPrimaryContainer),
+                      Icon(
+                        Icons.person_add_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
                       const SizedBox(width: 6),
                       Text(
-                        '친구 요청 ${requests.length}개',
+                        strings.friendRequestCount(requests.length),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -53,9 +60,7 @@ class _PendingRequestsSection extends ConsumerWidget {
                     ],
                   ),
                 ),
-                ...requests.map(
-                  (req) => _PendingRequestTile(request: req),
-                ),
+                ...requests.map((req) => _PendingRequestTile(request: req)),
                 const SizedBox(height: 8),
               ],
             ),
@@ -71,7 +76,8 @@ class _PendingRequestTile extends ConsumerStatefulWidget {
   final FriendRequestItem request;
 
   @override
-  ConsumerState<_PendingRequestTile> createState() => _PendingRequestTileState();
+  ConsumerState<_PendingRequestTile> createState() =>
+      _PendingRequestTileState();
 }
 
 class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
@@ -81,6 +87,7 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final id = widget.request.senderId;
     final displayName = widget.request.senderUsername.isNotEmpty
         ? widget.request.senderUsername
@@ -139,7 +146,7 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
                       if (mounted) {
                         messenger.showSnackBar(
                           SnackBar(
-                            content: const Text('요청 거절에 실패했어요. 다시 시도해 주세요.'),
+                            content: Text(strings.friendRequestDeclineFailed),
                             backgroundColor: errorColor,
                           ),
                         );
@@ -147,7 +154,10 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
                       }
                     }
                   },
-                  child: const Text('거절', style: TextStyle(fontSize: 13)),
+                  child: Text(
+                    strings.decline,
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
                 const SizedBox(width: 4),
                 TextButton(
@@ -170,14 +180,16 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
                           .acceptRequest(widget.request.id);
                       if (mounted) {
                         messenger.showSnackBar(
-                          SnackBar(content: Text('$displayName 님과 친구가 되었어요!')),
+                          SnackBar(
+                            content: Text(strings.friendAccepted(displayName)),
+                          ),
                         );
                       }
                     } catch (e) {
                       if (mounted) {
                         messenger.showSnackBar(
                           SnackBar(
-                            content: const Text('요청 수락에 실패했어요. 다시 시도해 주세요.'),
+                            content: Text(strings.friendRequestAcceptFailed),
                             backgroundColor: errorColor,
                           ),
                         );
@@ -185,7 +197,10 @@ class _PendingRequestTileState extends ConsumerState<_PendingRequestTile> {
                       }
                     }
                   },
-                  child: const Text('수락', style: TextStyle(fontSize: 13)),
+                  child: Text(
+                    strings.accept,
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
               ],
             ),
@@ -206,17 +221,18 @@ class _StudyPageState extends ConsumerState<StudyPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final sessionsAsync = ref.watch(studySessionListStateProvider);
     final friendsAsync = ref.watch(friendListStateProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('스터디'),
+        title: Text(strings.studyTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_outlined),
-            tooltip: '친구 추가',
+            tooltip: strings.addFriend,
             onPressed: () => _showAddFriendSheet(context),
           ),
         ],
@@ -230,10 +246,16 @@ class _StudyPageState extends ConsumerState<StudyPage> {
           slivers: [
             const _PendingRequestsSection(),
             _FriendAvatarRow(friendsAsync: friendsAsync),
-            const SliverToBoxAdapter(
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Text('세션', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  strings.sessions,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
             _SessionList(sessionsAsync: sessionsAsync),
@@ -246,7 +268,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
             : FloatingActionButton.extended(
                 onPressed: () => _showCreateSessionSheet(context, friends),
                 icon: const Icon(Icons.add),
-                label: const Text('새 세션'),
+                label: Text(strings.newSession),
               ),
         orElse: () => null,
       ),
@@ -254,6 +276,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
   }
 
   void _showAddFriendSheet(BuildContext context) {
+    final strings = ref.read(tProvider);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -266,7 +289,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
               .sendRequest(username);
           if (context.mounted) {
             messenger.showSnackBar(
-              const SnackBar(content: Text('친구 요청을 보냈어요!')),
+              SnackBar(content: Text(strings.friendRequestSent)),
             );
           }
           return true;
@@ -275,7 +298,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
           final messenger = ScaffoldMessenger.of(context);
           messenger.showSnackBar(
             SnackBar(
-              content: Text(_friendErrorMessage(e)),
+              content: Text(_friendErrorMessage(e, strings)),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
@@ -284,14 +307,15 @@ class _StudyPageState extends ConsumerState<StudyPage> {
     );
   }
 
-  String _friendErrorMessage(Object e) {
+  String _friendErrorMessage(Object e, ToneBridgeStrings strings) {
     final msg = e.toString();
-    if (msg.contains('USER_NOT_FOUND')) return '해당 유저를 찾을 수 없어요.';
-    if (msg.contains('CANNOT_ADD_SELF')) return '자기 자신에게 친구 요청을 보낼 수 없어요.';
-    if (msg.contains('ALREADY_SENT') || msg.contains('FRIEND_REQUEST_ALREADY')) {
-      return '이미 친구 요청을 보냈어요.';
+    if (msg.contains('USER_NOT_FOUND')) return strings.friendNotFound;
+    if (msg.contains('CANNOT_ADD_SELF')) return strings.cannotAddSelf;
+    if (msg.contains('ALREADY_SENT') ||
+        msg.contains('FRIEND_REQUEST_ALREADY')) {
+      return strings.alreadySentFriendRequest;
     }
-    return '오류가 발생했어요. 다시 시도해 주세요.';
+    return strings.genericError;
   }
 
   void _showCreateSessionSheet(BuildContext context, List<Friend> friends) {
@@ -304,33 +328,36 @@ class _StudyPageState extends ConsumerState<StudyPage> {
   }
 }
 
-class _FriendAvatarRow extends StatelessWidget {
+class _FriendAvatarRow extends ConsumerWidget {
   const _FriendAvatarRow({required this.friendsAsync});
   final AsyncValue<List<Friend>> friendsAsync;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     return SliverToBoxAdapter(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Text('친구', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Text(
+              strings.friends,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
           ),
           SizedBox(
             height: 90,
             child: friendsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) =>
-                  const Center(child: Text('친구 목록을 불러올 수 없어요')),
+              error: (_, __) => Center(child: Text(strings.friendsLoadFailed)),
               data: (friends) => friends.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
-                        '아직 친구가 없어요. 상단 + 버튼으로 추가해보세요.',
-                        style: TextStyle(color: Colors.grey),
+                        strings.noFriends,
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     )
                   : ListView.separated(
@@ -364,7 +391,9 @@ class _FriendAvatar extends ConsumerWidget {
             radius: 28,
             backgroundColor: theme.colorScheme.primaryContainer,
             child: Text(
-              friend.username.isNotEmpty ? friend.username[0].toUpperCase() : '?',
+              friend.username.isNotEmpty
+                  ? friend.username[0].toUpperCase()
+                  : '?',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -384,19 +413,20 @@ class _FriendAvatar extends ConsumerWidget {
   }
 
   Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
+    final strings = ref.read(tProvider);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('친구 삭제'),
-        content: Text('${friend.username} 님을 친구 목록에서 삭제할까요?'),
+        title: Text(strings.delete),
+        content: Text(strings.removeFriendConfirm(friend.username)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('삭제'),
+            child: Text(strings.delete),
           ),
         ],
       ),
@@ -404,19 +434,17 @@ class _FriendAvatar extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref
-          .read(friendListStateProvider.notifier)
-          .removeFriend(friend.id);
+      await ref.read(friendListStateProvider.notifier).removeFriend(friend.id);
       if (context.mounted) {
         messenger.showSnackBar(
-          SnackBar(content: Text('${friend.username} 님을 친구 목록에서 삭제했어요.')),
+          SnackBar(content: Text(strings.friendRemoved(friend.username))),
         );
       }
     } on Exception {
       if (context.mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: const Text('친구 삭제에 실패했어요. 다시 시도해 주세요.'),
+            content: Text(strings.removeFriendFailed),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -425,26 +453,27 @@ class _FriendAvatar extends ConsumerWidget {
   }
 }
 
-class _SessionList extends StatelessWidget {
+class _SessionList extends ConsumerWidget {
   const _SessionList({required this.sessionsAsync});
   final AsyncValue<List<StudySession>> sessionsAsync;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     return sessionsAsync.when(
       loading: () => const SliverFillRemaining(
         child: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => SliverFillRemaining(
-        child: Center(child: Text('오류: $e')),
+        child: Center(child: Text(strings.errorWithDetail(e))),
       ),
       data: (sessions) => sessions.isEmpty
-          ? const SliverFillRemaining(
+          ? SliverFillRemaining(
               child: Center(
                 child: Text(
-                  '아직 세션이 없어요.\n친구와 함께 스터디를 시작해보세요!',
+                  strings.noSessions,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ),
             )
@@ -459,19 +488,23 @@ class _SessionList extends StatelessWidget {
   }
 }
 
-class _SessionCard extends StatelessWidget {
+class _SessionCard extends ConsumerWidget {
   const _SessionCard({required this.session});
   final StudySession session;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final title = session.title ?? '스터디 세션';
+    final strings = ref.watch(tProvider);
+    final title = session.title ?? strings.defaultSessionTitle;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 12,
+        ),
         leading: Container(
           width: 48,
           height: 48,
@@ -486,11 +519,13 @@ class _SessionCard extends StatelessWidget {
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
-          '${session.memberIds.length}명 참여 중',
+          strings.participantCount(session.memberIds.length),
           style: TextStyle(color: theme.colorScheme.outline),
         ),
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: theme.colorScheme.outline),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: theme.colorScheme.outline,
+        ),
         onTap: () => context.push(AppRoute.sessionDetail(session.id)),
       ),
     );
@@ -543,6 +578,7 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final searchAsync = ref.watch(userSearchProvider(_query));
 
     return Padding(
@@ -556,18 +592,18 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '친구 추가',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          Text(
+            strings.addFriend,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: '유저명 검색',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.search_rounded),
+            decoration: InputDecoration(
+              labelText: strings.usernameSearch,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.search_rounded),
             ),
             onChanged: (v) {
               _debounce?.cancel();
@@ -587,9 +623,10 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
               error: (_, __) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  '검색 중 오류가 발생했어요. 다시 시도해 주세요.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                  strings.searchFailed,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
                 ),
               ),
               data: (results) {
@@ -597,19 +634,22 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      '검색 결과가 없습니다.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.outline),
+                      strings.noSearchResults,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
                     ),
                   );
                 }
                 return Column(
                   children: results
-                      .map((u) => _UserSuggestionTile(
-                            user: u,
-                            onTap: () => _send(u.username),
-                            sending: _sending,
-                          ))
+                      .map(
+                        (u) => _UserSuggestionTile(
+                          user: u,
+                          onTap: () => _send(u.username),
+                          sending: _sending,
+                        ),
+                      )
                       .toList(),
                 );
               },
@@ -626,7 +666,7 @@ class _AddFriendSheetState extends ConsumerState<_AddFriendSheet> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('요청 보내기'),
+                  : Text(strings.sendRequest),
             ),
           ),
         ],
@@ -686,22 +726,22 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
     } on Exception catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text(_sessionErrorMessage(e))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(_sessionErrorMessage(e))));
     }
   }
 
   String _sessionErrorMessage(Exception e) {
+    final strings = ref.read(tProvider);
     final msg = e.toString();
     if (msg.contains('SESSION_003') || msg.contains('ALREADY_EXISTS')) {
-      return '이미 해당 친구와 진행 중인 세션이 있어요.';
+      return strings.sessionAlreadyExists;
     }
-    return '세션 생성에 실패했어요. 다시 시도해 주세요.';
+    return strings.sessionCreateFailed;
   }
 
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(tProvider);
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -714,22 +754,24 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '새 스터디 세션',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            Text(
+              strings.newStudySession,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<Friend>(
               initialValue: _selected,
-              decoration: const InputDecoration(
-                labelText: '함께할 친구',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.studyPartner,
+                border: const OutlineInputBorder(),
               ),
               items: widget.friends
-                  .map((f) => DropdownMenuItem(
-                        value: f,
-                        child: Text('${f.username} (${f.nativeLanguage})'),
-                      ))
+                  .map(
+                    (f) => DropdownMenuItem(
+                      value: f,
+                      child: Text('${f.username} (${f.nativeLanguage})'),
+                    ),
+                  )
                   .toList(),
               onChanged: _submitting
                   ? null
@@ -741,9 +783,9 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
             TextField(
               controller: _titleController,
               enabled: !_submitting,
-              decoration: const InputDecoration(
-                labelText: '세션 이름 (선택)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.optionalSessionName,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -757,7 +799,7 @@ class _CreateSessionSheetState extends ConsumerState<_CreateSessionSheet> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('시작하기'),
+                    : Text(strings.start),
               ),
             ),
           ],
@@ -806,19 +848,24 @@ class _UserSuggestionTile extends StatelessWidget {
                 children: [
                   Text(
                     user.username,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   Text(
                     user.nativeLanguage,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.person_add_rounded,
-                size: 20, color: theme.colorScheme.primary),
+            Icon(
+              Icons.person_add_rounded,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
           ],
         ),
       ),

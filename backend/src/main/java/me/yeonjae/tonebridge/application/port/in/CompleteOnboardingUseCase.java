@@ -9,6 +9,7 @@ public interface CompleteOnboardingUseCase {
             UUID userId,
             String username,
             String nativeLanguage,
+            String uiLanguage,
             List<String> fluentLanguages,
             List<String> learningLanguages,
             String nativeDialect,

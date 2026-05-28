@@ -52,7 +52,7 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
       setPlaying(false)
       setCurrentTime(0)
     }
-  }, [audioUrl]) // containerRef intentionally excluded — stable ref
+  }, [audioUrl, containerRef])
 
   const togglePlay = () => wavesurferRef.current?.playPause()
   const seekTo = (seconds: number) => {

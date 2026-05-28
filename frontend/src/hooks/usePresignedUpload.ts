@@ -26,12 +26,12 @@ export function usePresignedUpload() {
       })
 
       if (!putRes.ok) {
-        throw new Error(`파일 업로드 실패: ${putRes.status} ${putRes.statusText}`)
+        throw new Error(`File upload failed: ${putRes.status} ${putRes.statusText}`)
       }
 
       return data.audioKey
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '업로드 실패'
+      const msg = e instanceof Error ? e.message : 'Upload failed'
       setError(msg)
       throw e
     } finally {

@@ -57,6 +57,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       await ref.read(authStateProvider.notifier).completeOnboarding(
             username: _username.isNotEmpty ? _username : null,
             nativeLanguage: _nativeLanguage!,
+            uiLanguage: _nativeLanguage!,
             fluentLanguages: _fluentLanguages,
             learningLanguages: _learningLanguages,
             nativeDialect: _nativeDialect,

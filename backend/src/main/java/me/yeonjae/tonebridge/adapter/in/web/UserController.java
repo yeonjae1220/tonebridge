@@ -74,6 +74,7 @@ public class UserController {
                 userId,
                 request.username(),
                 request.nativeLanguage(),
+                request.uiLanguage(),
                 request.fluentLanguages(),
                 request.learningLanguages(),
                 request.nativeDialect(),
@@ -92,6 +93,7 @@ public class UserController {
         updateLanguagesUseCase.update(new UpdateLanguagesUseCase.Command(
                 userId,
                 request.nativeLanguage(),
+                request.uiLanguage(),
                 request.fluentLanguages(),
                 request.learningLanguages(),
                 request.nativeDialect(),

@@ -8,11 +8,12 @@ import { api } from '@/lib/api'
 import { Correction, CorrectionRequest, StudySession } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useI18n } from '@/i18n/I18nProvider'
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  SUBMITTED: { label: '검토 중', cls: 'bg-yellow-100 text-yellow-700' },
-  APPROVED: { label: '승인됨', cls: 'bg-green-100 text-green-700' },
-  REJECTED: { label: '반려됨', cls: 'bg-red-100 text-red-700' },
+const STATUS_MAP: Record<string, { key: 'result.waiting' | 'result.approved' | 'result.rejected'; cls: string }> = {
+  SUBMITTED: { key: 'result.waiting', cls: 'bg-yellow-100 text-yellow-700' },
+  APPROVED: { key: 'result.approved', cls: 'bg-green-100 text-green-700' },
+  REJECTED: { key: 'result.rejected', cls: 'bg-red-100 text-red-700' },
 }
 
 function formatTime(seconds: number) {
@@ -32,10 +33,11 @@ function RefAudioPlayer({ audioKey }: { audioKey: string }) {
   }, [audioKey])
 
   const ws = useWaveSurfer(containerRef, url)
+  const { t } = useI18n()
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold text-indigo-600">원어민 재녹음</p>
+      <p className="text-xs font-semibold text-indigo-600">{t('common.audio')}</p>
       <div ref={containerRef} className="w-full min-h-[48px] bg-indigo-50 rounded-xl overflow-hidden" />
       <div className="flex items-center justify-between">
         <button
@@ -43,7 +45,7 @@ function RefAudioPlayer({ audioKey }: { audioKey: string }) {
           disabled={!ws.ready}
           className="px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-medium disabled:opacity-40 hover:bg-indigo-600 transition-colors"
         >
-          {ws.playing ? '⏸ 일시정지' : '▶ 재생'}
+          {ws.playing ? `⏸ ${t('common.pause')}` : `▶ ${t('common.play')}`}
         </button>
         <span className="text-xs text-gray-400 font-mono">
           {formatTime(ws.currentTime)} / {formatTime(ws.duration)}
@@ -54,6 +56,7 @@ function RefAudioPlayer({ audioKey }: { audioKey: string }) {
 }
 
 function AudioCorrectionDetail({ correction }: { correction: Correction }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-col gap-4">
       {/* Scores */}
@@ -61,7 +64,7 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
         <div className="grid grid-cols-3 gap-3">
           {correction.pronunciationScore != null && (
             <div className="text-center bg-blue-50 rounded-xl p-3">
-              <p className="text-xs text-blue-500 mb-1">발음</p>
+              <p className="text-xs text-blue-500 mb-1">{t('goal.pronunciation')}</p>
               <p className="text-xl font-bold text-blue-700">
                 {correction.pronunciationScore}<span className="text-xs text-blue-400">/10</span>
               </p>
@@ -69,7 +72,7 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
           )}
           {correction.intonationScore != null && (
             <div className="text-center bg-purple-50 rounded-xl p-3">
-              <p className="text-xs text-purple-500 mb-1">억양</p>
+              <p className="text-xs text-purple-500 mb-1">{t('goal.intonation')}</p>
               <p className="text-xl font-bold text-purple-700">
                 {correction.intonationScore}<span className="text-xs text-purple-400">/10</span>
               </p>
@@ -77,7 +80,7 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
           )}
           {correction.fluencyScore != null && (
             <div className="text-center bg-green-50 rounded-xl p-3">
-              <p className="text-xs text-green-500 mb-1">이해도</p>
+              <p className="text-xs text-green-500 mb-1">{t('goal.naturalness')}</p>
               <p className="text-xl font-bold text-green-700">
                 {correction.fluencyScore}<span className="text-xs text-green-400">/10</span>
               </p>
@@ -89,7 +92,7 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
       {/* Timestamp comments */}
       {correction.timestampComments && correction.timestampComments.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold text-gray-500">구간 코멘트</p>
+          <p className="text-xs font-semibold text-gray-500">{t('result.explanation')}</p>
           {correction.timestampComments.map((tc, i) => (
             <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
               <span className="text-xs font-mono text-indigo-500 shrink-0 mt-0.5">{formatTime(tc.start)}</span>
@@ -115,6 +118,7 @@ export default function ResultPage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
+  const { t } = useI18n()
   const sseRef = useRef<EventSource | null>(null)
   const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null)
   const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
@@ -232,15 +236,15 @@ export default function ResultPage() {
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/feed')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
-          <h1 className="text-xl font-bold text-gray-900">첨삭 결과</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t('result.title')}</h1>
         </div>
 
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs font-semibold text-amber-600">내 원문</p>
+            <p className="text-xs font-semibold text-amber-600">{t('result.original')}</p>
             {isAudio && (
-              <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-700 rounded-full">음성</span>
+              <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-700 rounded-full">{t('common.audio')}</span>
             )}
             {request && (
               <div className="ml-auto flex gap-2">
@@ -249,19 +253,19 @@ export default function ResultPage() {
                     onClick={() => setEditingRequest(request)}
                     className="text-xs text-amber-700 hover:text-amber-900"
                   >
-                    수정
+                    {t('common.edit')}
                   </button>
                 )}
                 {request.status === 'PENDING' && (
                   <button
                     onClick={() => {
-                      if (window.confirm('이 첨삭 요청을 삭제할까요?')) {
+                      if (window.confirm(t('result.confirmDeleteRequest'))) {
                         deleteRequestMutation.mutate()
                       }
                     }}
                     className="text-xs text-red-500 hover:text-red-700"
                   >
-                    삭제
+                    {t('common.delete')}
                   </button>
                 )}
               </div>
@@ -276,7 +280,7 @@ export default function ResultPage() {
                   disabled={!ws.ready}
                   className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-amber-600 transition-colors"
                 >
-                  {ws.playing ? '⏸ 일시정지' : '▶ 재생'}
+                  {ws.playing ? `⏸ ${t('common.pause')}` : `▶ ${t('common.play')}`}
                 </button>
                 <span className="text-xs text-amber-600 font-mono">
                   {formatTime(ws.currentTime)} / {formatTime(ws.duration)}
@@ -292,8 +296,8 @@ export default function ResultPage() {
         {!corrections || corrections.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
             <p className="text-3xl mb-3">⏳</p>
-            <p className="text-sm font-medium text-gray-700 mb-1">첨삭 대기 중</p>
-            <p className="text-xs text-gray-400">원어민이 첨삭하면 알림이 옵니다</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">{t('result.pendingTitle')}</p>
+            <p className="text-xs text-gray-400">{t('result.pendingSubtitle')}</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -304,10 +308,10 @@ export default function ResultPage() {
                 <div key={correction.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.cls}`}>
-                      {statusInfo.label}
+                      {t(statusInfo.key)}
                     </span>
                     {correction.isAi && (
-                      <span className="text-xs text-purple-500 font-medium">AI 첨삭</span>
+                      <span className="text-xs text-purple-500 font-medium">{t('result.aiCorrection')}</span>
                     )}
                     {canManage && (
                       <div className="flex gap-2">
@@ -315,17 +319,17 @@ export default function ResultPage() {
                           onClick={() => setEditingCorrection(correction)}
                           className="text-xs text-gray-500 hover:text-blue-600"
                         >
-                          수정
+                          {t('common.edit')}
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm('이 첨삭을 삭제할까요?')) {
+                            if (window.confirm(t('result.confirmDeleteCorrection'))) {
                               deleteCorrectionMutation.mutate(correction.id)
                             }
                           }}
                           className="text-xs text-gray-500 hover:text-red-600"
                         >
-                          삭제
+                          {t('common.delete')}
                         </button>
                       </div>
                     )}
@@ -337,7 +341,7 @@ export default function ResultPage() {
                     ) : (
                       correction.correctedText && (
                         <div>
-                          <p className="text-xs font-semibold text-green-600 mb-1.5">수정 문장</p>
+                          <p className="text-xs font-semibold text-green-600 mb-1.5">{t('result.correctedText')}</p>
                           <p className="text-sm text-gray-800 bg-green-50 rounded-xl p-3">
                             {correction.correctedText}
                           </p>
@@ -347,7 +351,7 @@ export default function ResultPage() {
 
                     {correction.explanation && (
                       <div>
-                        <p className="text-xs font-semibold text-blue-600 mb-1.5">설명</p>
+                        <p className="text-xs font-semibold text-blue-600 mb-1.5">{t('result.explanation')}</p>
                         <p className="text-sm text-gray-700">{correction.explanation}</p>
                       </div>
                     )}
@@ -368,9 +372,9 @@ export default function ResultPage() {
                           onClick={() => setSavingCorrection(correction)}
                           className="mb-3 w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
                         >
-                          스터디 카드로 저장
+                          {t('result.saveCard')}
                         </button>
-                        <p className="text-xs text-gray-500 mb-2">이 첨삭이 도움이 됐나요?</p>
+                        <p className="text-xs text-gray-500 mb-2">{t('result.helpfulQuestion')}</p>
                         <div className="flex gap-2">
                           <button
                             onClick={() =>
@@ -378,7 +382,7 @@ export default function ResultPage() {
                             }
                             className="flex-1 py-2 rounded-xl border border-gray-200 text-sm hover:bg-green-50 hover:border-green-300 transition-colors"
                           >
-                            👍 도움됨
+                            👍 {t('result.helpful')}
                           </button>
                           <button
                             onClick={() =>
@@ -386,7 +390,7 @@ export default function ResultPage() {
                             }
                             className="flex-1 py-2 rounded-xl border border-gray-200 text-sm hover:bg-red-50 hover:border-red-300 transition-colors"
                           >
-                            👎 별로
+                            👎 {t('result.notHelpful')}
                           </button>
                         </div>
                       </div>
@@ -454,6 +458,7 @@ function RequestEditSheet({
 }) {
   const [contentText, setContentText] = useState(request.contentText ?? '')
   const [context, setContext] = useState(request.context ?? '')
+  const { t } = useI18n()
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -466,7 +471,7 @@ function RequestEditSheet({
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
       <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title="요청 수정" onClose={onClose} />
+        <SheetHeader title={t('common.edit')} onClose={onClose} />
         {!isAudio && (
           <textarea
             value={contentText}
@@ -479,10 +484,10 @@ function RequestEditSheet({
           value={context}
           onChange={(e) => setContext(e.target.value)}
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="상황 설명"
+          placeholder={t('request.context')}
         />
         <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
-          {pending ? '저장 중...' : '저장'}
+          {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
     </div>
@@ -504,6 +509,7 @@ function CorrectionEditSheet({
 }) {
   const [correctedText, setCorrectedText] = useState(correction.correctedText ?? '')
   const [explanation, setExplanation] = useState(correction.explanation ?? '')
+  const { t } = useI18n()
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -517,14 +523,14 @@ function CorrectionEditSheet({
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
       <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title="첨삭 수정" onClose={onClose} />
+        <SheetHeader title={t('common.edit')} onClose={onClose} />
         {!isAudio && (
           <textarea
             value={correctedText}
             onChange={(e) => setCorrectedText(e.target.value)}
             rows={3}
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="수정 문장"
+            placeholder={t('result.correctedText')}
           />
         )}
         <textarea
@@ -532,10 +538,10 @@ function CorrectionEditSheet({
           onChange={(e) => setExplanation(e.target.value)}
           rows={4}
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="설명"
+          placeholder={t('result.explanation')}
         />
         <button type="submit" disabled={pending || !explanation.trim()} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
-          {pending ? '저장 중...' : '저장'}
+          {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
     </div>
@@ -560,7 +566,8 @@ function SaveCardSheet({
   onStudy: () => void
 }) {
   const [sessionId, setSessionId] = useState(sessions[0]?.id ?? '')
-  const [phrase, setPhrase] = useState(correction.correctedText || request.contentText || request.context || '음성 첨삭 카드')
+  const { t } = useI18n()
+  const [phrase, setPhrase] = useState(correction.correctedText || request.contentText || request.context || t('result.audioCardDefault'))
   const [context, setContext] = useState(correction.explanation || request.context || '')
 
   useEffect(() => {
@@ -583,26 +590,26 @@ function SaveCardSheet({
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
       <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title="스터디 카드로 저장" onClose={onClose} />
+        <SheetHeader title={t('result.saveCard')} onClose={onClose} />
         {sessions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm font-semibold text-gray-700">진행 중인 연습이 없어요</p>
-            <p className="text-xs text-gray-400 mt-1">친구와 연습을 먼저 시작하면 카드를 저장할 수 있습니다.</p>
+            <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
             <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold">
-              친구와 연습 시작
+              {t('study.startPractice')}
             </button>
           </div>
         ) : (
           <>
             <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white">
               {sessions.map((session) => (
-                <option key={session.id} value={session.id}>{session.title ?? '친구와 연습'}</option>
+                <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>
               ))}
             </select>
             <textarea value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
-            <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder="카드 설명" />
+            <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder={t('study.cards.context')} />
             <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-40">
-              {pending ? '저장 중...' : '카드 저장'}
+              {pending ? t('common.saving') : t('common.save')}
             </button>
           </>
         )}

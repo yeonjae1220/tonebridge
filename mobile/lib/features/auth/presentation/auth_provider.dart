@@ -86,6 +86,7 @@ class AuthState extends _$AuthState {
 
   Future<void> completeOnboarding({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? username,
@@ -96,6 +97,7 @@ class AuthState extends _$AuthState {
     final repo = ref.read(authRepositoryProvider);
     await repo.saveLanguagePreferences(
       nativeLanguage: nativeLanguage,
+      uiLanguage: uiLanguage,
       fluentLanguages: fluentLanguages,
       learningLanguages: learningLanguages,
       username: username,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
 import 'package:tonebridge/features/feed/presentation/feed_provider.dart';
@@ -34,12 +35,13 @@ class _FeedPageState extends ConsumerState<FeedPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final profileAsync = ref.watch(userProfileProvider);
     final streak = profileAsync.whenOrNull(data: (p) => p.correctionStreak);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('피드'),
+        title: Text(strings.feedTitle),
         actions: [
           // Streak badge
           if (streak != null && streak > 0)
@@ -48,8 +50,10 @@ class _FeedPageState extends ConsumerState<FeedPage>
               child: GestureDetector(
                 onTap: () => context.push(AppRoute.profile),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.orange.shade50,
@@ -57,7 +61,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '🔥 ${streak}일',
+                    '🔥 ${strings.streakDays(streak)}',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: Colors.orange.shade800,
                       fontWeight: FontWeight.w600,
@@ -72,18 +76,21 @@ class _FeedPageState extends ConsumerState<FeedPage>
             child: FilledButton(
               onPressed: () => context.push(AppRoute.request),
               style: FilledButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                  visualDensity: VisualDensity.compact),
-              child: const Text('요청하기'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 0,
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(strings.requestAction),
             ),
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: '교정 요청'),
-            Tab(text: '내 요청'),
+          tabs: [
+            Tab(text: strings.correctionRequests),
+            Tab(text: strings.myRequests),
           ],
         ),
       ),
@@ -104,39 +111,40 @@ class _FeedTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     final feedAsync = ref.watch(feedStateProvider);
 
     // Collect codes the current user can correct
-    final correctorVariants = profileAsync.whenOrNull(data: (p) {
-      return <String>{
-        p.nativeLanguage,
-        ...p.fluentLanguages,
-      };
-    }) ?? <String>{};
+    final correctorVariants =
+        profileAsync.whenOrNull(
+          data: (p) {
+            return <String>{p.nativeLanguage, ...p.fluentLanguages};
+          },
+        ) ??
+        <String>{};
 
     return feedAsync.when(
       loading: () => _LoadingSkeleton(),
       error: (e, _) => _ErrorView(
         message: e.toString(),
-        onRetry: () =>
-            ref.read(feedStateProvider.notifier).refresh(),
+        onRetry: () => ref.read(feedStateProvider.notifier).refresh(),
       ),
       data: (items) {
         if (items.isEmpty) {
-          return const _EmptyView(
+          return _EmptyView(
             icon: Icons.inbox_rounded,
-            message: '교정 가능한 요청이 없습니다.\n잠시 후 다시 확인해보세요.',
+            message: strings.noCorrectableRequests,
           );
         }
         return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(feedStateProvider.notifier).refresh(),
+          onRefresh: () => ref.read(feedStateProvider.notifier).refresh(),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              final isMatch = item.targetVariant != null &&
+              final isMatch =
+                  item.targetVariant != null &&
                   correctorVariants.contains(item.targetVariant);
               return CorrectionRequestCard(
                 item: item,
@@ -156,24 +164,23 @@ class _MyRequestsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     final myAsync = ref.watch(myRequestsStateProvider);
     return myAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => _ErrorView(
         message: e.toString(),
-        onRetry: () =>
-            ref.read(myRequestsStateProvider.notifier).refresh(),
+        onRetry: () => ref.read(myRequestsStateProvider.notifier).refresh(),
       ),
       data: (items) {
         if (items.isEmpty) {
-          return const _EmptyView(
+          return _EmptyView(
             icon: Icons.edit_note_rounded,
-            message: '아직 교정 요청이 없습니다.\n새 요청을 작성해보세요.',
+            message: strings.noMyRequests,
           );
         }
         return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(myRequestsStateProvider.notifier).refresh(),
+          onRefresh: () => ref.read(myRequestsStateProvider.notifier).refresh(),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: items.length,
@@ -201,22 +208,23 @@ class _MyRequestsTab extends ConsumerWidget {
     WidgetRef ref,
     String requestId,
   ) async {
+    final strings = ref.read(tProvider);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('요청 삭제'),
-        content: const Text('이 첨삭 요청을 삭제할까요? 목록에서 숨겨집니다.'),
+        title: Text(strings.requestDeleteTitle),
+        content: Text(strings.requestDeleteConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
             ),
-            child: const Text('삭제'),
+            child: Text(strings.delete),
           ),
         ],
       ),
@@ -225,9 +233,9 @@ class _MyRequestsTab extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(myRequestsStateProvider.notifier).deleteRequest(requestId);
-      messenger.showSnackBar(const SnackBar(content: Text('요청을 삭제했어요')));
+      messenger.showSnackBar(SnackBar(content: Text(strings.requestDeleted)));
     } on Exception catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+      messenger.showSnackBar(SnackBar(content: Text(strings.deleteFailed(e))));
     }
   }
 
@@ -236,7 +244,10 @@ class _MyRequestsTab extends ConsumerWidget {
     WidgetRef ref,
     CorrectionRequestItem item,
   ) {
-    final contentController = TextEditingController(text: item.contentText ?? '');
+    final strings = ref.read(tProvider);
+    final contentController = TextEditingController(
+      text: item.contentText ?? '',
+    );
     final contextController = TextEditingController(text: item.context ?? '');
     showModalBottomSheet<void>(
       context: context,
@@ -253,16 +264,18 @@ class _MyRequestsTab extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('요청 수정',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            Text(
+              strings.requestEditTitle,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
             if (item.type == 'TEXT') ...[
               const SizedBox(height: 16),
               TextField(
                 controller: contentController,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: '원문',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: strings.originalText,
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 4,
               ),
@@ -270,9 +283,9 @@ class _MyRequestsTab extends ConsumerWidget {
             const SizedBox(height: 12),
             TextField(
               controller: contextController,
-              decoration: const InputDecoration(
-                labelText: '상황 설명',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.contextDescription,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 3,
             ),
@@ -284,7 +297,9 @@ class _MyRequestsTab extends ConsumerWidget {
                   final navigator = Navigator.of(context);
                   final messenger = ScaffoldMessenger.of(context);
                   try {
-                    await ref.read(myRequestsStateProvider.notifier).updateRequest(
+                    await ref
+                        .read(myRequestsStateProvider.notifier)
+                        .updateRequest(
                           requestId: item.id,
                           targetLanguage: item.targetLanguage,
                           targetVariant: item.targetVariant,
@@ -298,12 +313,15 @@ class _MyRequestsTab extends ConsumerWidget {
                         );
                     navigator.pop();
                     messenger.showSnackBar(
-                        const SnackBar(content: Text('요청을 수정했어요')));
+                      SnackBar(content: Text(strings.requestUpdated)),
+                    );
                   } on Exception catch (e) {
-                    messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(strings.editFailed(e))),
+                    );
                   }
                 },
-                child: const Text('저장'),
+                child: Text(strings.save),
               ),
             ),
           ],
@@ -336,26 +354,30 @@ class _LoadingSkeleton extends StatelessWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
+class _ErrorView extends ConsumerWidget {
   const _ErrorView({required this.message, required this.onRetry});
   final String message;
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded,
-                size: 48, color: theme.colorScheme.error),
+            Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: theme.colorScheme.error,
+            ),
             const SizedBox(height: 12),
-            Text('오류가 발생했습니다', style: theme.textTheme.titleMedium),
+            Text(strings.errorOccurred, style: theme.textTheme.titleMedium),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('다시 시도')),
+            FilledButton(onPressed: onRetry, child: Text(strings.retry)),
           ],
         ),
       ),

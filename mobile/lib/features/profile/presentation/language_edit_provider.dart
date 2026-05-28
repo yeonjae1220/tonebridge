@@ -13,6 +13,7 @@ class LanguageEdit extends _$LanguageEdit {
 
   Future<bool> save({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,
@@ -23,6 +24,7 @@ class LanguageEdit extends _$LanguageEdit {
     state = await AsyncValue.guard(() async {
       await ref.read(profileRepositoryProvider).updateLanguages(
             nativeLanguage: nativeLanguage,
+            uiLanguage: uiLanguage,
             fluentLanguages: fluentLanguages,
             learningLanguages: learningLanguages,
             nativeDialect: nativeDialect,

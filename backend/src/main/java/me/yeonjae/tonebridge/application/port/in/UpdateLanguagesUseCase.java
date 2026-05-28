@@ -8,6 +8,7 @@ public interface UpdateLanguagesUseCase {
     record Command(
             UUID userId,
             String nativeLanguage,
+            String uiLanguage,
             List<String> fluentLanguages,
             List<String> learningLanguages,
             String nativeDialect,

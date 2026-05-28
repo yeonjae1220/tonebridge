@@ -52,6 +52,9 @@ public class UserEntity {
     @Column(nullable = false)
     private String nativeLanguage;
 
+    @Column(name = "ui_language", nullable = false, length = 30)
+    private String uiLanguage;
+
     @Column(name = "fluent_languages", length = 1024)
     private String fluentLanguagesRaw;
 
@@ -97,7 +100,7 @@ public class UserEntity {
     }
 
     public User toDomain() {
-        return new User(id, email, username, nativeLanguage,
+        return new User(id, email, username, nativeLanguage, uiLanguage,
                 parseList(fluentLanguagesRaw),
                 parseList(learningLanguagesRaw),
                 nativeDialect,
@@ -113,6 +116,7 @@ public class UserEntity {
                 .email(user.email())
                 .username(user.username())
                 .nativeLanguage(user.nativeLanguage())
+                .uiLanguage(user.uiLanguage())
                 .fluentLanguagesRaw(joinList(user.fluentLanguages()))
                 .learningLanguagesRaw(joinList(user.learningLanguages()))
                 .nativeDialect(user.nativeDialect())
@@ -131,6 +135,7 @@ public class UserEntity {
     public void updateFrom(User user) {
         this.username = user.username();
         this.nativeLanguage = user.nativeLanguage();
+        this.uiLanguage = user.uiLanguage();
         this.fluentLanguagesRaw = joinList(user.fluentLanguages());
         this.learningLanguagesRaw = joinList(user.learningLanguages());
         this.nativeDialect = user.nativeDialect();

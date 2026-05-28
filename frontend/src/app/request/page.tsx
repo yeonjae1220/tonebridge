@@ -10,8 +10,16 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
+import { useI18n } from '@/i18n/I18nProvider'
 
-const FEEDBACK_GOALS = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스']
+const FEEDBACK_GOALS = [
+  { key: 'goal.pronunciation', value: '발음' },
+  { key: 'goal.grammar', value: '문법' },
+  { key: 'goal.naturalness', value: '자연스러움' },
+  { key: 'goal.intonation', value: '억양' },
+  { key: 'goal.casual', value: '캐주얼' },
+  { key: 'goal.business', value: '비즈니스' },
+] as const
 
 type Tab = 'TEXT' | 'AUDIO'
 
@@ -30,6 +38,7 @@ function RecordedAudioPreview({
 }) {
   const waveformRef = useRef<HTMLDivElement | null>(null)
   const { playing, currentTime, duration, ready, togglePlay } = useWaveSurfer(waveformRef, audioUrl)
+  const { t } = useI18n()
 
   return (
     <div className="w-full rounded-2xl bg-gray-50 border border-gray-100 p-4">
@@ -39,7 +48,7 @@ function RecordedAudioPreview({
           onClick={togglePlay}
           disabled={!ready}
           className="w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center disabled:opacity-40"
-          aria-label={playing ? '정지' : '재생'}
+          aria-label={playing ? t('common.stop') : t('common.play')}
         >
           {playing ? 'Ⅱ' : '▶'}
         </button>
@@ -56,7 +65,7 @@ function RecordedAudioPreview({
         onClick={onReset}
         className="mt-3 w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-white transition-colors"
       >
-        다시 녹음
+        {t('request.recordAgain')}
       </button>
     </div>
   )
@@ -65,6 +74,7 @@ function RecordedAudioPreview({
 export default function RequestPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
+  const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('TEXT')
   const [targetLanguage, setTargetLanguage] = useState('')
   const [targetVariant, setTargetVariant] = useState<string | null>(null)
@@ -90,13 +100,13 @@ export default function RequestPage() {
         feedbackGoals: selectedGoals,
       }),
     onSuccess: () => router.push('/feed'),
-    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '요청 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('request.failed')),
   })
 
   const audioMutation = useMutation({
     mutationFn: async () => {
       const file = recorder.getFile(`audio_${Date.now()}.webm`)
-      if (!file) throw new Error('녹음 파일 없음')
+      if (!file) throw new Error(t('request.noAudioFile'))
       const audioKey = await upload(file)
       return api.post('/correction-requests/audio', {
         targetLanguage,
@@ -107,7 +117,7 @@ export default function RequestPage() {
       })
     },
     onSuccess: () => router.push('/feed'),
-    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? '요청 실패'),
+    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('request.failed')),
   })
 
   const toggleGoal = (goal: string) => {
@@ -135,23 +145,23 @@ export default function RequestPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">교정 요청</h1>
-          <p className="text-sm text-gray-500 mt-1">원어민에게 교정을 받으세요</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('request.title')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('request.subtitle')}</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-5">
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-3">무엇을 교정받을까요?</p>
+            <p className="text-sm font-semibold text-gray-700 mb-3">{t('request.typeQuestion')}</p>
             <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-              {(['TEXT', 'AUDIO'] as const).map((t) => (
+              {(['TEXT', 'AUDIO'] as const).map((kind) => (
                 <button
-                  key={t}
-                  onClick={() => { setTab(t); setError('') }}
+                  key={kind}
+                  onClick={() => { setTab(kind); setError('') }}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    tab === kind ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  {t === 'TEXT' ? '텍스트' : '음성'}
+                  {kind === 'TEXT' ? t('common.text') : t('common.audio')}
                 </button>
               ))}
             </div>
@@ -159,32 +169,32 @@ export default function RequestPage() {
 
           {tab === 'TEXT' ? (
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-gray-700">교정받을 내용</span>
+              <span className="text-sm font-semibold text-gray-700">{t('request.contentLabel')}</span>
               <textarea
                 value={contentText}
                 onChange={(e) => setContentText(e.target.value)}
-                placeholder="교정 받고 싶은 문장을 입력하세요..."
+                placeholder={t('request.contentPlaceholder')}
                 rows={6}
                 className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </label>
           ) : (
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">음성 녹음</p>
+              <p className="text-sm font-semibold text-gray-700">{t('request.recordingLabel')}</p>
               <div className="flex flex-col items-center gap-4">
                 {recorder.state === 'idle' && (
                   <button
                     onClick={recorder.start}
                     className="w-full py-4 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold shadow-sm transition-colors"
                   >
-                    녹음 시작
+                    {t('request.startRecording')}
                   </button>
                 )}
                 {recorder.state === 'recording' && (
                   <div className="w-full flex items-center justify-between rounded-xl bg-red-50 border border-red-100 px-4 py-3">
                     <span className="text-sm text-red-600 font-mono">{formatDuration(recorder.duration)}</span>
                     <button onClick={recorder.stop} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium">
-                      녹음 중지
+                      {t('request.stopRecording')}
                     </button>
                   </div>
                 )}
@@ -196,7 +206,7 @@ export default function RequestPage() {
           )}
 
           <div className="grid gap-3">
-            <label className="text-sm font-semibold text-gray-700">교정 언어</label>
+            <label className="text-sm font-semibold text-gray-700">{t('request.language')}</label>
             <LanguagePicker
               value={targetLanguage}
               variant={targetVariant}
@@ -209,36 +219,36 @@ export default function RequestPage() {
           </div>
 
           <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-gray-700">상황</span>
+            <span className="text-sm font-semibold text-gray-700">{t('request.context')}</span>
             <input
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder={tab === 'TEXT' ? '예: 일본 회사에 이메일을 보낼 때...' : '예: 일본 친구에게 전화할 때...'}
+              placeholder={tab === 'TEXT' ? t('request.contextTextPlaceholder') : t('request.contextAudioPlaceholder')}
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </label>
 
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-3">피드백 초점</p>
+            <p className="text-sm font-semibold text-gray-700 mb-3">{t('request.feedbackFocus')}</p>
             <div className="flex flex-wrap gap-2">
               {FEEDBACK_GOALS.map((goal) => (
                 <button
-                  key={goal}
-                  onClick={() => toggleGoal(goal)}
+                  key={goal.key}
+                  onClick={() => toggleGoal(goal.value)}
                   className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                    selectedGoals.includes(goal)
+                    selectedGoals.includes(goal.value)
                       ? 'bg-blue-100 text-blue-700 border-blue-300'
                       : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
                   }`}
                 >
-                  {goal}
+                  {t(goal.key)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-600">사용 크레딧</span>
+            <span className="text-sm text-gray-600">{t('request.creditCost')}</span>
             <span className="text-lg font-bold text-blue-600">-{creditCost}</span>
           </div>
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -247,7 +257,7 @@ export default function RequestPage() {
             disabled={!canSubmit}
             className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold disabled:opacity-40 hover:bg-blue-600 transition-colors"
           >
-            {isPending ? '요청 중...' : '교정 요청하기'}
+            {isPending ? t('request.submitting') : t('request.submit')}
           </button>
         </div>
       </div>

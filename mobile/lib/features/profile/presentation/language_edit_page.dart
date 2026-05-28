@@ -38,6 +38,7 @@ class _LanguageEditPageState extends ConsumerState<LanguageEditPage> {
   Future<void> _save() async {
     final success = await ref.read(languageEditProvider.notifier).save(
           nativeLanguage: _nativeLanguage,
+          uiLanguage: widget.profile.uiLanguage,
           fluentLanguages: _fluentLanguages,
           learningLanguages: _learningLanguages,
           nativeDialect: _nativeDialect,

@@ -79,7 +79,7 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
 
         boolean isAdmin = properties.getAdmin().getEmails().contains(googleUser.email());
         User newUser = new User(
-                null, googleUser.email(), username, "", List.of(), List.of(),
+                null, googleUser.email(), username, "", "ko", List.of(), List.of(),
                 null, Map.of(), Map.of(),
                 signupBonus, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), isAdmin
         );

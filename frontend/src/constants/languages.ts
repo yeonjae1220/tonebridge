@@ -54,3 +54,17 @@ export const ALL_LANGUAGES: Language[] = [...PRIMARY_LANGUAGES, ...OTHER_LANGUAG
 export const ALL_LANG_LABELS: Record<string, string> = Object.fromEntries(
   ALL_LANGUAGES.map((l) => [l.code, l.label])
 )
+
+export const UI_LANGUAGES: Language[] = [
+  { code: 'ko', label: '한국어', flag: '🇰🇷' },
+  { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'ja', label: '日本語', flag: '🇯🇵' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'pt', label: 'Português', flag: '🇵🇹' },
+  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
+]
+
+export type UiLanguageCode = typeof UI_LANGUAGES[number]['code']

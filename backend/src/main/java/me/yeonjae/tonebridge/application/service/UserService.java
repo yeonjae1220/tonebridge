@@ -24,6 +24,9 @@ import java.util.UUID;
 public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUserUseCase,
         GetCurrentUserUseCase, UpdateLanguagesUseCase, UpdateNicknameUseCase, SearchUsersUseCase {
 
+    private static final List<String> SUPPORTED_UI_LANGUAGES =
+            List.of("ko", "en", "ja", "zh", "es", "fr", "de", "pt", "ru");
+
     private final UserPort userPort;
     private final RefreshTokenPort refreshTokenPort;
 
@@ -43,7 +46,8 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
             user = get(command.userId());
         }
         userPort.save(user.withLanguages(
-                command.nativeLanguage(), command.fluentLanguages(), command.learningLanguages(),
+                command.nativeLanguage(), normalizeUiLanguage(command.uiLanguage(), command.nativeLanguage()),
+                command.fluentLanguages(), command.learningLanguages(),
                 command.nativeDialect(), command.fluentLanguageVariants(), command.learningLanguageVariants()));
     }
 
@@ -51,7 +55,8 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
     public void update(UpdateLanguagesUseCase.Command command) {
         User user = get(command.userId());
         userPort.save(user.withLanguages(
-                command.nativeLanguage(), command.fluentLanguages(), command.learningLanguages(),
+                command.nativeLanguage(), normalizeUiLanguage(command.uiLanguage(), user.uiLanguage()),
+                command.fluentLanguages(), command.learningLanguages(),
                 command.nativeDialect(), command.fluentLanguageVariants(), command.learningLanguageVariants()));
     }
 
@@ -85,5 +90,13 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
             }
         });
         userPort.save(user.withUsername(newUsername));
+    }
+
+    private String normalizeUiLanguage(String requested, String fallback) {
+        String language = requested != null && !requested.isBlank() ? requested : fallback;
+        if (!SUPPORTED_UI_LANGUAGES.contains(language)) {
+            return "ko";
+        }
+        return language;
     }
 }

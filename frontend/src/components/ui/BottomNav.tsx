@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
+import { useI18n } from '@/i18n/I18nProvider'
 
 const TABS = [
   {
     href: '/feed',
-    label: '피드',
+    labelKey: 'nav.feed' as const,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -16,7 +17,7 @@ const TABS = [
   },
   {
     href: '/study',
-    label: '스터디',
+    labelKey: 'nav.study' as const,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
@@ -26,7 +27,7 @@ const TABS = [
   },
   {
     href: '/friends',
-    label: '친구',
+    labelKey: 'nav.friends' as const,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -38,7 +39,7 @@ const TABS = [
   },
   {
     href: '/profile',
-    label: '프로필',
+    labelKey: 'nav.profile' as const,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -51,6 +52,7 @@ const TABS = [
 export function BottomNav() {
   const pathname = usePathname()
   const accessToken = useAuthStore((s) => s.accessToken)
+  const { t } = useI18n()
 
   if (!accessToken) return null
 
@@ -68,7 +70,7 @@ export function BottomNav() {
               }`}
             >
               {tab.icon(active)}
-              <span>{tab.label}</span>
+              <span>{t(tab.labelKey)}</span>
             </Link>
           )
         })}

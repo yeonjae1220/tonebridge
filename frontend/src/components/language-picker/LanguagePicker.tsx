@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { PRIMARY_LANGUAGES, ALL_LANG_LABELS, type Language } from '@/constants/languages'
 import { OtherLanguagesSheet } from './OtherLanguagesSheet'
 import { DialectSheet } from './DialectSheet'
+import { useI18n } from '@/i18n/I18nProvider'
+import { languageDisplayName } from '@/i18n/messages'
 
 interface LanguagePickerProps {
   value: string
@@ -30,6 +32,7 @@ function isMulti(props: Props): props is LanguagePickerMultiProps {
 }
 
 export function LanguagePicker(props: Props) {
+  const { language, t } = useI18n()
   const [showOther, setShowOther] = useState(false)
   const [showDialect, setShowDialect] = useState(false)
   const [dialectLanguageCode, setDialectLanguageCode] = useState<string | null>(null)
@@ -97,7 +100,7 @@ export function LanguagePicker(props: Props) {
             }`}
           >
             <span className="text-xl">{lang.flag}</span>
-            <span className="text-xs">{lang.label}</span>
+            <span className="text-xs">{languageDisplayName(lang.code, language)}</span>
           </button>
         ))}
 
@@ -113,8 +116,8 @@ export function LanguagePicker(props: Props) {
           <span className="text-xl">🌐</span>
           <span className="text-xs">
             {otherSelectedCodes.length > 0
-              ? otherSelectedCodes.map((c) => ALL_LANG_LABELS[c] ?? c).join(', ')
-              : '기타 언어'}
+              ? otherSelectedCodes.map((c) => languageDisplayName(c, language) || (ALL_LANG_LABELS[c] ?? c)).join(', ')
+              : t('language.other')}
           </span>
         </button>
       </div>
@@ -126,9 +129,9 @@ export function LanguagePicker(props: Props) {
           className="flex items-center justify-between w-full px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
         >
           <div>
-            <p className="text-xs text-gray-400 mb-0.5">방언 / 변형 선택 (선택사항)</p>
+            <p className="text-xs text-gray-400 mb-0.5">{t('language.variantPicker')}</p>
             <p className="text-sm font-medium text-gray-700">
-              {selectedVariant ? (ALL_LANG_LABELS[selectedVariant] ?? selectedVariant) : '표준어 (지역 무관)'}
+              {selectedVariant ? (ALL_LANG_LABELS[selectedVariant] ?? selectedVariant) : t('language.standard')}
             </p>
           </div>
           <span className="text-gray-400 text-sm ml-2">›</span>

@@ -10,6 +10,7 @@ abstract class User with _$User {
     required String email,
     required String username,
     required String nativeLanguage,
+    @Default('ko') String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     required int credits,

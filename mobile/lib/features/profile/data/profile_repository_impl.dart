@@ -34,6 +34,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<void> updateLanguages({
     required String nativeLanguage,
+    required String uiLanguage,
     required List<String> fluentLanguages,
     required List<String> learningLanguages,
     String? nativeDialect,
@@ -44,6 +45,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
       '/api/users/me/languages',
       data: {
         'nativeLanguage': nativeLanguage,
+        'uiLanguage': uiLanguage,
         'fluentLanguages': fluentLanguages,
         'learningLanguages': learningLanguages,
         if (nativeDialect != null) 'nativeDialect': nativeDialect,
