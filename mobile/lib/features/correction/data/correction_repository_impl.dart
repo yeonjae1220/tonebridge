@@ -62,4 +62,38 @@ class CorrectionRepositoryImpl implements CorrectionRepository {
       data: {'helpful': helpful},
     );
   }
+
+  @override
+  Future<CorrectionItem> updateCorrection({
+    required String correctionId,
+    String? correctedText,
+    required String explanation,
+    List<String> tags = const [],
+    List<TimestampComment> timestampComments = const [],
+    int? pronunciationScore,
+    int? intonationScore,
+    int? fluencyScore,
+    String? referenceAudioUrl,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/corrections/$correctionId',
+      data: {
+        if (correctedText != null) 'correctedText': correctedText,
+        'explanation': explanation,
+        'tags': tags,
+        'timestampComments':
+            timestampComments.map((t) => t.toJson()).toList(),
+        if (pronunciationScore != null) 'pronunciationScore': pronunciationScore,
+        if (intonationScore != null) 'intonationScore': intonationScore,
+        if (fluencyScore != null) 'fluencyScore': fluencyScore,
+        if (referenceAudioUrl != null) 'referenceAudioUrl': referenceAudioUrl,
+      },
+    );
+    return CorrectionItem.fromJson(response.data!);
+  }
+
+  @override
+  Future<void> deleteCorrection(String correctionId) async {
+    await _dio.delete<void>('/api/corrections/$correctionId');
+  }
 }

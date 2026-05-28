@@ -28,13 +28,13 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
     @Override
     @Transactional(readOnly = true)
     public Optional<CorrectionRequest> findById(UUID id) {
-        return repository.findById(id).map(CorrectionRequestEntity::toDomain);
+        return repository.findActiveById(id).map(CorrectionRequestEntity::toDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<CorrectionRequest> findByAudioUrl(String audioUrl) {
-        return repository.findByAudioUrl(audioUrl).map(CorrectionRequestEntity::toDomain);
+        return repository.findByAudioUrlAndDeletedAtIsNull(audioUrl).map(CorrectionRequestEntity::toDomain);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
     @Override
     @Transactional(readOnly = true)
     public List<CorrectionRequest> findByRequesterId(UUID requesterId) {
-        return repository.findByRequesterIdOrderByCreatedAtDesc(requesterId)
+        return repository.findByRequesterIdAndDeletedAtIsNullOrderByCreatedAtDesc(requesterId)
                 .stream()
                 .map(CorrectionRequestEntity::toDomain)
                 .toList();
@@ -58,6 +58,23 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
     @Override
     public void updateStatus(UUID id, RequestStatus status) {
         repository.updateStatus(id, status);
+    }
+
+    @Override
+    public CorrectionRequest updateContent(UUID id, String targetLanguage, String targetVariant, String contentText,
+                                           String context, List<String> feedbackGoals) {
+        CorrectionRequestEntity entity = repository.findActiveById(id)
+                .orElseThrow(() -> new IllegalStateException("Correction request not found for update: id=" + id));
+        entity.updateContent(targetLanguage, targetVariant, contentText, context, feedbackGoals);
+        return repository.save(entity).toDomain();
+    }
+
+    @Override
+    public void softDelete(UUID id) {
+        CorrectionRequestEntity entity = repository.findActiveById(id)
+                .orElseThrow(() -> new IllegalStateException("Correction request not found for delete: id=" + id));
+        entity.softDelete();
+        repository.save(entity);
     }
 
     @Override

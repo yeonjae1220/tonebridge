@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/router/app_router.dart';
+import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/speed_dial_fab.dart';
@@ -23,7 +24,7 @@ extension _CardSortLabel on _CardSort {
 
 // ── Session Detail Page ───────────────────────────────────────────────────────
 
-enum _SessionMenu { endSession }
+enum _SessionMenu { renameSession, endSession, deleteSession }
 
 class SessionDetailPage extends ConsumerStatefulWidget {
   const SessionDetailPage({super.key, required this.sessionId});
@@ -89,6 +90,10 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final currentUserId = ref.watch(authStateProvider).value?.user.id;
+    final session = ref.watch(studySessionProvider(widget.sessionId)).asData?.value;
+    final canManageSession = currentUserId != null && currentUserId == session?.createdBy;
+
     if (_isSearchActive) {
       return AppBar(
         leading: IconButton(
@@ -150,25 +155,50 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
           onPressed: () =>
               ref.invalidate(sessionCardsProvider(widget.sessionId)),
         ),
-        PopupMenuButton<_SessionMenu>(
-          onSelected: (item) {
-            if (item == _SessionMenu.endSession) {
-              _confirmEndSession(context);
-            }
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
-              value: _SessionMenu.endSession,
-              child: Row(
-                children: [
-                  Icon(Icons.stop_circle_outlined),
-                  SizedBox(width: 8),
-                  Text('세션 종료'),
-                ],
+        if (canManageSession)
+          PopupMenuButton<_SessionMenu>(
+            onSelected: (item) {
+              if (item == _SessionMenu.renameSession) {
+                _showRenameSessionSheet(context);
+              } else if (item == _SessionMenu.endSession) {
+                _confirmEndSession(context);
+              } else if (item == _SessionMenu.deleteSession) {
+                _confirmDeleteSession(context);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _SessionMenu.renameSession,
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined),
+                    SizedBox(width: 8),
+                    Text('세션 이름 수정'),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+              PopupMenuItem(
+                value: _SessionMenu.endSession,
+                child: Row(
+                  children: [
+                    Icon(Icons.stop_circle_outlined),
+                    SizedBox(width: 8),
+                    Text('세션 종료'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _SessionMenu.deleteSession,
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline),
+                    SizedBox(width: 8),
+                    Text('세션 삭제'),
+                  ],
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -302,6 +332,102 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
         SnackBar(content: Text('오류: $e')),
       );
     }
+  }
+
+  Future<void> _confirmDeleteSession(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('세션 삭제'),
+        content: const Text('이 세션과 카드 목록에서 숨겨집니다.\n삭제하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(studySessionListStateProvider.notifier)
+          .deleteSession(widget.sessionId);
+      if (!context.mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('세션이 삭제되었습니다')));
+      context.pop();
+    } on Exception catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    }
+  }
+
+  void _showRenameSessionSheet(BuildContext context) {
+    final controller = TextEditingController();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('세션 이름 수정',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '세션 이름',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final title = controller.text.trim();
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await ref
+                        .read(studySessionListStateProvider.notifier)
+                        .updateSession(widget.sessionId,
+                            title: title.isEmpty ? null : title);
+                    ref.invalidate(studySessionProvider(widget.sessionId));
+                    if (!mounted) return;
+                    navigator.pop();
+                    messenger.showSnackBar(
+                        const SnackBar(content: Text('세션 이름을 수정했어요')));
+                  } on Exception catch (e) {
+                    messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+                  }
+                },
+                child: const Text('저장'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showAddCardSheet(BuildContext context) {
@@ -603,4 +729,3 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
     );
   }
 }
-

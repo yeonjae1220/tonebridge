@@ -2,8 +2,10 @@ package me.yeonjae.tonebridge.application.service;
 
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.CreateStudySessionUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeleteStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.EndStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudySessionsUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.out.FriendPort;
 import me.yeonjae.tonebridge.application.port.out.StudySessionPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
@@ -20,7 +22,12 @@ import java.util.UUID;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class StudySessionService implements CreateStudySessionUseCase, GetStudySessionsUseCase, EndStudySessionUseCase {
+public class StudySessionService implements
+        CreateStudySessionUseCase,
+        GetStudySessionsUseCase,
+        EndStudySessionUseCase,
+        UpdateStudySessionUseCase,
+        DeleteStudySessionUseCase {
 
     private final StudySessionPort sessionPort;
     private final UserPort userPort;
@@ -76,5 +83,27 @@ public class StudySessionService implements CreateStudySessionUseCase, GetStudyS
             throw new ToneBridgeException(ErrorCode.SESSION_ALREADY_ENDED);
         }
         return sessionPort.save(session.withStatus(SessionStatus.ENDED));
+    }
+
+    @Override
+    public StudySession update(UUID sessionId, UUID requesterId, String title) {
+        StudySession session = sessionPort.findById(sessionId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
+        requireCreator(session, requesterId);
+        return sessionPort.updateTitle(sessionId, title);
+    }
+
+    @Override
+    public void delete(UUID sessionId, UUID requesterId) {
+        StudySession session = sessionPort.findById(sessionId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
+        requireCreator(session, requesterId);
+        sessionPort.softDelete(sessionId);
+    }
+
+    private void requireCreator(StudySession session, UUID requesterId) {
+        if (!session.createdBy().equals(requesterId)) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
     }
 }

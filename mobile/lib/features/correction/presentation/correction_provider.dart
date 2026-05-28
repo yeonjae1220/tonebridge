@@ -79,3 +79,49 @@ class RatingState extends _$RatingState {
     );
   }
 }
+
+@riverpod
+class CorrectionEditState extends _$CorrectionEditState {
+  @override
+  AsyncValue<void> build() => const AsyncData(null);
+
+  Future<void> update({
+    required String correctionId,
+    required String requestId,
+    String? correctedText,
+    required String explanation,
+    List<String> tags = const [],
+    List<TimestampComment> timestampComments = const [],
+    int? pronunciationScore,
+    int? intonationScore,
+    int? fluencyScore,
+    String? referenceAudioUrl,
+  }) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(correctionRepositoryProvider).updateCorrection(
+            correctionId: correctionId,
+            correctedText: correctedText,
+            explanation: explanation,
+            tags: tags,
+            timestampComments: timestampComments,
+            pronunciationScore: pronunciationScore,
+            intonationScore: intonationScore,
+            fluencyScore: fluencyScore,
+            referenceAudioUrl: referenceAudioUrl,
+          );
+      ref.invalidate(correctionResultProvider(requestId));
+    });
+  }
+
+  Future<void> delete({
+    required String correctionId,
+    required String requestId,
+  }) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(correctionRepositoryProvider).deleteCorrection(correctionId);
+      ref.invalidate(correctionResultProvider(requestId));
+    });
+  }
+}

@@ -6,9 +6,11 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudySessionResponse;
 import me.yeonjae.tonebridge.application.port.in.CreateStudySessionUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeleteStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.EndStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudyCardUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetStudySessionsUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateStudySessionUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +30,8 @@ public class StudySessionController {
     private final GetStudySessionsUseCase getUseCase;
     private final EndStudySessionUseCase endUseCase;
     private final GetStudyCardUseCase getCardUseCase;
+    private final UpdateStudySessionUseCase updateUseCase;
+    private final DeleteStudySessionUseCase deleteUseCase;
 
     @PostMapping
     public ResponseEntity<StudySessionResponse> create(
@@ -60,6 +64,23 @@ public class StudySessionController {
         return ResponseEntity.ok(StudySessionResponse.from(session));
     }
 
+    @PatchMapping("/{sessionId}")
+    public ResponseEntity<StudySessionResponse> updateSession(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody UpdateSessionDto dto) {
+        var session = updateUseCase.update(sessionId, userId, dto.title());
+        return ResponseEntity.ok(StudySessionResponse.from(session));
+    }
+
+    @DeleteMapping("/{sessionId}")
+    public ResponseEntity<Void> deleteSession(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID sessionId) {
+        deleteUseCase.delete(sessionId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{sessionId}/cards")
     public ResponseEntity<List<StudyCardResponse>> getCards(
             @AuthenticationPrincipal UUID userId,
@@ -69,4 +90,5 @@ public class StudySessionController {
     }
 
     record CreateSessionDto(@NotNull UUID friendId, String title) {}
+    record UpdateSessionDto(String title) {}
 }

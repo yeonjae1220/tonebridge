@@ -17,6 +17,7 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
     @Query("""
             SELECT r FROM CorrectionRequestEntity r
             WHERE r.status = 'PENDING'
+              AND r.deletedAt IS NULL
               AND r.requesterId <> :correctorId
               AND r.targetLanguage IN :languages
             ORDER BY r.createdAt DESC
@@ -27,22 +28,28 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
             Pageable pageable
     );
 
-    Optional<CorrectionRequestEntity> findByAudioUrl(String audioUrl);
+    @Query("SELECT r FROM CorrectionRequestEntity r WHERE r.id = :id AND r.deletedAt IS NULL")
+    Optional<CorrectionRequestEntity> findActiveById(@Param("id") UUID id);
 
-    List<CorrectionRequestEntity> findByRequesterIdOrderByCreatedAtDesc(UUID requesterId);
+    Optional<CorrectionRequestEntity> findByAudioUrlAndDeletedAtIsNull(String audioUrl);
+
+    List<CorrectionRequestEntity> findByRequesterIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID requesterId);
 
     @Modifying
-    @Query("UPDATE CorrectionRequestEntity r SET r.status = :status WHERE r.id = :id")
+    @Query("UPDATE CorrectionRequestEntity r SET r.status = :status WHERE r.id = :id AND r.deletedAt IS NULL")
     void updateStatus(@Param("id") UUID id, @Param("status") RequestStatus status);
 
-    long countByStatus(RequestStatus status);
+    long countByDeletedAtIsNull();
+
+    long countByStatusAndDeletedAtIsNull(RequestStatus status);
 
     @Query("""
             SELECT r FROM CorrectionRequestEntity r
             WHERE r.status = 'PENDING'
+              AND r.deletedAt IS NULL
               AND r.createdAt < :threshold
               AND NOT EXISTS (
-                SELECT 1 FROM CorrectionEntity c WHERE c.requestId = r.id
+                SELECT 1 FROM CorrectionEntity c WHERE c.requestId = r.id AND c.deletedAt IS NULL
               )
             """)
     List<CorrectionRequestEntity> findPendingOlderThan(@Param("threshold") Instant threshold, Pageable pageable);
@@ -51,6 +58,7 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
             SELECT r.targetLanguage, COUNT(r)
             FROM CorrectionRequestEntity r
             WHERE r.status = 'PENDING'
+              AND r.deletedAt IS NULL
             GROUP BY r.targetLanguage
             """)
     List<Object[]> countPendingGroupedByLanguage();

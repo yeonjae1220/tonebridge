@@ -27,12 +27,12 @@ public class AdminJpaAdapter implements AdminPort {
     @Override
     @Transactional(readOnly = true)
     public AdminStats getStats() {
-        long total = correctionRequestJpaRepository.count();
-        long pending = correctionRequestJpaRepository.countByStatus(RequestStatus.PENDING);
-        long completed = correctionRequestJpaRepository.countByStatus(RequestStatus.COMPLETED);
+        long total = correctionRequestJpaRepository.countByDeletedAtIsNull();
+        long pending = correctionRequestJpaRepository.countByStatusAndDeletedAtIsNull(RequestStatus.PENDING);
+        long completed = correctionRequestJpaRepository.countByStatusAndDeletedAtIsNull(RequestStatus.COMPLETED);
 
-        long approved = correctionJpaRepository.countByStatus(CorrectionStatus.APPROVED);
-        long rejected = correctionJpaRepository.countByStatus(CorrectionStatus.REJECTED);
+        long approved = correctionJpaRepository.countByStatusAndDeletedAtIsNull(CorrectionStatus.APPROVED);
+        long rejected = correctionJpaRepository.countByStatusAndDeletedAtIsNull(CorrectionStatus.REJECTED);
         long aiChecked = approved + rejected;
         double passRate = aiChecked > 0 ? (double) approved / aiChecked : 0.0;
 

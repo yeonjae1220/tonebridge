@@ -15,5 +15,8 @@ public interface CorrectionRequestPort {
     List<CorrectionRequest> findFeed(UUID correctorId, List<String> baseLanguages, int limit);
     List<CorrectionRequest> findByRequesterId(UUID requesterId);
     void updateStatus(UUID id, RequestStatus status);
+    CorrectionRequest updateContent(UUID id, String targetLanguage, String targetVariant, String contentText,
+                                    String context, List<String> feedbackGoals);
+    void softDelete(UUID id);
     List<CorrectionRequest> findPendingOlderThan(Instant threshold, int limit);
 }

@@ -64,11 +64,41 @@ public class CorrectionRequestEntity {
     @Column(nullable = false)
     private Instant expiresAt;
 
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    private Instant deletedAt;
+
+    @Column(nullable = false)
+    private int editCount;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (updatedAt == null) updatedAt = createdAt;
         if (expiresAt == null) expiresAt = createdAt.plusSeconds(48 * 3600L);
         if (status == null) status = RequestStatus.PENDING;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public void updateContent(String targetLanguage, String targetVariant, String contentText,
+                              String context, List<String> feedbackGoals) {
+        this.targetLanguage = targetLanguage;
+        this.targetVariant = targetVariant;
+        this.contentText = contentText;
+        this.context = context;
+        this.feedbackGoalsRaw = joinList(feedbackGoals);
+        this.editCount++;
+    }
+
+    public void softDelete() {
+        if (deletedAt == null) {
+            deletedAt = Instant.now();
+        }
     }
 
     public CorrectionRequest toDomain() {
@@ -94,6 +124,7 @@ public class CorrectionRequestEntity {
                 .aiCorrection(r.aiCorrection())
                 .createdAt(r.createdAt())
                 .expiresAt(r.expiresAt())
+                .updatedAt(r.createdAt())
                 .build();
     }
 

@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionResultUseCase;
 import me.yeonjae.tonebridge.application.port.in.RateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitCorrectionUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.out.AiQualityCheckPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
@@ -24,7 +26,9 @@ import java.util.UUID;
 public class CorrectionService implements
         SubmitCorrectionUseCase,
         RateCorrectionUseCase,
-        GetCorrectionResultUseCase {
+        GetCorrectionResultUseCase,
+        UpdateCorrectionUseCase,
+        DeleteCorrectionUseCase {
 
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
@@ -112,5 +116,41 @@ public class CorrectionService implements
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
         return ownCorrections;
+    }
+
+    @Override
+    public Correction update(UpdateCorrectionUseCase.Command command) {
+        Correction correction = correctionPort.findById(command.correctionId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
+        if (!command.correctorId().equals(correction.correctorId())) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
+        return correctionPort.updateContent(
+                command.correctionId(),
+                command.correctedText(),
+                command.explanation(),
+                command.tags() != null ? command.tags() : List.of(),
+                command.timestampComments() != null ? command.timestampComments() : List.of(),
+                command.pronunciationScore(),
+                command.intonationScore(),
+                command.fluencyScore(),
+                command.referenceAudioUrl()
+        );
+    }
+
+    @Override
+    public void delete(UUID correctionId, UUID correctorId) {
+        Correction correction = correctionPort.findById(correctionId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
+        if (!correctorId.equals(correction.correctorId())) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
+        if (correction.status() == CorrectionStatus.APPROVED) {
+            throw new ToneBridgeException(ErrorCode.CORRECTION_DELETE_NOT_ALLOWED);
+        }
+        if (correctionPort.findByRequestId(correction.requestId()).size() <= 1) {
+            throw new ToneBridgeException(ErrorCode.CORRECTION_DELETE_NOT_ALLOWED);
+        }
+        correctionPort.softDelete(correctionId);
     }
 }

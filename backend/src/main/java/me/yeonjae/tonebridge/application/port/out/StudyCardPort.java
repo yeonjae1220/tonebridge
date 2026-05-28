@@ -10,4 +10,6 @@ public interface StudyCardPort {
     StudyCard save(StudyCard card);
     Optional<StudyCard> findById(UUID id);
     List<StudyCard> findBySessionId(UUID sessionId);
+    StudyCard updateContent(UUID id, String phrase, String context, List<String> tags);
+    void softDelete(UUID id);
 }

@@ -47,13 +47,40 @@ public class StudyCardEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    private Instant deletedAt;
+
+    @Column(nullable = false)
+    private int editCount;
+
     @Column(columnDefinition = "TEXT")
     private String note;
 
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (updatedAt == null) updatedAt = createdAt;
         if (tagsRaw == null) tagsRaw = "";
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public void updateContent(String phrase, String context, List<String> tags) {
+        this.phrase = phrase;
+        this.context = context;
+        this.tagsRaw = joinList(tags);
+        this.editCount++;
+    }
+
+    public void softDelete() {
+        if (deletedAt == null) {
+            deletedAt = Instant.now();
+        }
     }
 
     public StudyCard toDomain() {
@@ -72,6 +99,7 @@ public class StudyCardEntity {
                 .explanation(c.explanation())
                 .tagsRaw(joinList(c.tags()))
                 .createdAt(c.createdAt())
+                .updatedAt(c.createdAt())
                 .note(c.note())
                 .build();
     }

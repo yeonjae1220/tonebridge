@@ -53,6 +53,20 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   }
 
   @override
+  Future<StudySession> updateSession(String sessionId, {String? title}) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/sessions/$sessionId',
+      data: {'title': title},
+    );
+    return StudySession.fromJson(response.data!);
+  }
+
+  @override
+  Future<void> deleteSession(String sessionId) async {
+    await _dio.delete<void>('/api/sessions/$sessionId');
+  }
+
+  @override
   Future<StudyCard> getCard(String cardId) async {
     final response =
         await _dio.get<Map<String, dynamic>>('/api/cards/$cardId');
@@ -84,6 +98,29 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
       },
     );
     return StudyCard.fromJson(response.data!);
+  }
+
+  @override
+  Future<StudyCard> updateCard({
+    required String cardId,
+    required String phrase,
+    String? context,
+    List<String> tags = const [],
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/cards/$cardId',
+      data: {
+        'phrase': phrase,
+        if (context != null) 'context': context,
+        'tags': tags,
+      },
+    );
+    return StudyCard.fromJson(response.data!);
+  }
+
+  @override
+  Future<void> deleteCard(String cardId) async {
+    await _dio.delete<void>('/api/cards/$cardId');
   }
 
   @override

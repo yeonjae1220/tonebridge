@@ -4,6 +4,7 @@ import me.yeonjae.tonebridge.application.port.out.AiQualityCheckPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.RatingPort;
+import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
 import me.yeonjae.tonebridge.domain.correction.Correction;
 import me.yeonjae.tonebridge.domain.correction.CorrectionRequest;
 import me.yeonjae.tonebridge.domain.correction.CorrectionStatus;
@@ -124,6 +125,90 @@ class CorrectionServiceTest {
                 .extracting(e -> ((ToneBridgeException) e).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
         verify(ratingPort, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void onlyCorrectorCanUpdateCorrection() {
+        UUID correctorId = UUID.randomUUID();
+        UUID attackerId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+        Correction correction = correction(correctionId, UUID.randomUUID(), correctorId);
+
+        when(correctionPort.findById(correctionId)).thenReturn(Optional.of(correction));
+
+        assertThatThrownBy(() -> correctionService.update(new UpdateCorrectionUseCase.Command(
+                correctionId, attackerId, "new text", "new explanation", List.of(),
+                List.of(), null, null, null, null
+        )))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+        verify(correctionPort, never()).updateContent(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void correctorCanSoftDeleteOwnCorrection() {
+        UUID correctorId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+
+        when(correctionPort.findById(correctionId))
+                .thenReturn(Optional.of(correction(correctionId, requestId, correctorId)));
+        when(correctionPort.findByRequestId(requestId))
+                .thenReturn(List.of(
+                        correction(correctionId, requestId, correctorId),
+                        correction(UUID.randomUUID(), requestId, UUID.randomUUID())
+                ));
+
+        correctionService.delete(correctionId, correctorId);
+
+        verify(correctionPort).softDelete(correctionId);
+    }
+
+    @Test
+    void cannotDeleteApprovedCorrection() {
+        UUID correctorId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+        Correction approved = new Correction(
+                correctionId, UUID.randomUUID(), correctorId, false,
+                "corrected", "explanation", List.of(), List.of(),
+                null, null, null, null, 4, CorrectionStatus.APPROVED, Instant.now()
+        );
+
+        when(correctionPort.findById(correctionId)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> correctionService.delete(correctionId, correctorId))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CORRECTION_DELETE_NOT_ALLOWED);
+        verify(correctionPort, never()).softDelete(correctionId);
+    }
+
+    @Test
+    void cannotDeleteLastVisibleCorrection() {
+        UUID correctorId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Correction correction = correction(correctionId, requestId, correctorId);
+
+        when(correctionPort.findById(correctionId)).thenReturn(Optional.of(correction));
+        when(correctionPort.findByRequestId(requestId)).thenReturn(List.of(correction));
+
+        assertThatThrownBy(() -> correctionService.delete(correctionId, correctorId))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CORRECTION_DELETE_NOT_ALLOWED);
+        verify(correctionPort, never()).softDelete(correctionId);
     }
 
     private CorrectionRequest request(UUID requestId, UUID requesterId) {

@@ -69,4 +69,20 @@ public class StudySessionJpaAdapter implements StudySessionPort {
         return sessionRepository.findByMemberUserId(userId)
                 .stream().map(StudySessionEntity::toDomain).toList();
     }
+
+    @Override
+    public StudySession updateTitle(UUID id, String title) {
+        StudySessionEntity existing = sessionRepository.findByIdWithMembers(id)
+                .orElseThrow(() -> new IllegalStateException("Session not found for update: id=" + id));
+        existing.updateTitle(title);
+        return sessionRepository.save(existing).toDomain();
+    }
+
+    @Override
+    public void softDelete(UUID id) {
+        StudySessionEntity existing = sessionRepository.findByIdWithMembers(id)
+                .orElseThrow(() -> new IllegalStateException("Session not found for delete: id=" + id));
+        existing.softDelete();
+        sessionRepository.save(existing);
+    }
 }

@@ -2,16 +2,19 @@
 
 import { useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import type { StudyCard, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const router = useRouter()
   const { accessToken } = useAuthStore()
+  const queryClient = useQueryClient()
+  const { data: currentUser } = useCurrentUser()
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -27,6 +30,20 @@ export default function StudySessionPage() {
     queryKey: ['sessions', sessionId, 'cards'],
     queryFn: () => api.get(`/sessions/${sessionId}/cards`).then((r) => r.data),
     enabled: !!accessToken && !!sessionId,
+  })
+
+  const updateCardMutation = useMutation({
+    mutationFn: (card: StudyCard) => api.patch(`/cards/${card.id}`, {
+      phrase: card.phrase,
+      context: card.context,
+      tags: card.tags,
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
+  })
+
+  const deleteCardMutation = useMutation({
+    mutationFn: (cardId: string) => api.delete(`/cards/${cardId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
   })
 
   if (!accessToken) return null
@@ -78,43 +95,76 @@ export default function StudySessionPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {cards.map((card) => (
-              <div key={card.id} className="bg-white rounded-2xl border border-gray-100 p-5">
-                <p className="text-base font-bold text-gray-900 mb-1">{card.phrase}</p>
-                {card.context && (
-                  <p className="text-sm text-gray-500 mb-3">{card.context}</p>
-                )}
-                {card.explanation && (
-                  <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-3 py-2 mb-3">
-                    {card.explanation}
-                  </p>
-                )}
-                {card.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {card.tags.map((tag) => (
-                      <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {card.latestAttempt && (
-                  <div className="border-t border-gray-50 pt-3 mt-2">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">내 최근 시도</p>
-                    <div className="flex items-center gap-3">
-                      {card.latestAttempt.score !== null && (
-                        <span className={`text-sm font-bold ${card.latestAttempt.score >= 80 ? 'text-green-600' : card.latestAttempt.score >= 60 ? 'text-yellow-600' : 'text-red-500'}`}>
-                          {card.latestAttempt.score}점
+            {cards.map((card) => {
+              const canManage = currentUser?.id === card.createdByUserId
+              return (
+                <div key={card.id} className="bg-white rounded-2xl border border-gray-100 p-5">
+                  <p className="text-base font-bold text-gray-900 mb-1">{card.phrase}</p>
+                  {card.context && (
+                    <p className="text-sm text-gray-500 mb-3">{card.context}</p>
+                  )}
+                  {card.explanation && (
+                    <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-3 py-2 mb-3">
+                      {card.explanation}
+                    </p>
+                  )}
+                  {card.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {card.tags.map((tag) => (
+                        <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                          {tag}
                         </span>
-                      )}
-                      {card.latestAttempt.correctionNote && (
-                        <p className="text-xs text-gray-600">{card.latestAttempt.correctionNote}</p>
-                      )}
+                      ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                  {card.latestAttempt && (
+                    <div className="border-t border-gray-50 pt-3 mt-2">
+                      <p className="text-xs font-semibold text-gray-500 mb-1">내 최근 시도</p>
+                      <div className="flex items-center gap-3">
+                        {card.latestAttempt.score !== null && (
+                          <span className={`text-sm font-bold ${card.latestAttempt.score >= 80 ? 'text-green-600' : card.latestAttempt.score >= 60 ? 'text-yellow-600' : 'text-red-500'}`}>
+                            {card.latestAttempt.score}점
+                          </span>
+                        )}
+                        {card.latestAttempt.correctionNote && (
+                          <p className="text-xs text-gray-600">{card.latestAttempt.correctionNote}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {canManage && (
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          const phrase = window.prompt('표현', card.phrase)
+                          if (phrase == null || phrase.trim() === '') return
+                          const context = window.prompt('상황 설명', card.context ?? '')
+                          if (context == null) return
+                          updateCardMutation.mutate({
+                            ...card,
+                            phrase: phrase.trim(),
+                            context: context.trim() || null,
+                          })
+                        }}
+                        className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('이 카드를 삭제할까요?')) {
+                            deleteCardMutation.mutate(card.id)
+                          }
+                        }}
+                        className="flex-1 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

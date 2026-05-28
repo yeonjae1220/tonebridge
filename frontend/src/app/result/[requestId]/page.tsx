@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { Correction, CorrectionRequest } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   SUBMITTED: { label: '검토 중', cls: 'bg-yellow-100 text-yellow-700' },
@@ -113,6 +114,7 @@ export default function ResultPage() {
   const requestId = params.requestId as string
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
+  const { data: currentUser } = useCurrentUser()
   const sseRef = useRef<EventSource | null>(null)
   const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null)
   const waveContainerRef = useRef<HTMLDivElement>(null)
@@ -161,6 +163,44 @@ export default function ResultPage() {
     onSuccess: () => refetch(),
   })
 
+  const deleteCorrectionMutation = useMutation({
+    mutationFn: (correctionId: string) => api.delete(`/corrections/${correctionId}`),
+    onSuccess: () => refetch(),
+  })
+
+  const updateCorrectionMutation = useMutation({
+    mutationFn: (correction: Correction) => api.patch(`/corrections/${correction.id}`, {
+      correctedText: correction.correctedText,
+      explanation: correction.explanation,
+      tags: correction.tags,
+      timestampComments: correction.timestampComments ?? [],
+      pronunciationScore: correction.pronunciationScore,
+      intonationScore: correction.intonationScore,
+      fluencyScore: correction.fluencyScore,
+      referenceAudioUrl: correction.referenceAudioUrl,
+    }),
+    onSuccess: () => refetch(),
+  })
+
+  const updateRequestMutation = useMutation({
+    mutationFn: (payload: CorrectionRequest) => api.patch(`/correction-requests/${payload.id}`, {
+      targetLanguage: payload.targetLanguage,
+      targetVariant: payload.targetVariant,
+      contentText: payload.contentText,
+      context: payload.context,
+      feedbackGoals: payload.feedbackGoals,
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+  })
+
+  const deleteRequestMutation = useMutation({
+    mutationFn: () => api.delete(`/correction-requests/${requestId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      router.push('/feed')
+    },
+  })
+
   if (!accessToken) return null
 
   const isAudio = request?.type === 'AUDIO'
@@ -179,6 +219,42 @@ export default function ResultPage() {
             <p className="text-xs font-semibold text-amber-600">내 원문</p>
             {isAudio && (
               <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-700 rounded-full">음성</span>
+            )}
+            {request && (
+              <div className="ml-auto flex gap-2">
+                {request.status === 'PENDING' && (
+                  <button
+                    onClick={() => {
+                      const contentText = isAudio
+                        ? request.contentText
+                        : window.prompt('원문', request.contentText ?? '')
+                      if (!isAudio && contentText == null) return
+                      const contextText = window.prompt('상황 설명', request.context ?? '')
+                      if (contextText == null) return
+                      updateRequestMutation.mutate({
+                        ...request,
+                        contentText: isAudio ? request.contentText : contentText?.trim(),
+                        context: contextText.trim() || undefined,
+                      })
+                    }}
+                    className="text-xs text-amber-700 hover:text-amber-900"
+                  >
+                    수정
+                  </button>
+                )}
+                {request.status === 'PENDING' && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('이 첨삭 요청을 삭제할까요?')) {
+                        deleteRequestMutation.mutate()
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    삭제
+                  </button>
+                )}
+              </div>
             )}
           </div>
           {isAudio ? (
@@ -213,6 +289,7 @@ export default function ResultPage() {
           <div className="flex flex-col gap-4">
             {corrections.map((correction) => {
               const statusInfo = STATUS_MAP[correction.status] ?? STATUS_MAP.SUBMITTED
+              const canManage = currentUser?.id === correction.correctorId
               return (
                 <div key={correction.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
@@ -221,6 +298,38 @@ export default function ResultPage() {
                     </span>
                     {correction.isAi && (
                       <span className="text-xs text-purple-500 font-medium">AI 첨삭</span>
+                    )}
+                    {canManage && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const explanation = window.prompt('설명 수정', correction.explanation ?? '')
+                            if (explanation == null || explanation.trim() === '') return
+                            const correctedText = isAudio
+                              ? correction.correctedText
+                              : window.prompt('수정 문장', correction.correctedText ?? '')
+                            if (!isAudio && correctedText == null) return
+                            updateCorrectionMutation.mutate({
+                              ...correction,
+                              explanation: explanation.trim(),
+                              correctedText: isAudio ? correction.correctedText : correctedText?.trim(),
+                            })
+                          }}
+                          className="text-xs text-gray-500 hover:text-blue-600"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('이 첨삭을 삭제할까요?')) {
+                              deleteCorrectionMutation.mutate(correction.id)
+                            }
+                          }}
+                          className="text-xs text-gray-500 hover:text-red-600"
+                        >
+                          삭제
+                        </button>
+                      </div>
                     )}
                   </div>
 

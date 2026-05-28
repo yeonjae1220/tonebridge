@@ -44,6 +44,9 @@ export interface CorrectionRequest {
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'AI_COMPLETED'
   createdAt: string
   expiresAt: string
+  updatedAt?: string
+  deletedAt?: string | null
+  editCount?: number
   availableCorrectors?: number
 }
 
@@ -72,6 +75,9 @@ export interface Correction {
   creditEarned: number
   status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'
   createdAt: string
+  updatedAt?: string
+  deletedAt?: string | null
+  editCount?: number
 }
 
 export interface TimestampComment {
@@ -137,6 +143,8 @@ export interface StudySession {
   memberIds: string[]
   status: 'ACTIVE' | 'ENDED'
   createdAt: string
+  updatedAt?: string
+  deletedAt?: string | null
 }
 
 export interface LearnerAttempt {
@@ -160,4 +168,8 @@ export interface StudyCard {
   tags: string[]
   createdAt: string
   latestAttempt: LearnerAttempt | null
+  note?: string | null
+  updatedAt?: string
+  deletedAt?: string | null
+  editCount?: number
 }

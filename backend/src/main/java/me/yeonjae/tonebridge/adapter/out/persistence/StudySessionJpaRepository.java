@@ -12,7 +12,8 @@ public interface StudySessionJpaRepository extends JpaRepository<StudySessionEnt
     @Query("""
             SELECT DISTINCT s FROM StudySessionEntity s
             LEFT JOIN FETCH s.members
-            WHERE s.id IN (
+            WHERE s.deletedAt IS NULL
+              AND s.id IN (
                 SELECT sm.sessionId FROM SessionMemberEntity sm
                 WHERE sm.userId = :userId
             )
@@ -24,6 +25,7 @@ public interface StudySessionJpaRepository extends JpaRepository<StudySessionEnt
             SELECT s FROM StudySessionEntity s
             LEFT JOIN FETCH s.members
             WHERE s.id = :id
+              AND s.deletedAt IS NULL
             """)
     Optional<StudySessionEntity> findByIdWithMembers(UUID id);
 }

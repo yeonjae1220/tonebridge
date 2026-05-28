@@ -67,10 +67,45 @@ public class CorrectionEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    private Instant deletedAt;
+
+    @Column(nullable = false)
+    private int editCount;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (updatedAt == null) updatedAt = createdAt;
         if (status == null) status = CorrectionStatus.SUBMITTED;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public void updateContent(String correctedText, String explanation, List<String> tags,
+                              List<TimestampComment> timestampComments,
+                              Integer pronunciationScore, Integer intonationScore, Integer fluencyScore,
+                              String referenceAudioUrl) {
+        this.correctedText = correctedText;
+        this.explanation = explanation;
+        this.tagsRaw = joinList(tags);
+        this.timestampCommentsJson = serializeTimestampComments(timestampComments);
+        this.pronunciationScore = pronunciationScore;
+        this.intonationScore = intonationScore;
+        this.fluencyScore = fluencyScore;
+        this.referenceAudioUrl = referenceAudioUrl;
+        this.editCount++;
+    }
+
+    public void softDelete() {
+        if (deletedAt == null) {
+            deletedAt = Instant.now();
+        }
     }
 
     public Correction toDomain() {
@@ -100,6 +135,7 @@ public class CorrectionEntity {
                 .creditEarned(c.creditEarned())
                 .status(c.status())
                 .createdAt(c.createdAt())
+                .updatedAt(c.createdAt())
                 .build();
     }
 

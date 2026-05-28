@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/router/app_router.dart';
+import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
 import 'package:tonebridge/features/feed/presentation/feed_provider.dart';
 import 'package:tonebridge/features/feed/presentation/widgets/correction_request_card.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
@@ -181,11 +182,133 @@ class _MyRequestsTab extends ConsumerWidget {
               return CorrectionRequestCard(
                 item: item,
                 onTap: () => context.push(AppRoute.result(item.id)),
+                onEdit: item.status == 'PENDING'
+                    ? () => _showEditRequestSheet(context, ref, item)
+                    : null,
+                onDelete: item.status == 'PENDING'
+                    ? () => _confirmDeleteRequest(context, ref, item.id)
+                    : null,
               );
             },
           ),
         );
       },
+    );
+  }
+
+  Future<void> _confirmDeleteRequest(
+    BuildContext context,
+    WidgetRef ref,
+    String requestId,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('요청 삭제'),
+        content: const Text('이 첨삭 요청을 삭제할까요? 목록에서 숨겨집니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(myRequestsStateProvider.notifier).deleteRequest(requestId);
+      messenger.showSnackBar(const SnackBar(content: Text('요청을 삭제했어요')));
+    } on Exception catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    }
+  }
+
+  void _showEditRequestSheet(
+    BuildContext context,
+    WidgetRef ref,
+    CorrectionRequestItem item,
+  ) {
+    final contentController = TextEditingController(text: item.contentText ?? '');
+    final contextController = TextEditingController(text: item.context ?? '');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('요청 수정',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            if (item.type == 'TEXT') ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: contentController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: '원문',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 4,
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: contextController,
+              decoration: const InputDecoration(
+                labelText: '상황 설명',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await ref.read(myRequestsStateProvider.notifier).updateRequest(
+                          requestId: item.id,
+                          targetLanguage: item.targetLanguage,
+                          targetVariant: item.targetVariant,
+                          contentText: item.type == 'TEXT'
+                              ? contentController.text.trim()
+                              : null,
+                          context: contextController.text.trim().isEmpty
+                              ? null
+                              : contextController.text.trim(),
+                          feedbackGoals: item.feedbackGoals,
+                        );
+                    navigator.pop();
+                    messenger.showSnackBar(
+                        const SnackBar(content: Text('요청을 수정했어요')));
+                  } on Exception catch (e) {
+                    messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+                  }
+                },
+                child: const Text('저장'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

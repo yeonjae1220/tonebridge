@@ -31,7 +31,9 @@ public class StudyCardService implements
         GetNativeAudioDownloadUrlUseCase,
         SubmitLearnerAttemptUseCase,
         AddCorrectionNoteUseCase,
-        UpdateCardNoteUseCase {
+        UpdateCardNoteUseCase,
+        UpdateStudyCardUseCase,
+        DeleteStudyCardUseCase {
 
     private final StudyCardPort cardPort;
     private final LearnerAttemptPort attemptPort;
@@ -181,6 +183,27 @@ public class StudyCardService implements
         return cardPort.save(card.withNote(note));
     }
 
+    @Override
+    public StudyCard update(UpdateStudyCardUseCase.Command command) {
+        StudyCard card = cardPort.findById(command.cardId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
+        requireCardCreator(card, command.requesterId());
+        return cardPort.updateContent(
+                command.cardId(),
+                command.phrase(),
+                command.context(),
+                command.tags() != null ? command.tags() : List.of()
+        );
+    }
+
+    @Override
+    public void delete(UUID cardId, UUID requesterId) {
+        StudyCard card = cardPort.findById(cardId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
+        requireCardCreator(card, requesterId);
+        cardPort.softDelete(cardId);
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────
 
     private StudySession requireSession(UUID sessionId) {
@@ -196,6 +219,12 @@ public class StudyCardService implements
     private void requireMemberInSession(StudySession session, UUID userId) {
         if (!session.hasMember(userId)) {
             throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
+        }
+    }
+
+    private void requireCardCreator(StudyCard card, UUID userId) {
+        if (!card.createdByUserId().equals(userId)) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
     }
 }

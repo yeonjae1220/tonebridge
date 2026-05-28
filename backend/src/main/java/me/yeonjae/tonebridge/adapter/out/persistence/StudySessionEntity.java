@@ -34,6 +34,11 @@ public class StudySessionEntity {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    private Instant deletedAt;
+
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<SessionMemberEntity> members = new ArrayList<>();
@@ -41,12 +46,28 @@ public class StudySessionEntity {
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (updatedAt == null) updatedAt = createdAt;
         if (status == null) status = SessionStatus.ACTIVE;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
     }
 
     /** Mutate status in-place for update operations (preserves the members collection). */
     public void updateStatus(SessionStatus newStatus) {
         this.status = newStatus;
+    }
+
+    public void updateTitle(String newTitle) {
+        this.title = newTitle;
+    }
+
+    public void softDelete() {
+        if (deletedAt == null) {
+            deletedAt = Instant.now();
+        }
     }
 
     public StudySession toDomain() {
@@ -61,6 +82,7 @@ public class StudySessionEntity {
                 .createdBy(s.createdBy())
                 .status(s.status())
                 .createdAt(s.createdAt())
+                .updatedAt(s.createdAt())
                 .build();
     }
 }

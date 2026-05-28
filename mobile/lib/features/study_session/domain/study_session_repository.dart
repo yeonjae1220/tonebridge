@@ -8,6 +8,8 @@ abstract interface class StudySessionRepository {
   Future<StudySession> getSession(String sessionId);
   Future<StudySession> createSession(String friendId, {String? title});
   Future<StudySession> endSession(String sessionId);
+  Future<StudySession> updateSession(String sessionId, {String? title});
+  Future<void> deleteSession(String sessionId);
   Future<StudyCard> getCard(String cardId);
   Future<List<StudyCard>> getCards(String sessionId);
   Future<StudyCard> createCard({
@@ -16,6 +18,13 @@ abstract interface class StudySessionRepository {
     String? context,
     List<String> tags,
   });
+  Future<StudyCard> updateCard({
+    required String cardId,
+    required String phrase,
+    String? context,
+    List<String> tags,
+  });
+  Future<void> deleteCard(String cardId);
   Future<Map<String, String>> getNativeAudioUploadUrl(String cardId, String fileName);
   Future<StudyCard> confirmNativeAudio(String cardId, String audioKey);
   Future<String> getNativeAudioDownloadUrl(String cardId);

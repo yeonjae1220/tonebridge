@@ -13,6 +13,11 @@ public interface CorrectionPort {
     Optional<Correction> findByReferenceAudioUrl(String referenceAudioUrl);
     List<Correction> findByRequestId(UUID requestId);
     void updateStatus(UUID id, CorrectionStatus status);
+    Correction updateContent(UUID id, String correctedText, String explanation, List<String> tags,
+                             List<me.yeonjae.tonebridge.domain.correction.TimestampComment> timestampComments,
+                             Integer pronunciationScore, Integer intonationScore, Integer fluencyScore,
+                             String referenceAudioUrl);
+    void softDelete(UUID id);
     long countApprovedAudioByCorrector(UUID correctorId);
     List<Object[]> findCorrectionTimingsByCorrector(UUID correctorId);
     boolean existsByRequestId(UUID requestId);

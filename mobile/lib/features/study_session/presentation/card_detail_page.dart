@@ -215,6 +215,119 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     return '오류가 발생했어요. 다시 시도해 주세요.';
   }
 
+  Future<void> _editCard(StudyCard card) async {
+    final phraseController = TextEditingController(text: card.phrase);
+    final contextController = TextEditingController(text: card.context ?? '');
+    final result = await showModalBottomSheet<({String phrase, String? context})>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('카드 수정',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: phraseController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '표현',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: contextController,
+              decoration: const InputDecoration(
+                labelText: '상황 설명',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  final phrase = phraseController.text.trim();
+                  if (phrase.isEmpty) return;
+                  final contextText = contextController.text.trim();
+                  Navigator.pop(
+                    context,
+                    (phrase: phrase, context: contextText.isEmpty ? null : contextText),
+                  );
+                },
+                child: const Text('저장'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(studySessionRepositoryProvider).updateCard(
+            cardId: card.id,
+            phrase: result.phrase,
+            context: result.context,
+            tags: card.tags,
+          );
+      if (!mounted) return;
+      setState(() => _usedInitialCard = false);
+      ref.invalidate(cardDetailProvider(widget.cardId));
+      ref.invalidate(sessionCardsProvider(widget.sessionId));
+      messenger.showSnackBar(const SnackBar(content: Text('카드를 수정했어요')));
+    } on Exception catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+    }
+  }
+
+  Future<void> _deleteCard(StudyCard card) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('카드 삭제'),
+        content: const Text('이 카드를 삭제할까요? 목록에서 숨겨집니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(studySessionRepositoryProvider).deleteCard(card.id);
+      ref.invalidate(sessionCardsProvider(widget.sessionId));
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('카드를 삭제했어요')));
+      Navigator.of(context).pop();
+    } on Exception catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cardAsync = (_usedInitialCard && widget.initialCard != null)
@@ -224,7 +337,47 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('카드 학습')),
+      appBar: AppBar(
+        title: const Text('카드 학습'),
+        actions: [
+          cardAsync.maybeWhen(
+            data: (card) => currentUserId == card.createdByUserId
+                ? PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _editCard(card);
+                      } else if (value == 'delete') {
+                        _deleteCard(card);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined),
+                            SizedBox(width: 8),
+                            Text('카드 수정'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline),
+                            SizedBox(width: 8),
+                            Text('카드 삭제'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
+      ),
       body: cardAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(

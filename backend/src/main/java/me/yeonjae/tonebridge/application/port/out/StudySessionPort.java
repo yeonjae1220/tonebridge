@@ -10,4 +10,6 @@ public interface StudySessionPort {
     StudySession save(StudySession session);
     Optional<StudySession> findById(UUID id);
     List<StudySession> findByMemberId(UUID userId);
+    StudySession updateTitle(UUID id, String title);
+    void softDelete(UUID id);
 }

@@ -5,6 +5,9 @@ import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetMyCorrectionRequestsUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionRequestUseCase;
+import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionRequestUseCase;
+import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.CreditPort;
 import me.yeonjae.tonebridge.application.port.out.LanguageVariantPort;
@@ -37,9 +40,12 @@ public class CorrectionRequestService implements
         SubmitTextCorrectionRequestUseCase,
         SubmitAudioCorrectionRequestUseCase,
         GetCorrectionFeedUseCase,
-        GetMyCorrectionRequestsUseCase {
+        GetMyCorrectionRequestsUseCase,
+        UpdateCorrectionRequestUseCase,
+        DeleteCorrectionRequestUseCase {
 
     private final CorrectionRequestPort correctionRequestPort;
+    private final CorrectionPort correctionPort;
     private final CreditPort creditPort;
     private final UserPort userPort;
     private final LanguageVariantPort languageVariantPort;
@@ -124,5 +130,43 @@ public class CorrectionRequestService implements
     @Transactional(readOnly = true)
     public List<CorrectionRequest> getMine(UUID userId) {
         return correctionRequestPort.findByRequesterId(userId);
+    }
+
+    @Override
+    public CorrectionRequest update(UpdateCorrectionRequestUseCase.Command command) {
+        CorrectionRequest request = correctionRequestPort.findById(command.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        if (!request.isOwnedBy(command.requesterId())) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
+        if (!request.isPending() || correctionPort.existsByRequestId(command.requestId())) {
+            throw new ToneBridgeException(ErrorCode.REQUEST_ALREADY_COMPLETED);
+        }
+        validateVariant(command.targetLanguage(), command.targetVariant());
+        String contentText = request.type() == CorrectionType.TEXT ? command.contentText() : request.contentText();
+        if (request.type() == CorrectionType.TEXT && (contentText == null || contentText.isBlank())) {
+            throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
+        }
+        return correctionRequestPort.updateContent(
+                command.requestId(),
+                command.targetLanguage(),
+                command.targetVariant(),
+                contentText,
+                command.context(),
+                command.feedbackGoals() != null ? command.feedbackGoals() : List.of()
+        );
+    }
+
+    @Override
+    public void delete(UUID requestId, UUID requesterId) {
+        CorrectionRequest request = correctionRequestPort.findById(requestId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        if (!request.isOwnedBy(requesterId)) {
+            throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
+        }
+        if (!request.isPending() || correctionPort.existsByRequestId(requestId)) {
+            throw new ToneBridgeException(ErrorCode.REQUEST_ALREADY_COMPLETED);
+        }
+        correctionRequestPort.softDelete(requestId);
     }
 }

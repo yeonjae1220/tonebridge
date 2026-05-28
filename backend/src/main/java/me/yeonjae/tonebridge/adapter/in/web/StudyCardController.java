@@ -36,6 +36,8 @@ public class StudyCardController {
     private final DeleteCardNativeAudioUseCase deleteNativeAudioUseCase;
     private final UpdateCardNoteUseCase updateCardNoteUseCase;
     private final UpdateNativeAudioNoteUseCase updateNativeAudioNoteUseCase;
+    private final UpdateStudyCardUseCase updateCardUseCase;
+    private final DeleteStudyCardUseCase deleteCardUseCase;
 
     @PostMapping("/sessions/{sessionId}/cards")
     public ResponseEntity<StudyCardResponse> createCard(
@@ -53,6 +55,24 @@ public class StudyCardController {
             @PathVariable UUID cardId) {
         var card = getCardUseCase.getCard(cardId, userId);
         return ResponseEntity.ok(StudyCardResponse.from(card));
+    }
+
+    @PatchMapping("/cards/{cardId}")
+    public ResponseEntity<StudyCardResponse> updateCard(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId,
+            @Valid @RequestBody UpdateCardDto dto) {
+        var card = updateCardUseCase.update(
+                new UpdateStudyCardUseCase.Command(cardId, userId, dto.phrase(), dto.context(), dto.tags()));
+        return ResponseEntity.ok(StudyCardResponse.from(card));
+    }
+
+    @DeleteMapping("/cards/{cardId}")
+    public ResponseEntity<Void> deleteCard(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID cardId) {
+        deleteCardUseCase.delete(cardId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/cards/{cardId}/native-audio")
@@ -179,6 +199,7 @@ public class StudyCardController {
     }
 
     record CreateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
+    record UpdateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}
     record SubmitAttemptDto(@NotBlank String audioKey) {}

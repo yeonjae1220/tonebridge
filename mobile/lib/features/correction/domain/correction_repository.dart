@@ -16,4 +16,18 @@ abstract interface class CorrectionRepository {
   Future<List<CorrectionItem>> getCorrectionResult(String requestId);
 
   Future<void> rateCorrection(String correctionId, {required bool helpful});
+
+  Future<CorrectionItem> updateCorrection({
+    required String correctionId,
+    String? correctedText,
+    required String explanation,
+    List<String> tags = const [],
+    List<TimestampComment> timestampComments = const [],
+    int? pronunciationScore,
+    int? intonationScore,
+    int? fluencyScore,
+    String? referenceAudioUrl,
+  });
+
+  Future<void> deleteCorrection(String correctionId);
 }

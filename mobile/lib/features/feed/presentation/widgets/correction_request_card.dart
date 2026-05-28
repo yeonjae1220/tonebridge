@@ -10,11 +10,15 @@ class CorrectionRequestCard extends StatelessWidget {
     required this.item,
     required this.onTap,
     this.isVariantMatch = false,
+    this.onEdit,
+    this.onDelete,
   });
 
   final CorrectionRequestItem item;
   final VoidCallback onTap;
   final bool isVariantMatch;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,40 @@ class CorrectionRequestCard extends StatelessWidget {
                   _TypeBadge(isAudio: isAudio),
                   const Spacer(),
                   _CreditChip(credits: item.creditCost),
+                  if (onEdit != null || onDelete != null)
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          onEdit?.call();
+                        } else if (value == 'delete') {
+                          onDelete?.call();
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        if (onEdit != null)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined),
+                                SizedBox(width: 8),
+                                Text('수정'),
+                              ],
+                            ),
+                          ),
+                        if (onDelete != null)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline),
+                                SizedBox(width: 8),
+                                Text('삭제'),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                 ],
               ),
               const SizedBox(height: 10),

@@ -5,9 +5,12 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CorrectionResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.RateCorrectionDto;
 import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitCorrectionDto;
+import me.yeonjae.tonebridge.adapter.in.web.dto.UpdateCorrectionDto;
+import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionResultUseCase;
 import me.yeonjae.tonebridge.application.port.in.RateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitCorrectionUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +27,8 @@ public class CorrectionController {
     private final SubmitCorrectionUseCase submitUseCase;
     private final RateCorrectionUseCase rateUseCase;
     private final GetCorrectionResultUseCase resultUseCase;
+    private final UpdateCorrectionUseCase updateUseCase;
+    private final DeleteCorrectionUseCase deleteUseCase;
 
     @PostMapping
     public ResponseEntity<CorrectionResponse> submit(
@@ -52,6 +57,28 @@ public class CorrectionController {
             @PathVariable UUID correctionId,
             @Valid @RequestBody RateCorrectionDto dto) {
         rateUseCase.rate(new RateCorrectionUseCase.Command(correctionId, userId, dto.helpful()));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{correctionId}")
+    public ResponseEntity<CorrectionResponse> update(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId,
+            @Valid @RequestBody UpdateCorrectionDto dto) {
+        var result = updateUseCase.update(new UpdateCorrectionUseCase.Command(
+                correctionId, userId,
+                dto.correctedText(), dto.explanation(), dto.tags(),
+                dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),
+                dto.fluencyScore(), dto.referenceAudioUrl()
+        ));
+        return ResponseEntity.ok(CorrectionResponse.from(result));
+    }
+
+    @DeleteMapping("/{correctionId}")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId) {
+        deleteUseCase.delete(correctionId, userId);
         return ResponseEntity.noContent().build();
     }
 }

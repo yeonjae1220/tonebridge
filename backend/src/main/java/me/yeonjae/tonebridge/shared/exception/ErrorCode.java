@@ -31,6 +31,7 @@ public enum ErrorCode {
     CORRECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "CORR_001", "첨삭을 찾을 수 없습니다"),
     ALREADY_RATED(HttpStatus.CONFLICT, "CORR_002", "이미 평가한 첨삭입니다"),
     QUALITY_CHECK_FAILED(HttpStatus.BAD_REQUEST, "CORR_003", "품질 기준을 충족하지 않습니다. 더 구체적인 피드백을 제공해주세요"),
+    CORRECTION_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "CORR_004", "이 첨삭은 삭제할 수 없습니다"),
 
     // Storage
     FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_001", "파일 업로드에 실패했습니다"),

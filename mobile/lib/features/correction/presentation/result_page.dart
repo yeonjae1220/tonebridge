@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
+import 'package:tonebridge/features/correction/data/correction_repository_impl.dart';
 import 'package:tonebridge/features/correction/domain/model/correction_item.dart';
 import 'package:tonebridge/features/correction/presentation/correction_provider.dart';
 import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
@@ -79,6 +81,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final resultAsync = ref.watch(correctionResultProvider(widget.requestId));
+    final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
     // Resolve the original request from feed/my-requests
     final feedAsync = ref.watch(feedStateProvider);
@@ -150,9 +153,138 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                       onRate: (helpful) => ref
                           .read(ratingStateProvider(c.id).notifier)
                           .rate(helpful: helpful),
+                      onEdit: currentUserId == c.correctorId
+                          ? () => _showEditCorrectionSheet(context, c, isAudio)
+                          : null,
+                      onDelete: currentUserId == c.correctorId
+                          ? () => _confirmDeleteCorrection(context, c)
+                          : null,
                     ),
                   )),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteCorrection(
+    BuildContext context,
+    CorrectionItem correction,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('첨삭 삭제'),
+        content: const Text('이 첨삭을 삭제할까요? 결과 목록에서 숨겨집니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(correctionRepositoryProvider).deleteCorrection(correction.id);
+      ref.invalidate(correctionResultProvider(widget.requestId));
+      messenger.showSnackBar(const SnackBar(content: Text('첨삭을 삭제했어요')));
+    } on Exception catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    }
+  }
+
+  void _showEditCorrectionSheet(
+    BuildContext context,
+    CorrectionItem correction,
+    bool isAudio,
+  ) {
+    final correctedController =
+        TextEditingController(text: correction.correctedText ?? '');
+    final explanationController =
+        TextEditingController(text: correction.explanation ?? '');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('첨삭 수정',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            if (!isAudio) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: correctedController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: '수정 문장',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: explanationController,
+              autofocus: isAudio,
+              decoration: const InputDecoration(
+                labelText: '설명',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final explanation = explanationController.text.trim();
+                  if (explanation.isEmpty) return;
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await ref.read(correctionRepositoryProvider).updateCorrection(
+                          correctionId: correction.id,
+                          correctedText: isAudio
+                              ? correction.correctedText
+                              : correctedController.text.trim(),
+                          explanation: explanation,
+                          tags: correction.tags,
+                          timestampComments: correction.timestampComments,
+                          pronunciationScore: correction.pronunciationScore,
+                          intonationScore: correction.intonationScore,
+                          fluencyScore: correction.fluencyScore,
+                          referenceAudioUrl: correction.referenceAudioUrl,
+                        );
+                    ref.invalidate(correctionResultProvider(widget.requestId));
+                    navigator.pop();
+                    messenger.showSnackBar(
+                        const SnackBar(content: Text('첨삭을 수정했어요')));
+                  } on Exception catch (e) {
+                    messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+                  }
+                },
+                child: const Text('저장'),
+              ),
+            ),
           ],
         ),
       ),
@@ -292,11 +424,15 @@ class _CorrectionCard extends StatefulWidget {
     required this.correction,
     required this.isAudioRequest,
     required this.onRate,
+    this.onEdit,
+    this.onDelete,
   });
 
   final CorrectionItem correction;
   final bool isAudioRequest;
   final ValueChanged<bool> onRate;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   State<_CorrectionCard> createState() => _CorrectionCardState();
@@ -371,6 +507,40 @@ class _CorrectionCardState extends State<_CorrectionCard> {
                 Text(statusLabel,
                     style: theme.textTheme.labelSmall
                         ?.copyWith(color: statusColor)),
+                if (widget.onEdit != null || widget.onDelete != null)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        widget.onEdit?.call();
+                      } else if (value == 'delete') {
+                        widget.onDelete?.call();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      if (widget.onEdit != null)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined),
+                              SizedBox(width: 8),
+                              Text('수정'),
+                            ],
+                          ),
+                        ),
+                      if (widget.onDelete != null)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline),
+                              SizedBox(width: 8),
+                              Text('삭제'),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
             const SizedBox(height: 12),

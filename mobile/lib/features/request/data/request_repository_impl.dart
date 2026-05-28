@@ -55,4 +55,31 @@ class RequestRepositoryImpl implements RequestRepository {
     );
     return CorrectionRequestItem.fromJson(response.data!);
   }
+
+  @override
+  Future<CorrectionRequestItem> updateRequest({
+    required String requestId,
+    required String targetLanguage,
+    String? targetVariant,
+    String? contentText,
+    String? context,
+    List<String> feedbackGoals = const [],
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/correction-requests/$requestId',
+      data: {
+        'targetLanguage': targetLanguage,
+        if (targetVariant != null) 'targetVariant': targetVariant,
+        if (contentText != null) 'contentText': contentText,
+        if (context != null) 'context': context,
+        'feedbackGoals': feedbackGoals,
+      },
+    );
+    return CorrectionRequestItem.fromJson(response.data!);
+  }
+
+  @override
+  Future<void> deleteRequest(String requestId) async {
+    await _dio.delete<void>('/api/correction-requests/$requestId');
+  }
 }

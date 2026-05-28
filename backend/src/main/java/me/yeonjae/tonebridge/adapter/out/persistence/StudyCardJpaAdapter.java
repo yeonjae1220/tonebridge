@@ -25,13 +25,29 @@ public class StudyCardJpaAdapter implements StudyCardPort {
     @Override
     @Transactional(readOnly = true)
     public Optional<StudyCard> findById(UUID id) {
-        return repository.findById(id).map(StudyCardEntity::toDomain);
+        return repository.findActiveById(id).map(StudyCardEntity::toDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<StudyCard> findBySessionId(UUID sessionId) {
-        return repository.findBySessionIdOrderByCreatedAtDesc(sessionId)
+        return repository.findBySessionIdAndDeletedAtIsNullOrderByCreatedAtDesc(sessionId)
                 .stream().map(StudyCardEntity::toDomain).toList();
+    }
+
+    @Override
+    public StudyCard updateContent(UUID id, String phrase, String context, List<String> tags) {
+        StudyCardEntity entity = repository.findActiveById(id)
+                .orElseThrow(() -> new IllegalStateException("Study card not found for update: id=" + id));
+        entity.updateContent(phrase, context, tags);
+        return repository.save(entity).toDomain();
+    }
+
+    @Override
+    public void softDelete(UUID id) {
+        StudyCardEntity entity = repository.findActiveById(id)
+                .orElseThrow(() -> new IllegalStateException("Study card not found for delete: id=" + id));
+        entity.softDelete();
+        repository.save(entity);
     }
 }

@@ -7,10 +7,13 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CorrectionRequestResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitAudioRequestDto;
 import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitTextRequestDto;
+import me.yeonjae.tonebridge.adapter.in.web.dto.UpdateCorrectionRequestDto;
+import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetMyCorrectionRequestsUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
+import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionRequestUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,6 +33,8 @@ public class CorrectionRequestController {
     private final SubmitAudioCorrectionRequestUseCase submitAudioUseCase;
     private final GetCorrectionFeedUseCase feedUseCase;
     private final GetMyCorrectionRequestsUseCase myUseCase;
+    private final UpdateCorrectionRequestUseCase updateUseCase;
+    private final DeleteCorrectionRequestUseCase deleteUseCase;
 
     @PostMapping
     public ResponseEntity<CorrectionRequestResponse> submit(
@@ -63,5 +68,25 @@ public class CorrectionRequestController {
     public ResponseEntity<List<CorrectionRequestResponse>> mine(@AuthenticationPrincipal UUID userId) {
         return ResponseEntity.ok(myUseCase.getMine(userId)
                 .stream().map(CorrectionRequestResponse::from).toList());
+    }
+
+    @PatchMapping("/{requestId}")
+    public ResponseEntity<CorrectionRequestResponse> update(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID requestId,
+            @Valid @RequestBody UpdateCorrectionRequestDto dto) {
+        var result = updateUseCase.update(new UpdateCorrectionRequestUseCase.Command(
+                requestId, userId, dto.targetLanguage(), dto.targetVariant(),
+                dto.contentText(), dto.context(), dto.feedbackGoals()
+        ));
+        return ResponseEntity.ok(CorrectionRequestResponse.from(result));
+    }
+
+    @DeleteMapping("/{requestId}")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID requestId) {
+        deleteUseCase.delete(requestId, userId);
+        return ResponseEntity.noContent().build();
     }
 }

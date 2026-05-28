@@ -7,11 +7,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import type { Friend, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function StudyPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
+  const { data: currentUser } = useCurrentUser()
 
   const [showNewSession, setShowNewSession] = useState(false)
   const [selectedFriendId, setSelectedFriendId] = useState('')
@@ -52,6 +54,17 @@ export default function StudyPage() {
 
   const endMutation = useMutation({
     mutationFn: (sessionId: string) => api.patch(`/sessions/${sessionId}/end`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string | null }) =>
+      api.patch(`/sessions/${sessionId}`, { title }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (sessionId: string) => api.delete(`/sessions/${sessionId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
   })
 
@@ -165,19 +178,33 @@ export default function StudyPage() {
               <section className="mb-4">
                 <h2 className="text-sm font-semibold text-gray-500 mb-2">진행 중 ({activeSessions.length})</h2>
                 <div className="flex flex-col gap-3">
-                  {activeSessions.map((session) => (
-                    <SessionCard
-                      key={session.id}
-                      session={session}
-                      onOpen={() => router.push(`/study/${session.id}`)}
-                      onEnd={() => {
-                        if (window.confirm('세션을 종료할까요?')) {
-                          endMutation.mutate(session.id)
-                        }
-                      }}
-                      ending={endMutation.isPending}
-                    />
-                  ))}
+                  {activeSessions.map((session) => {
+                    const canManage = currentUser?.id === session.createdBy
+                    return (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        onOpen={() => router.push(`/study/${session.id}`)}
+                        onEnd={canManage ? () => {
+                          if (window.confirm('세션을 종료할까요?')) {
+                            endMutation.mutate(session.id)
+                          }
+                        } : undefined}
+                        onRename={canManage ? () => {
+                          const title = window.prompt('세션 제목', session.title ?? '')
+                          if (title !== null) {
+                            updateMutation.mutate({ sessionId: session.id, title: title.trim() || null })
+                          }
+                        } : undefined}
+                        onDelete={canManage ? () => {
+                          if (window.confirm('세션을 삭제할까요?')) {
+                            deleteMutation.mutate(session.id)
+                          }
+                        } : undefined}
+                        ending={endMutation.isPending}
+                      />
+                    )
+                  })}
                 </div>
               </section>
             )}
@@ -186,14 +213,28 @@ export default function StudyPage() {
               <section>
                 <h2 className="text-sm font-semibold text-gray-500 mb-2">종료됨 ({endedSessions.length})</h2>
                 <div className="flex flex-col gap-3">
-                  {endedSessions.map((session) => (
-                    <SessionCard
-                      key={session.id}
-                      session={session}
-                      onOpen={() => router.push(`/study/${session.id}`)}
-                      ended
-                    />
-                  ))}
+                  {endedSessions.map((session) => {
+                    const canManage = currentUser?.id === session.createdBy
+                    return (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        onOpen={() => router.push(`/study/${session.id}`)}
+                        ended
+                        onRename={canManage ? () => {
+                          const title = window.prompt('세션 제목', session.title ?? '')
+                          if (title !== null) {
+                            updateMutation.mutate({ sessionId: session.id, title: title.trim() || null })
+                          }
+                        } : undefined}
+                        onDelete={canManage ? () => {
+                          if (window.confirm('세션을 삭제할까요?')) {
+                            deleteMutation.mutate(session.id)
+                          }
+                        } : undefined}
+                      />
+                    )
+                  })}
                 </div>
               </section>
             )}
@@ -208,11 +249,13 @@ interface SessionCardProps {
   session: StudySession
   onOpen: () => void
   onEnd?: () => void
+  onRename?: () => void
+  onDelete?: () => void
   ending?: boolean
   ended?: boolean
 }
 
-function SessionCard({ session, onOpen, onEnd, ending, ended }: SessionCardProps) {
+function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended }: SessionCardProps) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -248,6 +291,22 @@ function SessionCard({ session, onOpen, onEnd, ending, ended }: SessionCardProps
             className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
             세션 종료
+          </button>
+        )}
+        {onRename && (
+          <button
+            onClick={onRename}
+            className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            수정
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
+          >
+            삭제
           </button>
         )}
       </div>
