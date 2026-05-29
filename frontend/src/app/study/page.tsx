@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import type { Friend, StudySession } from '@/types'
+import type { Friend, FriendRequest, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+
+function formatMessage(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+    template,
+  )
+}
 
 export default function StudyPage() {
   const router = useRouter()
@@ -36,7 +43,13 @@ export default function StudyPage() {
   const { data: friends = [] } = useQuery<Friend[]>({
     queryKey: ['friends'],
     queryFn: () => api.get('/friends').then((r) => r.data),
-    enabled: !!accessToken && showNewSession,
+    enabled: !!accessToken,
+  })
+
+  const { data: pendingRequests = [] } = useQuery<FriendRequest[]>({
+    queryKey: ['friends', 'pending'],
+    queryFn: () => api.get('/friends/pending').then((r) => r.data),
+    enabled: !!accessToken,
   })
 
   const createMutation = useMutation({
@@ -71,6 +84,19 @@ export default function StudyPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
   })
 
+  const acceptMutation = useMutation({
+    mutationFn: (requestId: string) => api.post(`/friends/${requestId}/accept`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] })
+      queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
+    },
+  })
+
+  const declineMutation = useMutation({
+    mutationFn: (requestId: string) => api.delete(`/friends/requests/${requestId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }),
+  })
+
   if (!accessToken) return null
 
   const activeSessions = sessions.filter((s) => s.status === 'ACTIVE')
@@ -95,6 +121,82 @@ export default function StudyPage() {
             {t('study.startPractice')}
           </button>
         </div>
+
+        {pendingRequests.length > 0 && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+            <p className="text-sm font-bold text-blue-900 mb-3">
+              {formatMessage(t('study.pendingFriendRequests'), { count: pendingRequests.length })}
+            </p>
+            <div className="flex flex-col gap-2">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-blue-800">
+                    {request.senderUsername ?? t('friends.unknown')}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => acceptMutation.mutate(request.id)}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
+                      className="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-semibold disabled:opacity-40"
+                    >
+                      {t('friends.accept')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => declineMutation.mutate(request.id)}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
+                      className="px-3 py-1.5 rounded-lg bg-white text-blue-700 border border-blue-200 text-xs font-semibold disabled:opacity-40"
+                    >
+                      {t('friends.decline')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <section className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-500">{t('friends.title')}</h2>
+            <button
+              type="button"
+              onClick={() => router.push('/friends')}
+              className="text-xs font-semibold text-blue-500 hover:text-blue-600"
+            >
+              {t('friends.add')}
+            </button>
+          </div>
+          {friends.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-sm text-gray-400">
+              {t('study.noFriends')}{' '}
+              <button type="button" onClick={() => router.push('/friends')} className="text-blue-500 underline">
+                {t('study.addFriend')}
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {friends.map((friend) => (
+                <button
+                  key={friend.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFriendId(friend.id)
+                    setShowNewSession(true)
+                    setCreateError(null)
+                  }}
+                  className="shrink-0 w-20 flex flex-col items-center gap-2"
+                >
+                  <span className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                    {friend.username.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="w-full truncate text-xs font-medium text-gray-600">{friend.username}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* 새 세션 생성 패널 */}
         {showNewSession && (

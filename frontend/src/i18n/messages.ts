@@ -1598,6 +1598,7 @@ export const messages: Record<UiLanguage, Messages> = {
 }
 
 const defaultExtraMessages = {
+  'nav.request': 'Request',
   'auth.loading': 'Signing in...',
   'login.subtitle': 'Correct other languages and get yours corrected too',
   'login.google': 'Continue with Google',
@@ -1608,6 +1609,16 @@ const defaultExtraMessages = {
   'home.requestCorrection': 'Request correction',
   'home.earnCredits': 'Correct and earn credits',
   'home.myRequests': 'My requests',
+  'feed.helpRequests': 'Requests to help',
+  'feed.myRequests': 'My requests',
+  'feed.myRequestsEmpty': 'You have not sent any correction requests yet.',
+  'request.editTitle': 'Edit request',
+  'request.deleteConfirm': 'Delete this request?',
+  'request.useRecording': 'Use this recording',
+  'study.pendingFriendRequests': '{count} friend requests are waiting',
+  'study.cards.move': 'Move',
+  'study.cards.targetPractice': 'Practice',
+  'study.cards.position': 'Position',
   'profile.title': 'My profile',
   'profile.nativeSpeaker': '{language} native speaker',
   'profile.editLanguages': 'Edit language settings',
@@ -1742,6 +1753,7 @@ Object.values(messages).forEach((localeMessages) => {
 })
 
 Object.assign(messages.ko, {
+  'nav.request': '요청',
   'auth.loading': '로그인 중...',
   'login.subtitle': '남의 언어를 교정하고, 내 언어도 교정받으세요',
   'login.google': 'Google로 시작하기',
@@ -1752,6 +1764,16 @@ Object.assign(messages.ko, {
   'home.requestCorrection': '교정 요청하기',
   'home.earnCredits': '첨삭해서 크레딧 벌기',
   'home.myRequests': '내 요청 보기',
+  'feed.helpRequests': '도와줄 요청',
+  'feed.myRequests': '내 요청',
+  'feed.myRequestsEmpty': '아직 보낸 교정 요청이 없습니다.',
+  'request.editTitle': '요청 수정',
+  'request.deleteConfirm': '이 요청을 삭제할까요?',
+  'request.useRecording': '이 녹음 사용하기',
+  'study.pendingFriendRequests': '받은 친구 요청 {count}개',
+  'study.cards.move': '이동',
+  'study.cards.targetPractice': '연습',
+  'study.cards.position': '위치',
   'profile.title': '내 프로필',
   'profile.nativeSpeaker': '{language} 원어민',
   'profile.editLanguages': '언어 설정 변경',
@@ -2859,6 +2881,104 @@ Object.assign(messages.ru, {
   'admin.apply': 'Применить',
   'admin.previous': 'Назад',
   'admin.next': 'Далее',
+})
+
+Object.assign(messages.ja, {
+  'nav.request': '依頼',
+  'feed.helpRequests': '手伝える依頼',
+  'feed.myRequests': '自分の依頼',
+  'feed.myRequestsEmpty': 'まだ添削依頼がありません。',
+  'request.editTitle': '依頼を編集',
+  'request.deleteConfirm': 'この依頼を削除しますか？',
+  'request.useRecording': 'この録音を使う',
+  'study.pendingFriendRequests': '友達リクエスト {count} 件',
+  'study.cards.move': '移動',
+  'study.cards.targetPractice': '練習',
+  'study.cards.position': '位置',
+})
+
+Object.assign(messages.zh, {
+  'nav.request': '请求',
+  'feed.helpRequests': '可帮助的请求',
+  'feed.myRequests': '我的请求',
+  'feed.myRequestsEmpty': '你还没有发送任何校正请求。',
+  'request.editTitle': '编辑请求',
+  'request.deleteConfirm': '要删除这个请求吗？',
+  'request.useRecording': '使用此录音',
+  'study.pendingFriendRequests': '{count} 个好友请求',
+  'study.cards.move': '移动',
+  'study.cards.targetPractice': '练习',
+  'study.cards.position': '位置',
+})
+
+Object.assign(messages.es, {
+  'nav.request': 'Pedir',
+  'feed.helpRequests': 'Solicitudes para ayudar',
+  'feed.myRequests': 'Mis solicitudes',
+  'feed.myRequestsEmpty': 'Aún no has enviado solicitudes de corrección.',
+  'request.editTitle': 'Editar solicitud',
+  'request.deleteConfirm': '¿Eliminar esta solicitud?',
+  'request.useRecording': 'Usar esta grabación',
+  'study.pendingFriendRequests': '{count} solicitudes de amistad pendientes',
+  'study.cards.move': 'Mover',
+  'study.cards.targetPractice': 'Práctica',
+  'study.cards.position': 'Posición',
+})
+
+Object.assign(messages.fr, {
+  'nav.request': 'Demande',
+  'feed.helpRequests': 'Demandes à aider',
+  'feed.myRequests': 'Mes demandes',
+  'feed.myRequestsEmpty': 'Vous n’avez pas encore envoyé de demande de correction.',
+  'request.editTitle': 'Modifier la demande',
+  'request.deleteConfirm': 'Supprimer cette demande ?',
+  'request.useRecording': 'Utiliser cet enregistrement',
+  'study.pendingFriendRequests': '{count} demandes d’ami en attente',
+  'study.cards.move': 'Déplacer',
+  'study.cards.targetPractice': 'Entraînement',
+  'study.cards.position': 'Position',
+})
+
+Object.assign(messages.de, {
+  'nav.request': 'Anfrage',
+  'feed.helpRequests': 'Anfragen zum Helfen',
+  'feed.myRequests': 'Meine Anfragen',
+  'feed.myRequestsEmpty': 'Du hast noch keine Korrekturanfragen gesendet.',
+  'request.editTitle': 'Anfrage bearbeiten',
+  'request.deleteConfirm': 'Diese Anfrage löschen?',
+  'request.useRecording': 'Diese Aufnahme verwenden',
+  'study.pendingFriendRequests': '{count} Freundschaftsanfragen warten',
+  'study.cards.move': 'Verschieben',
+  'study.cards.targetPractice': 'Übung',
+  'study.cards.position': 'Position',
+})
+
+Object.assign(messages.pt, {
+  'nav.request': 'Pedido',
+  'feed.helpRequests': 'Pedidos para ajudar',
+  'feed.myRequests': 'Meus pedidos',
+  'feed.myRequestsEmpty': 'Você ainda não enviou pedidos de correção.',
+  'request.editTitle': 'Editar pedido',
+  'request.deleteConfirm': 'Excluir este pedido?',
+  'request.useRecording': 'Usar esta gravação',
+  'study.pendingFriendRequests': '{count} pedidos de amizade pendentes',
+  'study.cards.move': 'Mover',
+  'study.cards.targetPractice': 'Prática',
+  'study.cards.position': 'Posição',
+})
+
+Object.assign(messages.ru, {
+  'nav.request': 'Запрос',
+  'feed.helpRequests': 'Запросы для помощи',
+  'feed.myRequests': 'Мои запросы',
+  'feed.myRequestsEmpty': 'Вы еще не отправляли запросы на исправление.',
+  'request.editTitle': 'Редактировать запрос',
+  'request.deleteConfirm': 'Удалить этот запрос?',
+  'request.useRecording': 'Использовать эту запись',
+  'study.pendingFriendRequests': 'Ожидают {count} запросов в друзья',
+  'study.cards.move': 'Переместить',
+  'study.cards.targetPractice': 'Практика',
+  'study.cards.position': 'Позиция',
 })
 
 export function normalizeUiLanguage(value: string | null | undefined): UiLanguage {

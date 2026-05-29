@@ -82,6 +82,7 @@ export default function RequestPage() {
   const [context, setContext] = useState('')
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
   const [error, setError] = useState('')
+  const [recordSheetOpen, setRecordSheetOpen] = useState(false)
 
   const recorder = useAudioRecorder()
   const { upload, uploading } = usePresignedUpload()
@@ -184,7 +185,8 @@ export default function RequestPage() {
               <div className="flex flex-col items-center gap-4">
                 {recorder.state === 'idle' && (
                   <button
-                    onClick={recorder.start}
+                    type="button"
+                    onClick={() => setRecordSheetOpen(true)}
                     className="w-full py-4 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold shadow-sm transition-colors"
                   >
                     {t('request.startRecording')}
@@ -199,7 +201,13 @@ export default function RequestPage() {
                   </div>
                 )}
                 {recorder.state === 'stopped' && recorder.audioUrl && (
-                  <RecordedAudioPreview audioUrl={recorder.audioUrl} onReset={recorder.reset} />
+                  <RecordedAudioPreview
+                    audioUrl={recorder.audioUrl}
+                    onReset={() => {
+                      recorder.reset()
+                      setRecordSheetOpen(true)
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -261,6 +269,76 @@ export default function RequestPage() {
           </button>
         </div>
       </div>
+      {recordSheetOpen && (
+        <RecorderSheet
+          recorder={recorder}
+          onClose={() => setRecordSheetOpen(false)}
+        />
+      )}
     </main>
+  )
+}
+
+function RecorderSheet({
+  recorder,
+  onClose,
+}: {
+  recorder: ReturnType<typeof useAudioRecorder>
+  onClose: () => void
+}) {
+  const { t } = useI18n()
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">{t('request.recordingLabel')}</h2>
+          {recorder.state !== 'recording' && (
+            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+          )}
+        </div>
+
+        {recorder.state === 'idle' && (
+          <button
+            type="button"
+            onClick={recorder.start}
+            className="mx-auto w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+            aria-label={t('request.startRecording')}
+          >
+            <span className="text-3xl">●</span>
+          </button>
+        )}
+
+        {recorder.state === 'recording' && (
+          <div className="flex flex-col items-center gap-4">
+            <button
+              type="button"
+              onClick={recorder.stop}
+              className="w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+              aria-label={t('request.stopRecording')}
+            >
+              <span className="w-7 h-7 rounded-sm bg-white" />
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-mono text-red-600">{formatDuration(recorder.duration)}</span>
+            </div>
+          </div>
+        )}
+
+        {recorder.state === 'stopped' && recorder.audioUrl && (
+          <>
+            <RecordedAudioPreview audioUrl={recorder.audioUrl} onReset={recorder.reset} />
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+            >
+              {t('request.useRecording')}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   )
 }

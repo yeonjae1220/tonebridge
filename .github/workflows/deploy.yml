@@ -171,6 +171,6 @@ jobs:
             "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"files\":[\"${BASE}/\",\"${BASE}/feed\",\"${BASE}/request\",\"${BASE}/study\",\"${BASE}/friends\",\"${BASE}/profile\",\"${BASE}/wallet\",\"${BASE}/login\",\"${BASE}/onboarding\",\"${BASE}/admin\",\"${BASE}/admin/users\"]}")
+            -d "{\"files\":[\"${BASE}/\",\"${BASE}/feed\",\"${BASE}/request\",\"${BASE}/study\",\"${BASE}/friends\",\"${BASE}/profile\",\"${BASE}/profile/wallet\",\"${BASE}/profile/settings\",\"${BASE}/profile/language-edit\",\"${BASE}/wallet\",\"${BASE}/login\",\"${BASE}/onboarding\",\"${BASE}/admin\",\"${BASE}/admin/users\"]}")
           echo "CF purge response: ${RESULT}"
           echo "${RESULT}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge: OK' if r.get('success') else 'FAILED: '+str(r.get('errors','')))"

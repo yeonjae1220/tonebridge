@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api, logout as logoutSession } from '@/lib/api'
@@ -43,6 +43,7 @@ function fallbackLangLabel(code: string) {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const pathname = usePathname()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { language, setLanguage, t } = useI18n()
@@ -62,6 +63,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
+
+  useEffect(() => {
+    setEditingLanguages(pathname === '/profile/language-edit')
+    setShowSettings(pathname === '/profile/settings')
+  }, [pathname])
 
   const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
     queryKey: ['profile'],
@@ -99,7 +105,7 @@ export default function ProfilePage() {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
       setLanguage(uiLang)
-      setEditingLanguages(false)
+      router.push('/profile')
       setLangError(null)
     },
     onError: () => setLangError(t('profile.saveFailed')),
@@ -196,7 +202,7 @@ export default function ProfilePage() {
         <div className="max-w-lg mx-auto px-4 py-8">
           <div className="flex items-center gap-3 mb-6">
             <button
-              onClick={() => setEditingLanguages(false)}
+              onClick={() => router.push('/profile')}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
               aria-label={t('common.cancel')}
             >
@@ -256,7 +262,7 @@ export default function ProfilePage() {
         <div className="max-w-lg mx-auto px-4 py-8">
           <div className="flex items-center gap-3 mb-6">
             <button
-              onClick={() => setShowSettings(false)}
+              onClick={() => router.push('/profile')}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
               aria-label="back"
             >
@@ -338,7 +344,7 @@ export default function ProfilePage() {
             onClick={() => {
               setUiLang(me?.uiLanguage ?? language)
               setLangError(null)
-              setShowSettings(true)
+              router.push('/profile/settings')
             }}
             className="ml-auto p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500"
             aria-label={t('settings.title')}
@@ -429,7 +435,7 @@ export default function ProfilePage() {
                 </div>
               )}
               <button
-                onClick={() => setEditingLanguages(true)}
+                onClick={() => router.push('/profile/language-edit')}
                 className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 {t('profile.editLanguages')}
@@ -437,7 +443,7 @@ export default function ProfilePage() {
             </div>
 
             <button
-              onClick={() => router.push('/wallet')}
+              onClick={() => router.push('/profile/wallet')}
               className="bg-white rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <span>

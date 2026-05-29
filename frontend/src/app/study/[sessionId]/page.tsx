@@ -18,6 +18,8 @@ export default function StudySessionPage() {
   const { data: currentUser } = useCurrentUser()
   const { t } = useI18n()
   const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
+  const [movingCard, setMovingCard] = useState<StudyCard | null>(null)
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -33,6 +35,12 @@ export default function StudySessionPage() {
     queryKey: ['sessions', sessionId, 'cards'],
     queryFn: () => api.get(`/sessions/${sessionId}/cards`).then((r) => r.data),
     enabled: !!accessToken && !!sessionId,
+  })
+
+  const { data: sessions = [] } = useQuery<StudySession[]>({
+    queryKey: ['sessions'],
+    queryFn: () => api.get('/sessions').then((r) => r.data),
+    enabled: !!accessToken,
   })
 
   const updateCardMutation = useMutation({
@@ -58,7 +66,27 @@ export default function StudySessionPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
   })
 
+  const moveCardMutation = useMutation({
+    mutationFn: ({ cardId, targetSessionId, position }: { cardId: string; targetSessionId: string; position: number }) =>
+      api.patch(`/cards/${cardId}/move`, { targetSessionId, position }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+      queryClient.invalidateQueries({ queryKey: ['sessions', variables.targetSessionId, 'cards'] })
+      setMovingCard(null)
+    },
+  })
+
   if (!accessToken) return null
+
+  const orderedCards = [...cards].sort((a, b) => a.position - b.position)
+
+  const moveWithinSession = (card: StudyCard, position: number) => {
+    moveCardMutation.mutate({
+      cardId: card.id,
+      targetSessionId: sessionId,
+      position,
+    })
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 pb-20">
@@ -107,7 +135,7 @@ export default function StudySessionPage() {
               <div key={i} className="h-28 bg-gray-200 animate-pulse rounded-2xl" />
             ))}
           </div>
-        ) : cards.length === 0 ? (
+        ) : orderedCards.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">🃏</p>
             <p className="text-sm font-semibold text-gray-700">{t('study.cards.emptyTitle')}</p>
@@ -123,10 +151,28 @@ export default function StudySessionPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {cards.map((card) => {
+            {orderedCards.map((card, index) => {
               const canManage = currentUser?.id === card.createdByUserId
               return (
-                <div key={card.id} className="bg-white rounded-2xl border border-gray-100 p-5">
+                <div
+                  key={card.id}
+                  draggable={canManage}
+                  onDragStart={() => setDraggingCardId(card.id)}
+                  onDragOver={(event) => {
+                    if (canManage && draggingCardId) event.preventDefault()
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    const dragged = orderedCards.find((item) => item.id === draggingCardId)
+                    setDraggingCardId(null)
+                    if (!dragged || dragged.id === card.id) return
+                    moveWithinSession(dragged, index)
+                  }}
+                  onDragEnd={() => setDraggingCardId(null)}
+                  className={`bg-white rounded-2xl border p-5 transition-colors ${
+                    draggingCardId === card.id ? 'border-blue-200 opacity-60' : 'border-gray-100'
+                  }`}
+                >
                   <p className="text-base font-bold text-gray-900 mb-1">{card.phrase}</p>
                   {card.context && (
                     <p className="text-sm text-gray-500 mb-3">{card.context}</p>
@@ -163,10 +209,30 @@ export default function StudySessionPage() {
                   {canManage && (
                     <div className="flex gap-2 mt-4">
                       <button
+                        onClick={() => moveWithinSession(card, Math.max(0, index - 1))}
+                        disabled={index === 0 || moveCardMutation.isPending}
+                        className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => moveWithinSession(card, index + 1)}
+                        disabled={index === orderedCards.length - 1 || moveCardMutation.isPending}
+                        className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                      >
+                        ↓
+                      </button>
+                      <button
                         onClick={() => setCardSheet({ mode: 'edit', card })}
                         className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
                         {t('common.edit')}
+                      </button>
+                      <button
+                        onClick={() => setMovingCard(card)}
+                        className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                      >
+                        {t('study.cards.move')}
                       </button>
                       <button
                         onClick={() => {
@@ -198,6 +264,22 @@ export default function StudySessionPage() {
             } else {
               createCardMutation.mutate(payload)
             }
+          }}
+        />
+      )}
+      {movingCard && (
+        <MoveCardSheet
+          card={movingCard}
+          sessions={sessions.filter((item) => item.status === 'ACTIVE')}
+          currentSessionId={sessionId}
+          pending={moveCardMutation.isPending}
+          onClose={() => setMovingCard(null)}
+          onSubmit={(payload) => {
+            moveCardMutation.mutate({
+              cardId: movingCard.id,
+              targetSessionId: payload.targetSessionId,
+              position: payload.position,
+            })
           }}
         />
       )}
@@ -271,6 +353,72 @@ function CardSheet({
         <button
           type="submit"
           disabled={pending || !phrase.trim()}
+          className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+        >
+          {pending ? t('common.saving') : t('common.save')}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function MoveCardSheet({
+  card,
+  sessions,
+  currentSessionId,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  card: StudyCard
+  sessions: StudySession[]
+  currentSessionId: string
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: { targetSessionId: string; position: number }) => void
+}) {
+  const [targetSessionId, setTargetSessionId] = useState(currentSessionId)
+  const [position, setPosition] = useState(card.position)
+  const { t } = useI18n()
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    onSubmit({ targetSessionId, position: Math.max(0, position) })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">{t('study.cards.move')}</h2>
+          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        <p className="text-sm text-gray-500 line-clamp-2">{card.phrase}</p>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">{t('study.cards.targetPractice')}</span>
+          <select
+            value={targetSessionId}
+            onChange={(event) => setTargetSessionId(event.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white"
+          >
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">{t('study.cards.position')}</span>
+          <input
+            type="number"
+            min={0}
+            value={position}
+            onChange={(event) => setPosition(Number(event.target.value))}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending || !targetSessionId}
           className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}

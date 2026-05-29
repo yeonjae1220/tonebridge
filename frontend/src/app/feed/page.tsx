@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { FormEvent, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { CorrectionRequest, LanguageVariant } from '@/types'
@@ -11,6 +11,7 @@ import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
 
 type TFunction = ReturnType<typeof useI18n>['t']
+type FeedTab = 'help' | 'mine'
 
 function formatMessage(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce(
@@ -55,9 +56,12 @@ function GuestBanner() {
 
 export default function FeedPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { accessToken } = useAuthStore()
   const { t } = useI18n()
   const isGuest = !accessToken
+  const [tab, setTab] = useState<FeedTab>('help')
+  const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
 
   const { data: currentUser } = useCurrentUser()
 
@@ -79,10 +83,32 @@ export default function FeedPage() {
   const variantLabel = (code: string) =>
     variantLabels[code] ?? ALL_LANG_LABELS[code] ?? code
 
-  const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
+  const feedQuery = useQuery<CorrectionRequest[]>({
     queryKey: ['correction-feed'],
     queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
     enabled: !isGuest,
+  })
+
+  const myRequestsQuery = useQuery<CorrectionRequest[]>({
+    queryKey: ['my-requests'],
+    queryFn: () => api.get('/correction-requests/mine').then((r) => r.data),
+    enabled: !isGuest,
+  })
+
+  const updateRequestMutation = useMutation({
+    mutationFn: (payload: CorrectionRequest) => api.patch(`/correction-requests/${payload.id}`, {
+      targetLanguage: payload.targetLanguage,
+      targetVariant: payload.targetVariant,
+      contentText: payload.type === 'TEXT' ? payload.contentText : null,
+      context: payload.context,
+      feedbackGoals: payload.feedbackGoals,
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+  })
+
+  const deleteRequestMutation = useMutation({
+    mutationFn: (requestId: string) => api.delete(`/correction-requests/${requestId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
   })
 
   const correctorVariants = new Set<string>([
@@ -90,20 +116,18 @@ export default function FeedPage() {
     currentUser?.nativeLanguage ?? '',
   ].filter(Boolean))
 
-  const handleCardClick = (req: CorrectionRequest) => {
-    if (isGuest) {
-      router.push(`/login?redirect=/correct/${req.id}`)
-      return
-    }
-    router.push(`/correct/${req.id}`)
-  }
-
   const handleRequestClick = () => {
     if (isGuest) {
       router.push('/login?redirect=/request')
       return
     }
     router.push('/request')
+  }
+
+  const handleDelete = (requestId: string) => {
+    if (window.confirm(t('request.deleteConfirm'))) {
+      deleteRequestMutation.mutate(requestId)
+    }
   }
 
   return (
@@ -134,82 +158,292 @@ export default function FeedPage() {
 
         {isGuest && <GuestBanner />}
 
-        {!isGuest && isLoading && (
-          <div className="flex flex-col gap-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-2xl" />
+        {!isGuest && (
+          <div className="mb-4 flex rounded-xl bg-gray-100 p-1 gap-1">
+            {([
+              ['help', t('feed.helpRequests')],
+              ['mine', t('feed.myRequests')],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTab(value)}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  tab === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
         )}
 
-        {!isGuest && !isLoading && (!requests || requests.length === 0) && (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-4xl mb-3">📭</p>
-            <p className="text-sm">{t('feed.empty')}</p>
-          </div>
+        {tab === 'help' ? (
+          <RequestList
+            requests={feedQuery.data}
+            isLoading={!isGuest && feedQuery.isLoading}
+            emptyMessage={t('feed.empty')}
+            correctorVariants={correctorVariants}
+            variantLabel={variantLabel}
+            onCardClick={(req) => router.push(isGuest ? `/login?redirect=/correct/${req.id}` : `/correct/${req.id}`)}
+          />
+        ) : (
+          <RequestList
+            requests={myRequestsQuery.data}
+            isLoading={myRequestsQuery.isLoading}
+            emptyMessage={t('feed.myRequestsEmpty')}
+            correctorVariants={correctorVariants}
+            variantLabel={variantLabel}
+            onCardClick={(req) => router.push(`/result/${req.id}`)}
+            mine
+            onEdit={(req) => setEditingRequest(req)}
+            onDelete={handleDelete}
+          />
         )}
+      </div>
+      {editingRequest && (
+        <RequestEditSheet
+          request={editingRequest}
+          pending={updateRequestMutation.isPending}
+          onClose={() => setEditingRequest(null)}
+          onSubmit={(payload) => {
+            updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
+              onSuccess: () => setEditingRequest(null),
+            })
+          }}
+        />
+      )}
+    </main>
+  )
+}
 
-        <div className="flex flex-col gap-3">
-          {requests?.map((req) => {
-            const isDialectMatch = !!req.targetVariant && correctorVariants.has(req.targetVariant)
-            return (
-              <div
-                key={req.id}
-                className={`bg-white rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
-                  isDialectMatch ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-100'
-                }`}
-                onClick={() => handleCardClick(req)}
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                      {ALL_LANG_LABELS[req.targetLanguage] ?? req.targetLanguage}
-                    </span>
-                    {req.targetVariant && (
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        isDialectMatch
-                          ? 'bg-indigo-50 text-indigo-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {variantLabel(req.targetVariant)}
-                      </span>
-                    )}
-                    {req.type === 'AUDIO' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
-                        🎙 {t('common.audio')}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold text-green-600">{rewardLabel(req)} {t('feed.credits')}</span>
-                    <span className="text-xs text-gray-400">{timeAgo(req.createdAt, t)}</span>
-                  </div>
-                </div>
+function RequestList({
+  requests,
+  isLoading,
+  emptyMessage,
+  correctorVariants,
+  variantLabel,
+  onCardClick,
+  mine = false,
+  onEdit,
+  onDelete,
+}: {
+  requests?: CorrectionRequest[]
+  isLoading: boolean
+  emptyMessage: string
+  correctorVariants: Set<string>
+  variantLabel: (code: string) => string
+  onCardClick: (request: CorrectionRequest) => void
+  mine?: boolean
+  onEdit?: (request: CorrectionRequest) => void
+  onDelete?: (requestId: string) => void
+}) {
+  const { t } = useI18n()
 
-                {req.type === 'TEXT' ? (
-                  <p className="text-sm text-gray-800 line-clamp-3 mb-3">{req.contentText}</p>
-                ) : (
-                  <p className="text-sm text-gray-400 italic mb-3">🎙 {t('feed.audioRequest')}</p>
-                )}
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-2xl" />
+        ))}
+      </div>
+    )
+  }
 
-                {req.feedbackGoals && req.feedbackGoals.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {req.feedbackGoals.map((g) => (
-                      <span key={g} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-                )}
+  if (!requests || requests.length === 0) {
+    return (
+      <div className="text-center py-20 text-gray-400">
+        <p className="text-4xl mb-3">📭</p>
+        <p className="text-sm">{emptyMessage}</p>
+      </div>
+    )
+  }
 
-                {req.context && (
-                  <p className="text-xs text-gray-400 mt-2 italic">&quot;{req.context}&quot;</p>
-                )}
-              </div>
-            )
-          })}
+  return (
+    <div className="flex flex-col gap-3">
+      {requests.map((req) => {
+        const isDialectMatch = !!req.targetVariant && correctorVariants.has(req.targetVariant)
+        return (
+          <RequestCard
+            key={req.id}
+            request={req}
+            isDialectMatch={isDialectMatch}
+            variantLabel={variantLabel}
+            onClick={() => onCardClick(req)}
+            mine={mine}
+            onEdit={req.status === 'PENDING' ? () => onEdit?.(req) : undefined}
+            onDelete={req.status === 'PENDING' ? () => onDelete?.(req.id) : undefined}
+            t={t}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function RequestCard({
+  request,
+  isDialectMatch,
+  variantLabel,
+  onClick,
+  mine,
+  onEdit,
+  onDelete,
+  t,
+}: {
+  request: CorrectionRequest
+  isDialectMatch: boolean
+  variantLabel: (code: string) => string
+  onClick: () => void
+  mine: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+  t: TFunction
+}) {
+  return (
+    <div
+      className={`bg-white rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
+        isDialectMatch ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-100'
+      }`}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+            {ALL_LANG_LABELS[request.targetLanguage] ?? request.targetLanguage}
+          </span>
+          {request.targetVariant && (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+              isDialectMatch ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {variantLabel(request.targetVariant)}
+            </span>
+          )}
+          {request.type === 'AUDIO' && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
+              🎙 {t('common.audio')}
+            </span>
+          )}
+          {mine && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+              {request.status}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!mine && <span className="text-sm font-bold text-green-600">{rewardLabel(request)} {t('feed.credits')}</span>}
+          <span className="text-xs text-gray-400">{timeAgo(request.createdAt, t)}</span>
         </div>
       </div>
-    </main>
+
+      {request.type === 'TEXT' ? (
+        <p className="text-sm text-gray-800 line-clamp-3 mb-3">{request.contentText}</p>
+      ) : (
+        <p className="text-sm text-gray-400 italic mb-3">🎙 {t('feed.audioRequest')}</p>
+      )}
+
+      {request.feedbackGoals && request.feedbackGoals.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {request.feedbackGoals.map((g) => (
+            <span key={g} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {request.context && (
+        <p className="text-xs text-gray-400 mt-2 italic">&quot;{request.context}&quot;</p>
+      )}
+
+      {mine && (onEdit || onDelete) && (
+        <div className="mt-4 flex gap-2 border-t border-gray-50 pt-3">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onEdit()
+              }}
+              className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              {t('common.edit')}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onDelete()
+              }}
+              className="flex-1 py-2 rounded-xl border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+            >
+              {t('common.delete')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RequestEditSheet({
+  request,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  request: CorrectionRequest
+  pending: boolean
+  onClose: () => void
+  onSubmit: (payload: Partial<CorrectionRequest>) => void
+}) {
+  const [contentText, setContentText] = useState(request.contentText ?? '')
+  const [context, setContext] = useState(request.context ?? '')
+  const { t } = useI18n()
+  const isAudio = request.type === 'AUDIO'
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    onSubmit({
+      contentText: isAudio ? request.contentText : contentText.trim(),
+      context: context.trim() || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">{t('request.editTitle')}</h2>
+          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        {!isAudio && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-gray-500">{t('request.contentLabel')}</span>
+            <textarea
+              value={contentText}
+              onChange={(e) => setContentText(e.target.value)}
+              rows={4}
+              autoFocus
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </label>
+        )}
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-gray-500">{t('request.context')}</span>
+          <textarea
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            rows={3}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </label>
+        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+          {pending ? t('common.saving') : t('common.save')}
+        </button>
+      </form>
+    </div>
   )
 }
