@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { languageDisplayName } from '@/i18n/messages'
+import { InstallBanner } from '@/components/ui/InstallBanner'
 
 const STEPS = [
   { num: '01', titleKey: 'landing.step1.title', descKey: 'landing.step1.desc' },
@@ -83,6 +84,7 @@ export default function LandingPage() {
               {t('landing.browseFeed')} →
             </Link>
           </div>
+          <InstallBanner className="mt-6 text-left max-w-sm mx-auto" />
         </div>
       </section>
 
