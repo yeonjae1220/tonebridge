@@ -4,13 +4,17 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.domain.correction.Correction;
 import me.yeonjae.tonebridge.domain.correction.CorrectionStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -19,6 +23,7 @@ import java.util.UUID;
 public class CorrectionJpaAdapter implements CorrectionPort {
 
     private final CorrectionJpaRepository repository;
+    private final CorrectionLikeJpaRepository likeRepository;
 
     @Override
     public Correction save(Correction correction) {
@@ -92,5 +97,45 @@ public class CorrectionJpaAdapter implements CorrectionPort {
     @Transactional(readOnly = true)
     public boolean existsByRequestId(UUID requestId) {
         return repository.existsByRequestIdAndDeletedAtIsNull(requestId);
+    }
+
+    @Override
+    public boolean toggleLike(UUID correctionId, UUID userId) {
+        boolean alreadyLiked = likeRepository.existsByCorrectionIdAndUserId(correctionId, userId);
+        if (alreadyLiked) {
+            try {
+                likeRepository.deleteByCorrectionIdAndUserId(correctionId, userId);
+            } catch (Exception e) {
+                // 동시 unlike 요청이 먼저 삭제한 경우 — 멱등 처리
+            }
+            return false;
+        }
+        try {
+            likeRepository.save(CorrectionLikeJpaEntity.builder()
+                    .correctionId(correctionId)
+                    .userId(userId)
+                    .build());
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            // 동시 like 요청이 먼저 삽입한 경우 — 멱등 처리
+            return true;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Long> findLikeCountsByCorrectionIds(List<UUID> correctionIds) {
+        if (correctionIds.isEmpty()) return Map.of();
+        Map<UUID, Long> result = new HashMap<>();
+        likeRepository.countLikesByCorrectionIds(correctionIds)
+                .forEach(row -> result.put((UUID) row[0], (Long) row[1]));
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> findLikedCorrectionIds(List<UUID> correctionIds, UUID userId) {
+        if (correctionIds.isEmpty()) return Set.of();
+        return likeRepository.findLikedCorrectionIds(correctionIds, userId);
     }
 }

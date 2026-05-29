@@ -125,6 +125,7 @@ export default function ResultPage() {
   const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
   const [editingCorrection, setEditingCorrection] = useState<Correction | null>(null)
   const [savingCorrection, setSavingCorrection] = useState<Correction | null>(null)
+  const [likingId, setLikingId] = useState<string | null>(null)
   const waveContainerRef = useRef<HTMLDivElement>(null)
   const ws = useWaveSurfer(waveContainerRef, originalAudioUrl)
 
@@ -175,6 +176,23 @@ export default function ResultPage() {
     mutationFn: ({ correctionId, helpful }: { correctionId: string; helpful: boolean }) =>
       api.post(`/corrections/${correctionId}/rate`, { helpful }),
     onSuccess: () => refetch(),
+  })
+
+  const acceptMutation = useMutation({
+    mutationFn: (correctionId: string) => api.post(`/corrections/${correctionId}/accept`),
+    onSuccess: () => {
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+    },
+  })
+
+  const likeMutation = useMutation({
+    mutationFn: (correctionId: string) => {
+      setLikingId(correctionId)
+      return api.post(`/corrections/${correctionId}/like`)
+    },
+    onSuccess: () => refetch(),
+    onSettled: () => setLikingId(null),
   })
 
   const deleteCorrectionMutation = useMutation({
@@ -305,35 +323,52 @@ export default function ResultPage() {
             {corrections.map((correction) => {
               const statusInfo = STATUS_MAP[correction.status] ?? STATUS_MAP.SUBMITTED
               const canManage = currentUser?.id === correction.correctorId
+              const isRequester = currentUser?.id === request?.requesterId
+              const requestAccepted = !!request?.acceptedCorrectionId
               return (
-                <div key={correction.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.cls}`}>
-                      {t(statusInfo.key)}
-                    </span>
+                <div key={correction.id} className={`bg-white rounded-2xl border overflow-hidden ${correction.isAccepted ? 'border-green-300 shadow-sm' : 'border-gray-100'}`}>
+                  <div className="px-5 py-3 border-b border-gray-50 flex items-center gap-2 flex-wrap">
+                    {correction.isAccepted ? (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                        {t('result.accepted')}
+                      </span>
+                    ) : (
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.cls}`}>
+                        {t(statusInfo.key)}
+                      </span>
+                    )}
                     {correction.isAi && (
                       <span className="text-xs text-purple-500 font-medium">{t('result.aiCorrection')}</span>
                     )}
-                    {canManage && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingCorrection(correction)}
-                          className="text-xs text-gray-500 hover:text-blue-600"
-                        >
-                          {t('common.edit')}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(t('result.confirmDeleteCorrection'))) {
-                              deleteCorrectionMutation.mutate(correction.id)
-                            }
-                          }}
-                          className="text-xs text-gray-500 hover:text-red-600"
-                        >
-                          {t('common.delete')}
-                        </button>
-                      </div>
-                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => likeMutation.mutate(correction.id)}
+                        disabled={likingId === correction.id}
+                        className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${correction.likedByMe ? 'bg-pink-50 border-pink-300 text-pink-600' : 'border-gray-200 text-gray-500 hover:bg-pink-50 hover:border-pink-300 hover:text-pink-600'}`}
+                      >
+                        ♥ {correction.likeCount > 0 ? correction.likeCount : t('result.like')}
+                      </button>
+                      {canManage && (
+                        <>
+                          <button
+                            onClick={() => setEditingCorrection(correction)}
+                            className="text-xs text-gray-500 hover:text-blue-600"
+                          >
+                            {t('common.edit')}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(t('result.confirmDeleteCorrection'))) {
+                                deleteCorrectionMutation.mutate(correction.id)
+                              }
+                            }}
+                            className="text-xs text-gray-500 hover:text-red-600"
+                          >
+                            {t('common.delete')}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-5 flex flex-col gap-4">
@@ -368,14 +403,27 @@ export default function ResultPage() {
                     )}
 
                     {correction.status !== 'REJECTED' && (
-                      <div className="border-t border-gray-50 pt-4">
+                      <div className="border-t border-gray-50 pt-4 flex flex-col gap-3">
+                        {isRequester && !requestAccepted && !correction.isAccepted && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(t('result.confirmAccept'))) {
+                                acceptMutation.mutate(correction.id)
+                              }
+                            }}
+                            disabled={acceptMutation.isPending}
+                            className="w-full py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-600 transition-colors disabled:opacity-40"
+                          >
+                            {t('result.accept')}
+                          </button>
+                        )}
                         <button
                           onClick={() => setSavingCorrection(correction)}
-                          className="mb-3 w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                          className="w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
                         >
                           {t('result.saveCard')}
                         </button>
-                        <p className="text-xs text-gray-500 mb-2">{t('result.helpfulQuestion')}</p>
+                        <p className="text-xs text-gray-500 mb-0">{t('result.helpfulQuestion')}</p>
                         <div className="flex gap-2">
                           <button
                             onClick={() =>

@@ -74,7 +74,7 @@ public class CorrectionRequestService implements
                 command.contentText(), null, command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
-                cost, RequestStatus.PENDING, null, null, null
+                cost, RequestStatus.PENDING, null, null, null, null
         );
         return correctionRequestPort.save(request);
     }
@@ -92,7 +92,7 @@ public class CorrectionRequestService implements
                 null, command.audioKey(), command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
-                cost, RequestStatus.PENDING, null, null, null
+                cost, RequestStatus.PENDING, null, null, null, null
         );
         return correctionRequestPort.save(request);
     }

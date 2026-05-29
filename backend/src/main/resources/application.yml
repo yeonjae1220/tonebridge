@@ -88,6 +88,7 @@ tonebridge:
     audio-correction-reward: 8
     audio-with-recording-reward: 12
     streak-7day-bonus: 10
+    accept-bonus: 5
   correction:
     expiry-hours: 48
     ai-fallback-after-hours: 48

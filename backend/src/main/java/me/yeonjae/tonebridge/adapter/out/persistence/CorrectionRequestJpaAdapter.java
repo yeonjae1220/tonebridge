@@ -85,4 +85,14 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
                 .map(CorrectionRequestEntity::toDomain)
                 .toList();
     }
+
+    @Override
+    public void updateAcceptedCorrection(UUID requestId, UUID correctionId) {
+        repository.updateAcceptedCorrection(requestId, correctionId);
+    }
+
+    @Override
+    public Optional<CorrectionRequest> findByIdForUpdate(UUID id) {
+        return repository.findActiveByIdForUpdate(id).map(CorrectionRequestEntity::toDomain);
+    }
 }

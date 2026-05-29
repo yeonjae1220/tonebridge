@@ -160,6 +160,10 @@ type KnownMessageKey =
   | 'result.confirmDeleteRequest'
   | 'result.confirmDeleteCorrection'
   | 'result.audioCardDefault'
+  | 'result.accept'
+  | 'result.accepted'
+  | 'result.confirmAccept'
+  | 'result.like'
 
 type Messages = Record<KnownMessageKey, string> & Record<string, string>
 
@@ -322,6 +326,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': '이 첨삭 요청을 삭제할까요?',
     'result.confirmDeleteCorrection': '이 첨삭을 삭제할까요?',
     'result.audioCardDefault': '음성 첨삭 카드',
+    'result.accept': '채택하기',
+    'result.accepted': '✓ 채택됨',
+    'result.confirmAccept': '이 첨삭을 채택하시겠어요? 채택 후에는 변경할 수 없습니다.',
+    'result.like': '좋아요',
   },
   en: {
     'nav.feed': 'Feed',
@@ -481,6 +489,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'Delete this correction request?',
     'result.confirmDeleteCorrection': 'Delete this correction?',
     'result.audioCardDefault': 'Audio correction card',
+    'result.accept': 'Accept',
+    'result.accepted': '✓ Accepted',
+    'result.confirmAccept': 'Accept this correction? This cannot be undone.',
+    'result.like': 'Like',
   },
   ja: {
     'nav.feed': 'フィード',
@@ -640,6 +652,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'この添削依頼を削除しますか？',
     'result.confirmDeleteCorrection': 'この添削を削除しますか？',
     'result.audioCardDefault': '音声添削カード',
+    'result.accept': '採用する',
+    'result.accepted': '✓ 採用済み',
+    'result.confirmAccept': 'この添削を採用しますか？採用後は変更できません。',
+    'result.like': 'いいね',
   },
   zh: {
     'nav.feed': '动态',
@@ -799,6 +815,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': '要删除这个批改请求吗？',
     'result.confirmDeleteCorrection': '要删除这个批改吗？',
     'result.audioCardDefault': '语音批改卡片',
+    'result.accept': '采纳',
+    'result.accepted': '✓ 已采纳',
+    'result.confirmAccept': '确定采纳这条批改吗？采纳后无法更改。',
+    'result.like': '点赞',
   },
   es: {
     'nav.feed': 'Inicio',
@@ -958,6 +978,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': '¿Eliminar esta solicitud de corrección?',
     'result.confirmDeleteCorrection': '¿Eliminar esta corrección?',
     'result.audioCardDefault': 'Tarjeta de corrección de audio',
+    'result.accept': 'Aceptar',
+    'result.accepted': '✓ Aceptado',
+    'result.confirmAccept': '¿Aceptar esta corrección? No se puede deshacer.',
+    'result.like': 'Me gusta',
   },
   fr: {
     'nav.feed': 'Fil',
@@ -1117,6 +1141,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'Supprimer cette demande de correction ?',
     'result.confirmDeleteCorrection': 'Supprimer cette correction ?',
     'result.audioCardDefault': 'Carte de correction audio',
+    'result.accept': 'Accepter',
+    'result.accepted': '✓ Accepté',
+    'result.confirmAccept': 'Accepter cette correction ? Impossible d\'annuler.',
+    'result.like': 'J\'aime',
   },
   de: {
     'nav.feed': 'Feed',
@@ -1276,6 +1304,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'Diese Korrekturanfrage löschen?',
     'result.confirmDeleteCorrection': 'Diese Korrektur löschen?',
     'result.audioCardDefault': 'Audio-Korrekturkarte',
+    'result.accept': 'Annehmen',
+    'result.accepted': '✓ Angenommen',
+    'result.confirmAccept': 'Diese Korrektur annehmen? Das kann nicht rückgängig gemacht werden.',
+    'result.like': 'Gefällt mir',
   },
   pt: {
     'nav.feed': 'Feed',
@@ -1435,6 +1467,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'Excluir esta solicitação de correção?',
     'result.confirmDeleteCorrection': 'Excluir esta correção?',
     'result.audioCardDefault': 'Cartão de correção de áudio',
+    'result.accept': 'Aceitar',
+    'result.accepted': '✓ Aceito',
+    'result.confirmAccept': 'Aceitar esta correção? Não pode ser desfeito.',
+    'result.like': 'Curtir',
   },
   ru: {
     'nav.feed': 'Лента',
@@ -1594,6 +1630,10 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.confirmDeleteRequest': 'Удалить этот запрос на правку?',
     'result.confirmDeleteCorrection': 'Удалить эту правку?',
     'result.audioCardDefault': 'Карточка аудио-правки',
+    'result.accept': 'Принять',
+    'result.accepted': '✓ Принято',
+    'result.confirmAccept': 'Принять эту правку? Отменить будет невозможно.',
+    'result.like': 'Нравится',
   },
 }
 

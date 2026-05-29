@@ -6,8 +6,11 @@ import me.yeonjae.tonebridge.adapter.in.web.dto.CorrectionResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.RateCorrectionDto;
 import me.yeonjae.tonebridge.adapter.in.web.dto.SubmitCorrectionDto;
 import me.yeonjae.tonebridge.adapter.in.web.dto.UpdateCorrectionDto;
+import me.yeonjae.tonebridge.domain.correction.CorrectionWithStats;
+import me.yeonjae.tonebridge.application.port.in.AcceptCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionResultUseCase;
+import me.yeonjae.tonebridge.application.port.in.LikeCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.RateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
@@ -29,6 +32,8 @@ public class CorrectionController {
     private final GetCorrectionResultUseCase resultUseCase;
     private final UpdateCorrectionUseCase updateUseCase;
     private final DeleteCorrectionUseCase deleteUseCase;
+    private final AcceptCorrectionUseCase acceptUseCase;
+    private final LikeCorrectionUseCase likeUseCase;
 
     @PostMapping
     public ResponseEntity<CorrectionResponse> submit(
@@ -40,7 +45,8 @@ public class CorrectionController {
                 dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),
                 dto.fluencyScore(), dto.referenceAudioUrl()
         ));
-        return ResponseEntity.status(HttpStatus.CREATED).body(CorrectionResponse.from(result));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false)));
     }
 
     @GetMapping("/request/{requestId}")
@@ -49,6 +55,21 @@ public class CorrectionController {
             @PathVariable UUID requestId) {
         return ResponseEntity.ok(resultUseCase.getResult(requestId, userId)
                 .stream().map(CorrectionResponse::from).toList());
+    }
+
+    @PostMapping("/{correctionId}/accept")
+    public ResponseEntity<Void> accept(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId) {
+        acceptUseCase.accept(new AcceptCorrectionUseCase.Command(correctionId, userId));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{correctionId}/like")
+    public ResponseEntity<LikeCorrectionUseCase.Result> like(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId) {
+        return ResponseEntity.ok(likeUseCase.toggleLike(new LikeCorrectionUseCase.Command(correctionId, userId)));
     }
 
     @PostMapping("/{correctionId}/rate")
@@ -71,7 +92,7 @@ public class CorrectionController {
                 dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),
                 dto.fluencyScore(), dto.referenceAudioUrl()
         ));
-        return ResponseEntity.ok(CorrectionResponse.from(result));
+        return ResponseEntity.ok(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false)));
     }
 
     @DeleteMapping("/{correctionId}")

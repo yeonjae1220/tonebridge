@@ -1,8 +1,10 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
+import jakarta.persistence.LockModeType;
 import me.yeonjae.tonebridge.domain.correction.RequestStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +33,10 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
     @Query("SELECT r FROM CorrectionRequestEntity r WHERE r.id = :id AND r.deletedAt IS NULL")
     Optional<CorrectionRequestEntity> findActiveById(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM CorrectionRequestEntity r WHERE r.id = :id AND r.deletedAt IS NULL")
+    Optional<CorrectionRequestEntity> findActiveByIdForUpdate(@Param("id") UUID id);
+
     Optional<CorrectionRequestEntity> findByAudioUrlAndDeletedAtIsNull(String audioUrl);
 
     List<CorrectionRequestEntity> findByRequesterIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID requesterId);
@@ -38,6 +44,14 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
     @Modifying
     @Query("UPDATE CorrectionRequestEntity r SET r.status = :status WHERE r.id = :id AND r.deletedAt IS NULL")
     void updateStatus(@Param("id") UUID id, @Param("status") RequestStatus status);
+
+    @Modifying
+    @Query("""
+            UPDATE CorrectionRequestEntity r
+            SET r.status = 'COMPLETED', r.acceptedCorrectionId = :correctionId
+            WHERE r.id = :requestId AND r.deletedAt IS NULL
+            """)
+    void updateAcceptedCorrection(@Param("requestId") UUID requestId, @Param("correctionId") UUID correctionId);
 
     long countByDeletedAtIsNull();
 

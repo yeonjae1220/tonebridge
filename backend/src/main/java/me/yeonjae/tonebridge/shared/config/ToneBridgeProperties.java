@@ -64,6 +64,7 @@ public class ToneBridgeProperties {
         private int audioCorrectionReward = 8;
         private int audioWithRecordingReward = 12;
         private int streak7dayBonus = 10;
+        private int acceptBonus = 5;
     }
 
     @Getter @Setter

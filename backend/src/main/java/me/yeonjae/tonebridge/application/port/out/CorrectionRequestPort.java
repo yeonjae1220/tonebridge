@@ -19,4 +19,6 @@ public interface CorrectionRequestPort {
                                     String context, List<String> feedbackGoals);
     void softDelete(UUID id);
     List<CorrectionRequest> findPendingOlderThan(Instant threshold, int limit);
+    void updateAcceptedCorrection(UUID requestId, UUID correctionId);
+    Optional<CorrectionRequest> findByIdForUpdate(UUID id);
 }

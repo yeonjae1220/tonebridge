@@ -18,7 +18,8 @@ public record CorrectionRequest(
         RequestStatus status,
         String aiCorrection,
         Instant createdAt,
-        Instant expiresAt
+        Instant expiresAt,
+        UUID acceptedCorrectionId
 ) {
     public boolean isPending() {
         return status == RequestStatus.PENDING;

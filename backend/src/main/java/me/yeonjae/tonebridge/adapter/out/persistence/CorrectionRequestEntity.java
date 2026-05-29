@@ -72,6 +72,8 @@ public class CorrectionRequestEntity {
     @Column(nullable = false)
     private int editCount;
 
+    private UUID acceptedCorrectionId;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
@@ -104,7 +106,8 @@ public class CorrectionRequestEntity {
     public CorrectionRequest toDomain() {
         return new CorrectionRequest(
                 id, requesterId, type, contentText, audioUrl, targetLanguage, targetVariant,
-                context, parseList(feedbackGoalsRaw), creditCost, status, aiCorrection, createdAt, expiresAt
+                context, parseList(feedbackGoalsRaw), creditCost, status, aiCorrection, createdAt, expiresAt,
+                acceptedCorrectionId
         );
     }
 
@@ -125,6 +128,7 @@ public class CorrectionRequestEntity {
                 .createdAt(r.createdAt())
                 .expiresAt(r.expiresAt())
                 .updatedAt(r.createdAt())
+                .acceptedCorrectionId(r.acceptedCorrectionId())
                 .build();
     }
 

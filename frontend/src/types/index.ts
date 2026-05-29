@@ -53,6 +53,7 @@ export interface CorrectionRequest {
   deletedAt?: string | null
   editCount?: number
   availableCorrectors?: number
+  acceptedCorrectionId?: string | null
 }
 
 export interface LanguageVariant {
@@ -83,6 +84,9 @@ export interface Correction {
   updatedAt?: string
   deletedAt?: string | null
   editCount?: number
+  likeCount: number
+  likedByMe: boolean
+  isAccepted: boolean
 }
 
 export interface TimestampComment {
