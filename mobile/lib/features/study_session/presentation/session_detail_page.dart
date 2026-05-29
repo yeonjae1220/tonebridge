@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
@@ -15,12 +16,12 @@ enum _CardSort { manual, newest, oldest, alphabetical, byStatus }
 
 extension _CardSortLabel on _CardSort {
   String get label => switch (this) {
-        _CardSort.manual => '내 순서',
-        _CardSort.newest => '최신순',
-        _CardSort.oldest => '오래된순',
-        _CardSort.alphabetical => '가나다순',
-        _CardSort.byStatus => '상태순',
-      };
+    _CardSort.manual => '내 순서',
+    _CardSort.newest => '최신순',
+    _CardSort.oldest => '오래된순',
+    _CardSort.alphabetical => '가나다순',
+    _CardSort.byStatus => '상태순',
+  };
 }
 
 // ── Session Detail Page ───────────────────────────────────────────────────────
@@ -52,9 +53,9 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   void _closeFab() => setState(() => _fabExpanded = false);
 
   void _activateSearch() => setState(() {
-        _isSearchActive = true;
-        _fabExpanded = false;
-      });
+    _isSearchActive = true;
+    _fabExpanded = false;
+  });
 
   void _deactivateSearch() {
     _searchController.clear();
@@ -70,23 +71,30 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       result = result
-          .where((c) =>
-              c.phrase.toLowerCase().contains(q) ||
-              (c.context?.toLowerCase().contains(q) ?? false))
+          .where(
+            (c) =>
+                c.phrase.toLowerCase().contains(q) ||
+                (c.context?.toLowerCase().contains(q) ?? false),
+          )
           .toList();
     }
 
     result = switch (_sortOrder) {
-      _CardSort.manual => [...result]
-        ..sort((a, b) => a.position.compareTo(b.position)),
-      _CardSort.newest => [...result]
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
-      _CardSort.oldest => [...result]
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
-      _CardSort.alphabetical => [...result]
-        ..sort((a, b) => a.phrase.compareTo(b.phrase)),
-      _CardSort.byStatus => [...result]
-        ..sort((a, b) => a.cardStatus.index.compareTo(b.cardStatus.index)),
+      _CardSort.manual => [
+        ...result,
+      ]..sort((a, b) => a.position.compareTo(b.position)),
+      _CardSort.newest => [
+        ...result,
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+      _CardSort.oldest => [
+        ...result,
+      ]..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
+      _CardSort.alphabetical => [
+        ...result,
+      ]..sort((a, b) => a.phrase.compareTo(b.phrase)),
+      _CardSort.byStatus => [
+        ...result,
+      ]..sort((a, b) => a.cardStatus.index.compareTo(b.cardStatus.index)),
     };
 
     return result;
@@ -94,8 +102,12 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
 
   PreferredSizeWidget _buildAppBar() {
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
-    final session = ref.watch(studySessionProvider(widget.sessionId)).asData?.value;
-    final canManageSession = currentUserId != null && currentUserId == session?.createdBy;
+    final session = ref
+        .watch(studySessionProvider(widget.sessionId))
+        .asData
+        ?.value;
+    final canManageSession =
+        currentUserId != null && currentUserId == session?.createdBy;
 
     if (_isSearchActive) {
       return AppBar(
@@ -138,19 +150,21 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
           initialValue: _sortOrder,
           onSelected: (s) => setState(() => _sortOrder = s),
           itemBuilder: (_) => _CardSort.values
-              .map((s) => PopupMenuItem(
-                    value: s,
-                    child: Row(
-                      children: [
-                        if (s == _sortOrder)
-                          const Icon(Icons.check_rounded, size: 18)
-                        else
-                          const SizedBox(width: 18),
-                        const SizedBox(width: 8),
-                        Text(s.label),
-                      ],
-                    ),
-                  ))
+              .map(
+                (s) => PopupMenuItem(
+                  value: s,
+                  child: Row(
+                    children: [
+                      if (s == _sortOrder)
+                        const Icon(Icons.check_rounded, size: 18)
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 8),
+                      Text(s.label),
+                    ],
+                  ),
+                ),
+              )
               .toList(),
         ),
         IconButton(
@@ -219,13 +233,17 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
           error: (e, _) => Center(child: Text('오류: $e')),
           data: (allCards) {
             final cards = _applyFilter(allCards);
-            final noAudio =
-                allCards.where((c) => c.cardStatus == CardStatus.noAudio).length;
-            final recorded =
-                allCards.where((c) => c.cardStatus == CardStatus.recorded).length;
-            final corrected =
-                allCards.where((c) => c.cardStatus == CardStatus.corrected).length;
-            final canReorder = !_isSearchActive && _sortOrder == _CardSort.manual;
+            final noAudio = allCards
+                .where((c) => c.cardStatus == CardStatus.noAudio)
+                .length;
+            final recorded = allCards
+                .where((c) => c.cardStatus == CardStatus.recorded)
+                .length;
+            final corrected = allCards
+                .where((c) => c.cardStatus == CardStatus.corrected)
+                .length;
+            final canReorder =
+                !_isSearchActive && _sortOrder == _CardSort.manual;
 
             return CustomScrollView(
               slivers: [
@@ -327,7 +345,9 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
     if (oldIndex == newIndex) return;
     final card = cards[oldIndex];
     try {
-      await ref.read(studySessionRepositoryProvider).moveCard(
+      await ref
+          .read(studySessionRepositoryProvider)
+          .moveCard(
             cardId: card.id,
             targetSessionId: widget.sessionId,
             position: newIndex,
@@ -335,9 +355,9 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
       ref.invalidate(sessionCardsProvider(widget.sessionId));
     } on Exception catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('카드 이동 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('카드 이동 실패: $e')));
     }
   }
 
@@ -367,15 +387,11 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
           .read(studySessionListStateProvider.notifier)
           .endSession(widget.sessionId);
       if (!context.mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('세션이 종료되었습니다')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('세션이 종료되었습니다')));
       context.pop();
     } on Exception catch (e) {
       if (!context.mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('오류: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('오류: $e')));
     }
   }
 
@@ -433,8 +449,10 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('세션 이름 수정',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const Text(
+              '세션 이름 수정',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -455,15 +473,20 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
                   try {
                     await ref
                         .read(studySessionListStateProvider.notifier)
-                        .updateSession(widget.sessionId,
-                            title: title.isEmpty ? null : title);
+                        .updateSession(
+                          widget.sessionId,
+                          title: title.isEmpty ? null : title,
+                        );
                     ref.invalidate(studySessionProvider(widget.sessionId));
                     if (!mounted) return;
                     navigator.pop();
                     messenger.showSnackBar(
-                        const SnackBar(content: Text('세션 이름을 수정했어요')));
+                      const SnackBar(content: Text('세션 이름을 수정했어요')),
+                    );
                   } on Exception catch (e) {
-                    messenger.showSnackBar(SnackBar(content: Text('수정 실패: $e')));
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('수정 실패: $e')),
+                    );
                   }
                 },
                 child: const Text('저장'),
@@ -495,7 +518,6 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   }
 }
 
-
 // ── Progress Header ───────────────────────────────────────────────────────────
 
 class _ProgressHeader extends StatelessWidget {
@@ -526,14 +548,20 @@ class _ProgressHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('진행도',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onPrimaryContainer)),
-              Text('$corrected / $total',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onPrimaryContainer)),
+              Text(
+                '진행도',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+              Text(
+                '$corrected / $total',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -542,8 +570,9 @@ class _ProgressHeader extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor:
-                  theme.colorScheme.onPrimaryContainer.withOpacity(0.15),
+              backgroundColor: theme.colorScheme.onPrimaryContainer.withOpacity(
+                0.15,
+              ),
               color: theme.colorScheme.primary,
             ),
           ),
@@ -564,8 +593,11 @@ class _ProgressHeader extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip(
-      {required this.label, required this.count, required this.color});
+  const _StatusChip({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
   final String label;
   final int count;
   final Color color;
@@ -587,9 +619,14 @@ class _StatusChip extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text('$label $count',
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+          Text(
+            '$label $count',
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -619,16 +656,16 @@ class _CardListItem extends ConsumerWidget {
 
     final (statusIcon, statusColor, statusLabel) = switch (card.cardStatus) {
       CardStatus.corrected => (
-          Icons.check_circle_rounded,
-          Colors.green,
-          '교정완료'
-        ),
+        Icons.check_circle_rounded,
+        Colors.green,
+        '교정완료',
+      ),
       CardStatus.recorded => (Icons.mic_rounded, Colors.orange, '녹음완료'),
       CardStatus.noAudio => (
-          Icons.radio_button_unchecked_rounded,
-          Colors.grey,
-          '미녹음'
-        ),
+        Icons.radio_button_unchecked_rounded,
+        Colors.grey,
+        '미녹음',
+      ),
     };
 
     return Card(
@@ -643,8 +680,10 @@ class _CardListItem extends ConsumerWidget {
         subtitle: card.context != null
             ? Text(
                 card.context!,
-                style:
-                    TextStyle(color: theme.colorScheme.outline, fontSize: 13),
+                style: TextStyle(
+                  color: theme.colorScheme.outline,
+                  fontSize: 13,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               )
@@ -657,16 +696,22 @@ class _CardListItem extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(statusLabel,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: statusColor,
-                          fontWeight: FontWeight.w600)),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 if (canManage)
                   PopupMenuButton<_CardItemAction>(
@@ -702,16 +747,15 @@ class _CardListItem extends ConsumerWidget {
             ),
           ],
         ),
-        onTap: () => context.push(
-          AppRoute.cardDetail(sessionId, card.id),
-          extra: card,
-        ),
+        onTap: () =>
+            context.push(AppRoute.cardDetail(sessionId, card.id), extra: card),
       ),
     );
   }
 
   void _showMoveCardSheet(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.read(studySessionListStateProvider);
+    final strings = ref.read(tProvider);
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -736,9 +780,9 @@ class _CardListItem extends ConsumerWidget {
               children: [
                 Text(
                   '카드 이동',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
                 if (targets.isEmpty)
@@ -749,14 +793,18 @@ class _CardListItem extends ConsumerWidget {
                 else
                   ...targets.map(
                     (session) => ListTile(
-                      title: Text(session.title ?? '스터디 세션'),
-                      subtitle: Text('${session.memberIds.length}명 참여 중'),
+                      title: Text(session.title ?? strings.defaultSessionTitle),
+                      subtitle: Text(
+                        strings.participantCount(session.memberIds.length),
+                      ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () async {
                         final navigator = Navigator.of(context);
                         final messenger = ScaffoldMessenger.of(context);
                         try {
-                          await ref.read(studySessionRepositoryProvider).moveCard(
+                          await ref
+                              .read(studySessionRepositoryProvider)
+                              .moveCard(
                                 cardId: card.id,
                                 targetSessionId: session.id,
                                 position: 0,
@@ -812,7 +860,9 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
     setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(studySessionRepositoryProvider).createCard(
+      await ref
+          .read(studySessionRepositoryProvider)
+          .createCard(
             sessionId: widget.sessionId,
             phrase: phrase,
             context: _contextController.text.trim().isEmpty

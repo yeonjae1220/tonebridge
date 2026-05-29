@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/correction/data/correction_repository_impl.dart';
 import 'package:tonebridge/features/correction/domain/model/correction_item.dart';
@@ -12,6 +14,9 @@ import 'package:tonebridge/features/correction/presentation/correction_provider.
 import 'package:tonebridge/features/feed/domain/model/correction_request_item.dart';
 import 'package:tonebridge/features/feed/presentation/feed_provider.dart';
 import 'package:tonebridge/features/notification/sse_notification_service.dart';
+import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
+import 'package:tonebridge/features/study_session/domain/model/study_session.dart';
+import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class ResultPage extends ConsumerStatefulWidget {
   const ResultPage({super.key, required this.requestId});
@@ -85,6 +90,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     final theme = Theme.of(context);
     final strings = ref.watch(tProvider);
     final resultAsync = ref.watch(correctionResultProvider(widget.requestId));
+    final sessionsAsync = ref.watch(studySessionListStateProvider);
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
     // Resolve the original request from feed/my-requests
@@ -169,6 +175,15 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                         : null,
                     onDelete: currentUserId == c.correctorId
                         ? () => _confirmDeleteCorrection(context, c)
+                        : null,
+                    onSave: c.status != 'REJECTED' && request != null
+                        ? () => _showSaveCardSheet(
+                            context,
+                            c,
+                            request!,
+                            sessionsAsync.whenOrNull(data: (items) => items) ??
+                                const [],
+                          )
                         : null,
                   ),
                 ),
@@ -314,6 +329,30 @@ class _ResultPageState extends ConsumerState<ResultPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showSaveCardSheet(
+    BuildContext context,
+    CorrectionItem correction,
+    CorrectionRequestItem request,
+    List<StudySession> sessions,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _SaveCardSheet(
+        correction: correction,
+        request: request,
+        sessions: sessions.where((s) => s.status == 'ACTIVE').toList(),
+        onSaved: () {
+          ref.invalidate(studySessionListStateProvider);
+          for (final session in sessions) {
+            ref.invalidate(sessionCardsProvider(session.id));
+          }
+        },
       ),
     );
   }
@@ -472,6 +511,7 @@ class _CorrectionCard extends StatefulWidget {
     required this.correction,
     required this.isAudioRequest,
     required this.onRate,
+    this.onSave,
     this.onEdit,
     this.onDelete,
   });
@@ -479,6 +519,7 @@ class _CorrectionCard extends StatefulWidget {
   final CorrectionItem correction;
   final bool isAudioRequest;
   final ValueChanged<bool> onRate;
+  final VoidCallback? onSave;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -717,6 +758,17 @@ class _CorrectionCardState extends State<_CorrectionCard> {
             if (c.status == 'APPROVED') ...[
               const Divider(),
               const SizedBox(height: 8),
+              if (widget.onSave != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: widget.onSave,
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: Text(strings.saveCard),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   Text(
@@ -748,6 +800,197 @@ class _CorrectionCardState extends State<_CorrectionCard> {
       c.pronunciationScore != null ||
       c.intonationScore != null ||
       c.fluencyScore != null;
+}
+
+class _SaveCardSheet extends ConsumerStatefulWidget {
+  const _SaveCardSheet({
+    required this.correction,
+    required this.request,
+    required this.sessions,
+    required this.onSaved,
+  });
+
+  final CorrectionItem correction;
+  final CorrectionRequestItem request;
+  final List<StudySession> sessions;
+  final VoidCallback onSaved;
+
+  @override
+  ConsumerState<_SaveCardSheet> createState() => _SaveCardSheetState();
+}
+
+class _SaveCardSheetState extends ConsumerState<_SaveCardSheet> {
+  late String _sessionId;
+  late final TextEditingController _phraseController;
+  late final TextEditingController _contextController;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionId = widget.sessions.firstOrNull?.id ?? '';
+    final strings = ref.read(tProvider);
+    _phraseController = TextEditingController(
+      text:
+          widget.correction.correctedText ??
+          widget.request.contentText ??
+          widget.request.context ??
+          strings.audioCardDefault,
+    );
+    _contextController = TextEditingController(
+      text: widget.correction.explanation ?? widget.request.context ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _phraseController.dispose();
+    _contextController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final phrase = _phraseController.text.trim();
+    if (_saving || _sessionId.isEmpty || phrase.isEmpty) return;
+    setState(() => _saving = true);
+    final strings = ref.read(tProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(studySessionRepositoryProvider)
+          .createCard(
+            sessionId: _sessionId,
+            phrase: phrase,
+            context: _contextController.text.trim().isEmpty
+                ? null
+                : _contextController.text.trim(),
+            tags: widget.correction.tags.isNotEmpty
+                ? widget.correction.tags
+                : widget.request.feedbackGoals,
+          );
+      if (!mounted) return;
+      widget.onSaved();
+      ref.invalidate(sessionCardsProvider(_sessionId));
+      Navigator.pop(context);
+      messenger.showSnackBar(SnackBar(content: Text(strings.cardSaved)));
+    } on Exception catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(strings.editFailed(e))));
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(tProvider);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  strings.saveCard,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (widget.sessions.isEmpty) ...[
+              Text(
+                strings.noPracticeForCard,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.go(AppRoute.study);
+                  },
+                  child: Text(strings.newSession),
+                ),
+              ),
+            ] else ...[
+              DropdownButtonFormField<String>(
+                initialValue: _sessionId,
+                decoration: InputDecoration(
+                  labelText: strings.choosePractice,
+                  border: const OutlineInputBorder(),
+                ),
+                items: widget.sessions
+                    .map(
+                      (session) => DropdownMenuItem(
+                        value: session.id,
+                        child: Text(
+                          session.title ?? strings.defaultSessionTitle,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _sessionId = value ?? ''),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phraseController,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  labelText: strings.correctedSentence,
+                  border: const OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contextController,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  labelText: strings.explanation,
+                  border: const OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _saving ? null : _submit,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(strings.save),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TimestampRow extends StatelessWidget {

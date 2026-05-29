@@ -30,6 +30,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
       - name: Build & push backend
         uses: docker/build-push-action@v6
         with:
@@ -41,17 +47,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push frontend (Flutter Web)
+      - name: Validate Flutter Web
+        working-directory: ./mobile
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter test
+          flutter build web --release \
+            --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+            --dart-define=API_BASE_URL=https://tonebridge.mungji.com
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+
+      - name: Build & push frontend (Next.js)
         uses: docker/build-push-action@v6
         with:
-          context: ./mobile
+          context: ./frontend
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:latest
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           build-args: |
-            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-            API_BASE_URL=https://tonebridge.mungji.com
+            NEXT_PUBLIC_API_URL=https://tonebridge.mungji.com
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -136,10 +153,9 @@ jobs:
             exit 1
           fi
 
-      - name: Purge Cloudflare cache for Flutter entry-point files
-        # Cloudflare Tunnel routes all traffic through CF edge, so cached immutable
-        # responses block new builds from reaching users. Purge the non-fingerprinted
-        # entry-point files on every deploy so CF fetches fresh copies from nginx.
+      - name: Purge Cloudflare cache for Next.js entry-point pages
+        # Cloudflare Tunnel routes all traffic through CF edge. Purge HTML routes
+        # on every deploy so CF fetches fresh SSR/standalone responses.
         # Requires CF_ZONE_ID and CF_API_TOKEN repository secrets. Skips gracefully if absent.
         continue-on-error: true
         env:
@@ -155,6 +171,6 @@ jobs:
             "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"files\":[\"${BASE}/main.dart.js\",\"${BASE}/flutter_bootstrap.js\",\"${BASE}/flutter.js\",\"${BASE}/index.html\",\"${BASE}/flutter_service_worker.js\",\"${BASE}/firebase-messaging-sw.js\"]}")
+            -d "{\"files\":[\"${BASE}/\",\"${BASE}/feed\",\"${BASE}/request\",\"${BASE}/study\",\"${BASE}/friends\",\"${BASE}/profile\",\"${BASE}/wallet\",\"${BASE}/login\",\"${BASE}/onboarding\",\"${BASE}/admin\",\"${BASE}/admin/users\"]}")
           echo "CF purge response: ${RESULT}"
           echo "${RESULT}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge: OK' if r.get('success') else 'FAILED: '+str(r.get('errors','')))"

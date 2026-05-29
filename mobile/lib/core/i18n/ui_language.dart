@@ -413,7 +413,7 @@ class ToneBridgeStrings {
   );
 
   String get feedTitle => _pick({
-    'ko': '피드',
+    'ko': '첨삭하기',
     'en': 'Feed',
     'ja': 'フィード',
     'zh': '动态',
@@ -425,7 +425,7 @@ class ToneBridgeStrings {
   });
 
   String get requestAction => _pick({
-    'ko': '요청하기',
+    'ko': '내 문장 요청',
     'en': 'Request',
     'ja': '依頼する',
     'zh': '发起请求',
@@ -437,7 +437,7 @@ class ToneBridgeStrings {
   });
 
   String get correctionRequests => _pick({
-    'ko': '교정 요청',
+    'ko': '도와줄 요청',
     'en': 'Correction requests',
     'ja': '添削依頼',
     'zh': '批改请求',
@@ -509,6 +509,300 @@ class ToneBridgeStrings {
     'de': 'Audio-Korrekturanfrage',
     'pt': 'Pedido de correção de áudio',
     'ru': 'Запрос проверки аудио',
+  });
+
+  String get feedSubtitle => _pick({
+    'ko': '내가 도와줄 수 있는 요청을 고르고 크레딧을 받아요',
+    'en': 'Pick requests you can help with and earn credits',
+    'ja': '手伝える依頼を選んでクレジットを獲得しましょう',
+    'zh': '选择你能帮助的请求并获得积分',
+    'es': 'Elige solicitudes que puedas ayudar y gana créditos',
+    'fr': 'Choisissez des demandes à aider et gagnez des crédits',
+    'de': 'Wähle Anfragen, bei denen du helfen kannst, und verdiene Credits',
+    'pt': 'Escolha pedidos em que pode ajudar e ganhe créditos',
+    'ru': 'Выбирайте запросы, где можете помочь, и получайте кредиты',
+  });
+
+  String get requestTitle => _pick({
+    'ko': '첨삭 요청',
+    'en': 'Request correction',
+    'ja': '添削を依頼',
+    'zh': '请求批改',
+    'es': 'Pedir corrección',
+    'fr': 'Demander une correction',
+    'de': 'Korrektur anfragen',
+    'pt': 'Pedir correção',
+    'ru': 'Запросить проверку',
+  });
+
+  String get requestSubtitle => _pick({
+    'ko': '문장이나 음성을 남기면 원어민이 자연스럽게 다듬어줘요',
+    'en': 'Share text or audio and native speakers will polish it',
+    'ja': '文章や音声を送るとネイティブが自然に整えます',
+    'zh': '留下文字或语音，母语者会帮你润色',
+    'es': 'Comparte texto o audio y un nativo lo pulirá',
+    'fr': 'Partagez texte ou audio, un natif l’améliorera',
+    'de': 'Teile Text oder Audio und Muttersprachler verbessern es',
+    'pt': 'Envie texto ou áudio e nativos vão ajustar',
+    'ru': 'Отправьте текст или аудио, носители помогут улучшить',
+  });
+
+  String get requestTypeQuestion => _pick({
+    'ko': '무엇을 첨삭받을까요?',
+    'en': 'What do you want corrected?',
+    'ja': '何を添削してもらいますか？',
+    'zh': '想批改什么？',
+    'es': '¿Qué quieres corregir?',
+    'fr': 'Que voulez-vous corriger ?',
+    'de': 'Was möchtest du korrigieren lassen?',
+    'pt': 'O que quer corrigir?',
+    'ru': 'Что нужно проверить?',
+  });
+
+  String get correctionLanguage => _pick({
+    'ko': '첨삭받을 언어',
+    'en': 'Language to correct',
+    'ja': '添削してほしい言語',
+    'zh': '要批改的语言',
+    'es': 'Idioma a corregir',
+    'fr': 'Langue à corriger',
+    'de': 'Sprache für die Korrektur',
+    'pt': 'Idioma para corrigir',
+    'ru': 'Язык проверки',
+  });
+
+  String get requestContentLabel => _pick({
+    'ko': '교정받을 내용',
+    'en': 'Text to correct',
+    'ja': '添削してほしい内容',
+    'zh': '要批改的内容',
+    'es': 'Texto a corregir',
+    'fr': 'Texte à corriger',
+    'de': 'Text zur Korrektur',
+    'pt': 'Texto para corrigir',
+    'ru': 'Текст для проверки',
+  });
+
+  String get requestContentPlaceholder => _pick({
+    'ko': '교정받고 싶은 문장을 입력하세요',
+    'en': 'Enter the sentence you want corrected',
+    'ja': '添削してほしい文を入力してください',
+    'zh': '输入想批改的句子',
+    'es': 'Escribe la frase que quieres corregir',
+    'fr': 'Saisissez la phrase à corriger',
+    'de': 'Gib den Satz ein, der korrigiert werden soll',
+    'pt': 'Digite a frase que quer corrigir',
+    'ru': 'Введите предложение для проверки',
+  });
+
+  String get requestContentRequired => _pick({
+    'ko': '내용을 입력해주세요',
+    'en': 'Please enter some text',
+    'ja': '内容を入力してください',
+    'zh': '请输入内容',
+    'es': 'Introduce el contenido',
+    'fr': 'Veuillez saisir un contenu',
+    'de': 'Bitte Text eingeben',
+    'pt': 'Digite o conteúdo',
+    'ru': 'Введите текст',
+  });
+
+  String get requestTextContextHint => _pick({
+    'ko': '문맥 (선택) - 예: 일본 회사에 이메일을 보낼 때...',
+    'en': 'Context (optional) - e.g. emailing a Japanese company...',
+    'ja': '文脈（任意）- 例: 日本の会社にメールする時...',
+    'zh': '语境（可选）- 例：给日本公司发邮件时...',
+    'es': 'Contexto (opcional), p. ej. un email a una empresa japonesa...',
+    'fr': 'Contexte (facultatif), ex. écrire à une entreprise japonaise...',
+    'de': 'Kontext (optional), z. B. E-Mail an eine japanische Firma...',
+    'pt': 'Contexto (opcional), ex.: e-mail para uma empresa japonesa...',
+    'ru': 'Контекст (необязательно), например письмо японской компании...',
+  });
+
+  String get requestAudioContextHint => _pick({
+    'ko': '문맥 (선택) - 예: 일본 친구에게 전화할 때...',
+    'en': 'Context (optional) - e.g. calling a Japanese friend...',
+    'ja': '文脈（任意）- 例: 日本の友達に電話する時...',
+    'zh': '语境（可选）- 例：给日本朋友打电话时...',
+    'es': 'Contexto (opcional), p. ej. llamar a un amigo japonés...',
+    'fr': 'Contexte (facultatif), ex. appeler un ami japonais...',
+    'de': 'Kontext (optional), z. B. Anruf bei einem japanischen Freund...',
+    'pt': 'Contexto (opcional), ex.: ligar para um amigo japonês...',
+    'ru': 'Контекст (необязательно), например звонок японскому другу...',
+  });
+
+  String get audioRecording => _pick({
+    'ko': '음성 녹음',
+    'en': 'Audio recording',
+    'ja': '音声録音',
+    'zh': '语音录制',
+    'es': 'Grabación de audio',
+    'fr': 'Enregistrement audio',
+    'de': 'Audioaufnahme',
+    'pt': 'Gravação de áudio',
+    'ru': 'Запись аудио',
+  });
+
+  String get feedbackGoalOptional => _pick({
+    'ko': '피드백 목표 (선택)',
+    'en': 'Feedback focus (optional)',
+    'ja': 'フィードバック目標（任意）',
+    'zh': '反馈重点（可选）',
+    'es': 'Objetivo del feedback (opcional)',
+    'fr': 'Objectif du retour (facultatif)',
+    'de': 'Feedback-Fokus (optional)',
+    'pt': 'Foco do feedback (opcional)',
+    'ru': 'Фокус обратной связи (необязательно)',
+  });
+
+  String creditCost(int cost) => _format(
+    _pick({
+      'ko': '크레딧 {count} 차감',
+      'en': '{count} credits',
+      'ja': '{count}クレジット消費',
+      'zh': '消耗 {count} 积分',
+      'es': '{count} créditos',
+      'fr': '{count} crédits',
+      'de': '{count} Credits',
+      'pt': '{count} créditos',
+      'ru': '{count} кредитов',
+    }),
+    {'count': cost.toString()},
+  );
+
+  String get submitCorrectionRequest => _pick({
+    'ko': '교정 요청하기',
+    'en': 'Request correction',
+    'ja': '添削を依頼',
+    'zh': '提交批改',
+    'es': 'Pedir corrección',
+    'fr': 'Demander une correction',
+    'de': 'Korrektur anfragen',
+    'pt': 'Pedir correção',
+    'ru': 'Отправить на проверку',
+  });
+
+  String get requestSubmitting => _pick({
+    'ko': '요청 중...',
+    'en': 'Submitting...',
+    'ja': '依頼中...',
+    'zh': '提交中...',
+    'es': 'Enviando...',
+    'fr': 'Envoi...',
+    'de': 'Wird gesendet...',
+    'pt': 'Enviando...',
+    'ru': 'Отправка...',
+  });
+
+  String get requestSuccess => _pick({
+    'ko': '교정 요청이 등록됐습니다!',
+    'en': 'Correction request submitted!',
+    'ja': '添削依頼を登録しました！',
+    'zh': '批改请求已提交！',
+    'es': '¡Solicitud enviada!',
+    'fr': 'Demande envoyée !',
+    'de': 'Korrekturanfrage gesendet!',
+    'pt': 'Pedido enviado!',
+    'ru': 'Запрос отправлен!',
+  });
+
+  String requestSubmitFailed(String detail) => _format(
+    _pick({
+      'ko': '교정 요청 제출에 실패했어요. {detail}',
+      'en': 'Could not submit the request. {detail}',
+      'ja': '添削依頼を送信できませんでした。{detail}',
+      'zh': '提交批改请求失败。{detail}',
+      'es': 'No se pudo enviar la solicitud. {detail}',
+      'fr': 'Impossible d’envoyer la demande. {detail}',
+      'de': 'Anfrage konnte nicht gesendet werden. {detail}',
+      'pt': 'Não foi possível enviar o pedido. {detail}',
+      'ru': 'Не удалось отправить запрос. {detail}',
+    }),
+    {'detail': detail},
+  );
+
+  String get loginAgain => _pick({
+    'ko': '다시 로그인해 주세요.',
+    'en': 'Please log in again.',
+    'ja': 'もう一度ログインしてください。',
+    'zh': '请重新登录。',
+    'es': 'Vuelve a iniciar sesión.',
+    'fr': 'Veuillez vous reconnecter.',
+    'de': 'Bitte erneut anmelden.',
+    'pt': 'Faça login novamente.',
+    'ru': 'Войдите снова.',
+  });
+
+  String get checkRequestContent => _pick({
+    'ko': '요청 내용을 확인해 주세요.',
+    'en': 'Please check your request.',
+    'ja': '依頼内容を確認してください。',
+    'zh': '请检查请求内容。',
+    'es': 'Revisa tu solicitud.',
+    'fr': 'Vérifiez votre demande.',
+    'de': 'Bitte prüfe deine Anfrage.',
+    'pt': 'Verifique seu pedido.',
+    'ru': 'Проверьте запрос.',
+  });
+
+  String get checkNetwork => _pick({
+    'ko': '네트워크 상태를 확인해 주세요.',
+    'en': 'Please check your network connection.',
+    'ja': 'ネットワーク状態を確認してください。',
+    'zh': '请检查网络连接。',
+    'es': 'Comprueba tu conexión.',
+    'fr': 'Vérifiez votre connexion.',
+    'de': 'Bitte Netzwerkverbindung prüfen.',
+    'pt': 'Verifique a conexão.',
+    'ru': 'Проверьте сеть.',
+  });
+
+  String get recordAction => _pick({
+    'ko': '녹음하기',
+    'en': 'Record',
+    'ja': '録音する',
+    'zh': '录音',
+    'es': 'Grabar',
+    'fr': 'Enregistrer',
+    'de': 'Aufnehmen',
+    'pt': 'Gravar',
+    'ru': 'Записать',
+  });
+
+  String get recording => _pick({
+    'ko': '녹음 중',
+    'en': 'Recording',
+    'ja': '録音中',
+    'zh': '录音中',
+    'es': 'Grabando',
+    'fr': 'Enregistrement',
+    'de': 'Aufnahme läuft',
+    'pt': 'Gravando',
+    'ru': 'Запись',
+  });
+
+  String get useRecording => _pick({
+    'ko': '이 녹음 사용',
+    'en': 'Use this recording',
+    'ja': 'この録音を使う',
+    'zh': '使用这段录音',
+    'es': 'Usar esta grabación',
+    'fr': 'Utiliser cet enregistrement',
+    'de': 'Diese Aufnahme verwenden',
+    'pt': 'Usar esta gravação',
+    'ru': 'Использовать запись',
+  });
+
+  String get recordAgain => _pick({
+    'ko': '다시 녹음',
+    'en': 'Record again',
+    'ja': '録音し直す',
+    'zh': '重新录音',
+    'es': 'Grabar de nuevo',
+    'fr': 'Réenregistrer',
+    'de': 'Neu aufnehmen',
+    'pt': 'Gravar novamente',
+    'ru': 'Записать снова',
   });
 
   String get requestDeleteTitle => _pick({
@@ -835,6 +1129,66 @@ class ToneBridgeStrings {
     'ru': 'Эта правка была полезной?',
   });
 
+  String get saveCard => _pick({
+    'ko': '스터디 카드로 저장',
+    'en': 'Save as study card',
+    'ja': '学習カードとして保存',
+    'zh': '保存为学习卡',
+    'es': 'Guardar como tarjeta',
+    'fr': 'Enregistrer comme carte',
+    'de': 'Als Lernkarte speichern',
+    'pt': 'Salvar como cartão',
+    'ru': 'Сохранить как карточку',
+  });
+
+  String get audioCardDefault => _pick({
+    'ko': '음성 첨삭 카드',
+    'en': 'Audio correction card',
+    'ja': '音声添削カード',
+    'zh': '语音批改卡',
+    'es': 'Tarjeta de audio',
+    'fr': 'Carte de correction audio',
+    'de': 'Audio-Korrekturkarte',
+    'pt': 'Cartão de correção de áudio',
+    'ru': 'Карточка аудио-проверки',
+  });
+
+  String get choosePractice => _pick({
+    'ko': '저장할 연습을 선택하세요',
+    'en': 'Choose where to save it',
+    'ja': '保存先の練習を選んでください',
+    'zh': '选择保存到哪个练习',
+    'es': 'Elige dónde guardarla',
+    'fr': 'Choisissez où l’enregistrer',
+    'de': 'Wähle, wo sie gespeichert wird',
+    'pt': 'Escolha onde salvar',
+    'ru': 'Выберите, куда сохранить',
+  });
+
+  String get noPracticeForCard => _pick({
+    'ko': '먼저 친구와 연습을 시작하면 카드로 저장할 수 있어요.',
+    'en': 'Start practice with a friend first, then save cards.',
+    'ja': '先に友達との練習を始めるとカード保存できます。',
+    'zh': '先和好友开始练习后即可保存卡片。',
+    'es': 'Primero empieza una práctica con un amigo.',
+    'fr': 'Commencez d’abord une pratique avec un ami.',
+    'de': 'Starte zuerst eine Übung mit einem Freund.',
+    'pt': 'Comece uma prática com um amigo primeiro.',
+    'ru': 'Сначала начните практику с другом.',
+  });
+
+  String get cardSaved => _pick({
+    'ko': '카드로 저장했어요',
+    'en': 'Saved as a card',
+    'ja': 'カードに保存しました',
+    'zh': '已保存为卡片',
+    'es': 'Guardado como tarjeta',
+    'fr': 'Enregistré comme carte',
+    'de': 'Als Karte gespeichert',
+    'pt': 'Salvo como cartão',
+    'ru': 'Сохранено как карточка',
+  });
+
   String get pronunciation => _pick({
     'ko': '발음',
     'en': 'Pronunciation',
@@ -872,8 +1226,8 @@ class ToneBridgeStrings {
   });
 
   String get studyTitle => _pick({
-    'ko': '스터디',
-    'en': 'Study',
+    'ko': '친구와 연습',
+    'en': 'Practice with friends',
     'ja': '学習',
     'zh': '学习',
     'es': 'Estudio',
@@ -1010,8 +1364,8 @@ class ToneBridgeStrings {
   });
 
   String get sessions => _pick({
-    'ko': '세션',
-    'en': 'Sessions',
+    'ko': '연습',
+    'en': 'Practice',
     'ja': 'セッション',
     'zh': '会话',
     'es': 'Sesiones',
@@ -1022,8 +1376,9 @@ class ToneBridgeStrings {
   });
 
   String get noSessions => _pick({
-    'ko': '아직 세션이 없어요.\n친구와 함께 스터디를 시작해보세요!',
-    'en': 'No sessions yet.\nStart studying with a friend!',
+    'ko': '아직 같이 연습 중인 친구가 없어요.\n친구를 골라 첫 표현을 주고받아보세요.',
+    'en':
+        'No active practice yet.\nPick a friend and exchange your first phrase.',
     'ja': 'セッションはまだありません。\n友達と学習を始めましょう！',
     'zh': '还没有会话。\n和好友一起开始学习吧！',
     'es': 'Aún no hay sesiones.\n¡Empieza a estudiar con un amigo!',
@@ -1034,8 +1389,8 @@ class ToneBridgeStrings {
   });
 
   String get defaultSessionTitle => _pick({
-    'ko': '스터디 세션',
-    'en': 'Study session',
+    'ko': '친구와 연습',
+    'en': 'Practice with a friend',
     'ja': '学習セッション',
     'zh': '学习会话',
     'es': 'Sesión de estudio',
@@ -1061,8 +1416,8 @@ class ToneBridgeStrings {
   );
 
   String get newSession => _pick({
-    'ko': '새 세션',
-    'en': 'New session',
+    'ko': '연습 시작',
+    'en': 'Start practice',
     'ja': '新しいセッション',
     'zh': '新会话',
     'es': 'Nueva sesión',
@@ -1211,8 +1566,8 @@ class ToneBridgeStrings {
   });
 
   String get newStudySession => _pick({
-    'ko': '새 스터디 세션',
-    'en': 'New study session',
+    'ko': '친구와 새 연습',
+    'en': 'New practice with a friend',
     'ja': '新しい学習セッション',
     'zh': '新学习会话',
     'es': 'Nueva sesión de estudio',
@@ -1235,8 +1590,8 @@ class ToneBridgeStrings {
   });
 
   String get optionalSessionName => _pick({
-    'ko': '세션 이름 (선택)',
-    'en': 'Session name (optional)',
+    'ko': '연습 이름 (선택)',
+    'en': 'Practice name (optional)',
     'ja': 'セッション名（任意）',
     'zh': '会话名称（可选）',
     'es': 'Nombre de sesión (opcional)',
@@ -1259,8 +1614,8 @@ class ToneBridgeStrings {
   });
 
   String get sessionAlreadyExists => _pick({
-    'ko': '이미 해당 친구와 진행 중인 세션이 있어요.',
-    'en': 'You already have an active session with this friend.',
+    'ko': '이미 해당 친구와 진행 중인 연습이 있어요.',
+    'en': 'You already have active practice with this friend.',
     'ja': 'この友達とは進行中のセッションがあります。',
     'zh': '你已经和这位好友有进行中的会话。',
     'es': 'Ya tienes una sesión activa con este amigo.',
@@ -1271,8 +1626,8 @@ class ToneBridgeStrings {
   });
 
   String get sessionCreateFailed => _pick({
-    'ko': '세션 생성에 실패했어요. 다시 시도해 주세요.',
-    'en': 'Could not create the session. Please try again.',
+    'ko': '연습을 시작하지 못했어요. 다시 시도해 주세요.',
+    'en': 'Could not start practice. Please try again.',
     'ja': 'セッションを作成できませんでした。もう一度お試しください。',
     'zh': '创建会话失败。请重试。',
     'es': 'No se pudo crear la sesión. Inténtalo de nuevo.',

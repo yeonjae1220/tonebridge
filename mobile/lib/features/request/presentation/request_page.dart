@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
@@ -61,6 +62,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final requestAsync = ref.watch(requestStateProvider);
     final isLoading = requestAsync.isLoading || _uploading;
 
@@ -77,7 +79,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('교정 요청이 등록됐습니다!')));
+        ).showSnackBar(SnackBar(content: Text(strings.requestSuccess)));
         ref.invalidate(feedStateProvider);
         ref.invalidate(myRequestsStateProvider);
         ref.read(requestStateProvider.notifier).reset();
@@ -87,13 +89,31 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('교정 요청')),
+      appBar: AppBar(title: Text(strings.requestTitle)),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                strings.requestSubtitle,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
             // ── 요청 유형 탭 ──
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                strings.requestTypeQuestion,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
             _SegmentRow(
               isAudio: _isAudio,
               onChanged: (v) => setState(() {
@@ -105,7 +125,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 
             // ── 언어 선택 ──
             _SectionCard(
-              label: '교정 언어',
+              label: strings.correctionLanguage,
               child: LanguagePicker(
                 value: _targetLanguage,
                 variant: _targetVariant,
@@ -121,7 +141,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
             // ── 내용 ──
             if (!_isAudio) ...[
               _SectionCard(
-                label: '교정받을 내용',
+                label: strings.requestContentLabel,
                 child: Column(
                   children: [
                     TextFormField(
@@ -129,20 +149,21 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                       minLines: 4,
                       maxLines: 8,
                       maxLength: 1000,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: '교정받고 싶은 문장을 입력하세요',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: strings.requestContentPlaceholder,
                       ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? '내용을 입력해주세요' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? strings.requestContentRequired
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _contextController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: '문맥 (선택) — 예: 일본 회사에 이메일을 보낼 때...',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: strings.requestTextContextHint,
                       ),
                     ),
                   ],
@@ -150,7 +171,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
               ),
             ] else ...[
               _SectionCard(
-                label: '음성 녹음',
+                label: strings.audioRecording,
                 child: Column(
                   children: [
                     _AudioRecorderWidget(
@@ -161,9 +182,9 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                     TextFormField(
                       controller: _contextController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: '문맥 (선택) — 예: 일본 친구에게 전화할 때...',
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: strings.requestAudioContextHint,
                       ),
                     ),
                   ],
@@ -174,7 +195,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 
             // ── 피드백 목표 ──
             _SectionCard(
-              label: '피드백 목표 (선택)',
+              label: strings.feedbackGoalOptional,
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -216,7 +237,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('교정 요청 제출'),
+                  : Text(strings.submitCorrectionRequest),
             ),
             const SizedBox(height: 32),
           ],
@@ -269,7 +290,8 @@ class _RequestPageState extends ConsumerState<RequestPage> {
             );
       } on Exception catch (e) {
         if (mounted) {
-          _showError('교정 요청 제출에 실패했어요. ${_friendlyError(e)}');
+          final strings = ref.read(tProvider);
+          _showError(strings.requestSubmitFailed(_friendlyError(e)));
         }
       } finally {
         if (mounted) setState(() => _uploading = false);
@@ -309,35 +331,37 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 
   String _friendlyError(Exception e) {
     final text = e.toString();
-    if (text.contains('401') || text.contains('403')) return '다시 로그인해 주세요.';
-    if (text.contains('400')) return '요청 내용을 확인해 주세요.';
+    final strings = ref.read(tProvider);
+    if (text.contains('401') || text.contains('403')) return strings.loginAgain;
+    if (text.contains('400')) return strings.checkRequestContent;
     if (text.toLowerCase().contains('timeout')) {
-      return '네트워크 상태를 확인해 주세요.';
+      return strings.checkNetwork;
     }
-    return '잠시 후 다시 시도해 주세요.';
+    return strings.genericError;
   }
 }
 
 // ── Sub-widgets ─────────────────────────────────────────────────────────────
 
-class _SegmentRow extends StatelessWidget {
+class _SegmentRow extends ConsumerWidget {
   const _SegmentRow({required this.isAudio, required this.onChanged});
   final bool isAudio;
   final ValueChanged<bool> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
     return SegmentedButton<bool>(
-      segments: const [
+      segments: [
         ButtonSegment(
           value: false,
-          icon: Icon(Icons.text_fields_rounded),
-          label: Text('텍스트'),
+          icon: const Icon(Icons.text_fields_rounded),
+          label: Text(strings.text),
         ),
         ButtonSegment(
           value: true,
-          icon: Icon(Icons.mic_rounded),
-          label: Text('음성'),
+          icon: const Icon(Icons.mic_rounded),
+          label: Text(strings.audio),
         ),
       ],
       selected: {isAudio},
@@ -370,13 +394,14 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _CreditBanner extends StatelessWidget {
+class _CreditBanner extends ConsumerWidget {
   const _CreditBanner({required this.isAudio});
   final bool isAudio;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final strings = ref.watch(tProvider);
     final cost = isAudio
         ? AppConfig.audioRequestCost
         : AppConfig.textRequestCost;
@@ -391,7 +416,7 @@ class _CreditBanner extends StatelessWidget {
           Icon(Icons.toll_rounded, color: theme.colorScheme.primary, size: 20),
           const SizedBox(width: 8),
           Text(
-            '크레딧 $cost 차감',
+            strings.creditCost(cost),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.w600,
@@ -404,10 +429,7 @@ class _CreditBanner extends StatelessWidget {
 }
 
 class _AudioRecorderWidget extends StatelessWidget {
-  const _AudioRecorderWidget({
-    required this.recorder,
-    required this.onStart,
-  });
+  const _AudioRecorderWidget({required this.recorder, required this.onStart});
 
   final AudioRecorderService recorder;
   final Future<void> Function() onStart;
@@ -418,9 +440,9 @@ class _AudioRecorderWidget extends StatelessWidget {
 
     return switch (recorder.state) {
       RecorderState.idle => _OpenRecordSheetButton(
-          onTap: () => _showRecorderSheet(context),
-          theme: theme,
-        ),
+        onTap: () => _showRecorderSheet(context),
+        theme: theme,
+      ),
       RecorderState.recording => _RecordingIndicator(
         duration: recorder.formattedDuration,
         onStop: () => recorder.stop(),
@@ -439,10 +461,7 @@ class _AudioRecorderWidget extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       isDismissible: recorder.state != RecorderState.recording,
-      builder: (_) => _RecorderSheet(
-        recorder: recorder,
-        onStart: onStart,
-      ),
+      builder: (_) => _RecorderSheet(recorder: recorder, onStart: onStart),
     );
   }
 }
@@ -453,26 +472,26 @@ class _OpenRecordSheetButton extends StatelessWidget {
   final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.mic_rounded),
-          label: const Text('녹음하기'),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: theme.colorScheme.error,
-            foregroundColor: theme.colorScheme.onError,
-          ),
+  Widget build(BuildContext context) {
+    final strings = ProviderScope.containerOf(context).read(tProvider);
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.mic_rounded),
+        label: Text(strings.recordAction),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: theme.colorScheme.error,
+          foregroundColor: theme.colorScheme.onError,
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _RecorderSheet extends StatefulWidget {
-  const _RecorderSheet({
-    required this.recorder,
-    required this.onStart,
-  });
+  const _RecorderSheet({required this.recorder, required this.onStart});
 
   final AudioRecorderService recorder;
   final Future<void> Function() onStart;
@@ -499,6 +518,7 @@ class _RecorderSheetState extends State<_RecorderSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = ProviderScope.containerOf(context).read(tProvider);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         20,
@@ -513,7 +533,7 @@ class _RecorderSheetState extends State<_RecorderSheet> {
           Row(
             children: [
               Text(
-                '음성 녹음',
+                strings.audioRecording,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -528,22 +548,25 @@ class _RecorderSheetState extends State<_RecorderSheet> {
           ),
           const SizedBox(height: 20),
           switch (widget.recorder.state) {
-            RecorderState.idle => _RecordButton(onTap: widget.onStart, theme: theme),
+            RecorderState.idle => _RecordButton(
+              onTap: widget.onStart,
+              theme: theme,
+            ),
             RecorderState.recording => _RecordingIndicator(
-                duration: widget.recorder.formattedDuration,
-                onStop: () => widget.recorder.stop(),
-                theme: theme,
-              ),
+              duration: widget.recorder.formattedDuration,
+              onStop: () => widget.recorder.stop(),
+              theme: theme,
+            ),
             RecorderState.stopped => _RecordingStopped(
-                recorder: widget.recorder,
-                theme: theme,
-              ),
+              recorder: widget.recorder,
+              theme: theme,
+            ),
           },
           if (widget.recorder.state == RecorderState.stopped) ...[
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('이 녹음 사용'),
+              child: Text(strings.useRecording),
             ),
           ],
         ],
@@ -585,7 +608,7 @@ class _RecordButton extends StatelessWidget {
   );
 }
 
-class _RecordingIndicator extends StatelessWidget {
+class _RecordingIndicator extends ConsumerWidget {
   const _RecordingIndicator({
     required this.duration,
     required this.onStop,
@@ -596,61 +619,61 @@ class _RecordingIndicator extends StatelessWidget {
   final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      GestureDetector(
-        onTap: onStop,
-        child: Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.error,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.stop_rounded,
-            color: theme.colorScheme.onError,
-            size: 32,
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onStop,
+          child: Container(
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               color: theme.colorScheme.error,
               shape: BoxShape.circle,
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            duration,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+            child: Icon(
+              Icons.stop_rounded,
+              color: theme.colorScheme.onError,
+              size: 32,
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '녹음 중',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-        ],
-      ),
-    ],
-  );
+            const SizedBox(width: 8),
+            Text(
+              duration,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              strings.recording,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _RecordingStopped extends StatefulWidget {
-  const _RecordingStopped({
-    required this.recorder,
-    required this.theme,
-  });
+  const _RecordingStopped({required this.recorder, required this.theme});
   final AudioRecorderService recorder;
   final ThemeData theme;
 
@@ -714,6 +737,7 @@ class _RecordingStoppedState extends State<_RecordingStopped> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final strings = ProviderScope.containerOf(context).read(tProvider);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -749,10 +773,14 @@ class _RecordingStoppedState extends State<_RecordingStopped> {
                           builder: (context, constraints) => GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTapDown: (details) {
-                              _seek(details.localPosition.dx / constraints.maxWidth);
+                              _seek(
+                                details.localPosition.dx / constraints.maxWidth,
+                              );
                             },
                             onHorizontalDragUpdate: (details) {
-                              _seek(details.localPosition.dx / constraints.maxWidth);
+                              _seek(
+                                details.localPosition.dx / constraints.maxWidth,
+                              );
                             },
                             child: SizedBox(
                               height: 56,
@@ -760,7 +788,9 @@ class _RecordingStoppedState extends State<_RecordingStopped> {
                                 painter: _WaveformPainter(
                                   progress: fraction.clamp(0.0, 1.0),
                                   activeColor: theme.colorScheme.primary,
-                                  inactiveColor: theme.colorScheme.onSecondaryContainer
+                                  inactiveColor: theme
+                                      .colorScheme
+                                      .onSecondaryContainer
                                       .withValues(alpha: 0.24),
                                 ),
                               ),
@@ -800,7 +830,7 @@ class _RecordingStoppedState extends State<_RecordingStopped> {
                     widget.recorder.reset();
                   },
                   icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('다시 녹음'),
+                  label: Text(strings.recordAgain),
                 ),
               ),
             ],

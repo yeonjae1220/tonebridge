@@ -41,7 +41,19 @@ class _FeedPageState extends ConsumerState<FeedPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.feedTitle),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(strings.feedTitle),
+            Text(
+              strings.feedSubtitle,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           // Streak badge
           if (streak != null && streak > 0)
