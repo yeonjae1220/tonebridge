@@ -12,48 +12,8 @@ import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { formatDate } from '@/lib/dateUtils'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { useI18n } from '@/i18n/I18nProvider'
+import { RecorderModal } from '@/components/recorder/RecorderModal'
 import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
-
-function RecorderControls({
-  recorder,
-  disabled,
-}: {
-  recorder: ReturnType<typeof useAudioRecorder>
-  disabled?: boolean
-}) {
-  const { t } = useI18n()
-  if (recorder.state === 'recording') {
-    return (
-      <button
-        type="button"
-        onClick={recorder.stop}
-        className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-semibold"
-      >
-        {t('study.cardDetail.stopRecording')}
-      </button>
-    )
-  }
-  if (recorder.state === 'stopped' && recorder.audioUrl) {
-    return (
-      <div className="flex flex-col gap-2">
-        <audio controls src={recorder.audioUrl} className="w-full h-9" />
-        <button type="button" onClick={recorder.reset} className="text-xs font-semibold text-gray-500">
-          {t('request.recordAgain')}
-        </button>
-      </div>
-    )
-  }
-  return (
-    <button
-      type="button"
-      onClick={recorder.start}
-      disabled={disabled}
-      className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-semibold disabled:opacity-40"
-    >
-      {t('study.cardDetail.startRecording')}
-    </button>
-  )
-}
 
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -149,6 +109,8 @@ export default function StudyCardDetailPage() {
   const { upload, uploading } = usePresignedUpload()
   const [noteDraft, setNoteDraft] = useState('')
   const [actionError, setActionError] = useState('')
+  const [nativeModalOpen, setNativeModalOpen] = useState(false)
+  const [attemptModalOpen, setAttemptModalOpen] = useState(false)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -300,35 +262,77 @@ export default function StudyCardDetailPage() {
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.nativeAudioHelp')}</p>
-                <div className="mt-3">
-                  <RecorderControls recorder={nativeRecorder} disabled={submitNativeAudioMutation.isPending} />
+                <div className="mt-3 flex flex-col gap-3">
+                  {nativeRecorder.state === 'idle' && (
+                    <button
+                      type="button"
+                      onClick={() => setNativeModalOpen(true)}
+                      disabled={submitNativeAudioMutation.isPending}
+                      className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
+                    >
+                      {t('study.cardDetail.startRecording')}
+                    </button>
+                  )}
+                  {nativeRecorder.state === 'stopped' && (
+                    <button
+                      type="button"
+                      onClick={() => setNativeModalOpen(true)}
+                      className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      {t('request.recordAgain')}
+                    </button>
+                  )}
+                  {nativeRecorder.state === 'stopped' && nativeRecorder.audioUrl && (
+                    <audio controls src={nativeRecorder.audioUrl} className="w-full h-9" />
+                  )}
+                  {nativeRecorder.state === 'stopped' && (
+                    <button
+                      onClick={() => submitNativeAudioMutation.mutate()}
+                      disabled={submitNativeAudioMutation.isPending}
+                      className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                    >
+                      {submitNativeAudioMutation.isPending ? t('common.saving') : t('study.cardDetail.uploadNativeAudio')}
+                    </button>
+                  )}
                 </div>
-                {nativeRecorder.state === 'stopped' && (
-                  <button
-                    onClick={() => submitNativeAudioMutation.mutate()}
-                    disabled={submitNativeAudioMutation.isPending}
-                    className="mt-3 w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                  >
-                    {submitNativeAudioMutation.isPending ? t('common.saving') : t('study.cardDetail.uploadNativeAudio')}
-                  </button>
-                )}
               </section>
             ) : (
               <section className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.practiceRecording')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.practiceHelp')}</p>
-                <div className="mt-3">
-                  <RecorderControls recorder={attemptRecorder} disabled={submitAttemptMutation.isPending || uploading} />
+                <div className="mt-3 flex flex-col gap-3">
+                  {attemptRecorder.state === 'idle' && (
+                    <button
+                      type="button"
+                      onClick={() => setAttemptModalOpen(true)}
+                      disabled={submitAttemptMutation.isPending || uploading}
+                      className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
+                    >
+                      {t('study.cardDetail.startRecording')}
+                    </button>
+                  )}
+                  {attemptRecorder.state === 'stopped' && (
+                    <button
+                      type="button"
+                      onClick={() => setAttemptModalOpen(true)}
+                      className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      {t('request.recordAgain')}
+                    </button>
+                  )}
+                  {attemptRecorder.state === 'stopped' && attemptRecorder.audioUrl && (
+                    <audio controls src={attemptRecorder.audioUrl} className="w-full h-9" />
+                  )}
+                  {attemptRecorder.state === 'stopped' && (
+                    <button
+                      onClick={() => submitAttemptMutation.mutate()}
+                      disabled={submitAttemptMutation.isPending || uploading}
+                      className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                    >
+                      {submitAttemptMutation.isPending || uploading ? t('common.saving') : t('study.cardDetail.submitAttempt')}
+                    </button>
+                  )}
                 </div>
-                {attemptRecorder.state === 'stopped' && (
-                  <button
-                    onClick={() => submitAttemptMutation.mutate()}
-                    disabled={submitAttemptMutation.isPending || uploading}
-                    className="mt-3 w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                  >
-                    {submitAttemptMutation.isPending || uploading ? t('common.saving') : t('study.cardDetail.submitAttempt')}
-                  </button>
-                )}
               </section>
             )}
 
@@ -369,6 +373,20 @@ export default function StudyCardDetailPage() {
           </>
         )}
       </div>
+      {nativeModalOpen && (
+        <RecorderModal
+          recorder={nativeRecorder}
+          onClose={() => setNativeModalOpen(false)}
+          title={t('study.cardDetail.nativeAudio')}
+        />
+      )}
+      {attemptModalOpen && (
+        <RecorderModal
+          recorder={attemptRecorder}
+          onClose={() => setAttemptModalOpen(false)}
+          title={t('study.cardDetail.practiceRecording')}
+        />
+      )}
     </main>
   )
 }
