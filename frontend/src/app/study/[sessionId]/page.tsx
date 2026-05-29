@@ -9,6 +9,7 @@ import type { StudyCard, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+import { localizedLabel } from '@/lib/localizedLabels'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -16,7 +17,7 @@ export default function StudySessionPage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
   const [movingCard, setMovingCard] = useState<StudyCard | null>(null)
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
@@ -106,7 +107,7 @@ export default function StudySessionPage() {
               <h1 className="text-xl font-bold text-gray-900">{session?.title ?? t('study.cards.sessionDefault')}</h1>
               {session && (
                 <p className="text-xs text-gray-400">
-                  {formatDate(session.createdAt)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}
+                  {formatDate(session.createdAt, language)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}
                   {session.status === 'ACTIVE' && (
                     <span className="ml-2 text-green-600 font-medium">{t('study.active')}</span>
                   )}
@@ -173,10 +174,16 @@ export default function StudySessionPage() {
                     draggingCardId === card.id ? 'border-blue-200 opacity-60' : 'border-gray-100'
                   }`}
                 >
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/study/${sessionId}/cards/${card.id}`)}
+                    className="w-full text-left"
+                  >
                   <p className="text-base font-bold text-gray-900 mb-1">{card.phrase}</p>
                   {card.context && (
                     <p className="text-sm text-gray-500 mb-3">{card.context}</p>
                   )}
+                  </button>
                   {card.explanation && (
                     <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-3 py-2 mb-3">
                       {card.explanation}
@@ -186,7 +193,7 @@ export default function StudySessionPage() {
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {card.tags.map((tag) => (
                         <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
-                          {tag}
+                          {localizedLabel(tag, t)}
                         </span>
                       ))}
                     </div>

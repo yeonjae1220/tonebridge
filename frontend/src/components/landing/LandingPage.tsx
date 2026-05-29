@@ -14,15 +14,15 @@ const EXAMPLES = [
   {
     lang: 'en',
     flag: '🇺🇸',
-    before: 'I am very enjoy to working with this team.',
-    after: 'I really enjoy working with this team.',
+    beforeKey: 'landing.example.en.before',
+    afterKey: 'landing.example.en.after',
     noteKey: 'landing.example.en.note',
   },
   {
     lang: 'ko',
     flag: '🇰🇷',
-    before: '오늘 날씨가 정말 좋아요. 나는 공원에 갔어요.',
-    after: '오늘 날씨가 정말 좋아서 공원에 갔어요.',
+    beforeKey: 'landing.example.ko.before',
+    afterKey: 'landing.example.ko.after',
     noteKey: 'landing.example.ko.note',
   },
 ] as const
@@ -124,11 +124,11 @@ export default function LandingPage() {
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-2 items-start">
                     <span className="shrink-0 mt-0.5 text-xs font-bold text-red-400 w-8">{t('landing.original')}</span>
-                    <p className="text-sm text-gray-500 line-through leading-relaxed">{ex.before}</p>
+                    <p className="text-sm text-gray-500 line-through leading-relaxed">{t(ex.beforeKey)}</p>
                   </div>
                   <div className="flex gap-2 items-start">
                     <span className="shrink-0 mt-0.5 text-xs font-bold text-green-500 w-8">{t('landing.corrected')}</span>
-                    <p className="text-sm text-gray-900 font-medium leading-relaxed">{ex.after}</p>
+                    <p className="text-sm text-gray-900 font-medium leading-relaxed">{t(ex.afterKey)}</p>
                   </div>
                 </div>
 
@@ -176,7 +176,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-gray-100">
-        <p className="text-center text-xs text-gray-400">© 2026 ToneBridge. All rights reserved.</p>
+        <p className="text-center text-xs text-gray-400">{t('landing.footer')}</p>
       </footer>
     </div>
   )

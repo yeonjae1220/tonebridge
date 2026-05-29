@@ -179,3 +179,10 @@ export interface StudyCard {
   deletedAt?: string | null
   editCount?: number
 }
+
+export interface NativeAudioEntry {
+  id: string
+  cardId: string
+  createdAt: string
+  note: string | null
+}

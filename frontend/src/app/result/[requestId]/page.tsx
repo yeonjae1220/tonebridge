@@ -9,6 +9,7 @@ import { Correction, CorrectionRequest, StudySession } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+import { localizedLabel } from '@/lib/localizedLabels'
 
 const STATUS_MAP: Record<string, { key: 'result.waiting' | 'result.approved' | 'result.rejected'; cls: string }> = {
   SUBMITTED: { key: 'result.waiting', cls: 'bg-yellow-100 text-yellow-700' },
@@ -96,7 +97,7 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
           {correction.timestampComments.map((tc, i) => (
             <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
               <span className="text-xs font-mono text-indigo-500 shrink-0 mt-0.5">{formatTime(tc.start)}</span>
-              <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full shrink-0">{tc.category}</span>
+              <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full shrink-0">{localizedLabel(tc.category, t)}</span>
               <span className="text-sm text-gray-700 flex-1">{tc.comment}</span>
             </div>
           ))}
@@ -360,7 +361,7 @@ export default function ResultPage() {
                       <div className="flex flex-wrap gap-1.5">
                         {correction.tags.map((tag) => (
                           <span key={tag} className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
-                            {tag}
+                            {localizedLabel(tag, t)}
                           </span>
                         ))}
                       </div>

@@ -64,7 +64,7 @@ export default function AdminDashboardPage() {
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{t('admin.dashboard')}</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Admin only</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('admin.only')}</p>
             </div>
           </div>
           <button

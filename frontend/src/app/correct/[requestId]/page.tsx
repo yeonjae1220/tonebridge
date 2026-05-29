@@ -14,6 +14,7 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMessage } from '@/i18n/messages'
+import { localizedLabel } from '@/lib/localizedLabels'
 
 const COMMON_TAGS = [
   { key: 'goal.grammar', value: '문법' },
@@ -207,7 +208,7 @@ export default function CorrectPage() {
           {request?.feedbackGoals && request.feedbackGoals.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-3">
               {request.feedbackGoals.map((g) => (
-                <span key={g} className="text-xs px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full">{g}</span>
+                <span key={g} className="text-xs px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full">{localizedLabel(g, t)}</span>
               ))}
             </div>
           )}
@@ -253,7 +254,7 @@ export default function CorrectPage() {
                     >
                       {formatTime(tc.start)}
                     </button>
-                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full shrink-0">{tc.category}</span>
+                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full shrink-0">{localizedLabel(tc.category, t)}</span>
                     <span className="text-sm text-gray-700 flex-1">{tc.comment}</span>
                     <button onClick={() => removeTimestampComment(i)} className="text-gray-300 hover:text-red-400 text-lg leading-none">×</button>
                   </div>

@@ -412,7 +412,7 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended }: SessionCardProps) {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -420,7 +420,7 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
           <p className="text-sm font-semibold text-gray-900 leading-snug">
             {session.title ?? t('study.practiceDefault')}
           </p>
-          <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}</p>
+          <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt, language)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}</p>
         </button>
         <div className="flex items-center gap-2 flex-shrink-0">
           {!ended && (

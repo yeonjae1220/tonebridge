@@ -9,6 +9,7 @@ import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useDebounce } from '@/hooks/useDebounce'
 import type { Friend, FriendRequest, UserSearchResult } from '@/types'
 import { useI18n } from '@/i18n/I18nProvider'
+import { formatDate } from '@/lib/dateUtils'
 
 function langLabel(code: string) {
   return ALL_LANG_LABELS[code] ?? code
@@ -25,7 +26,7 @@ export default function FriendsPage() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
-  const { t } = useI18n()
+  const { language, t } = useI18n()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -198,7 +199,7 @@ export default function FriendsPage() {
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{req.senderUsername ?? t('friends.unknown')}</p>
                     <p className="text-xs text-gray-400">
-                      {new Date(req.createdAt).toLocaleDateString('ko-KR')}
+                      {formatDate(req.createdAt, language)}
                     </p>
                   </div>
                   <div className="flex gap-2">

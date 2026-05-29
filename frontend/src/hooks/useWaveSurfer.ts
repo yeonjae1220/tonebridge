@@ -27,6 +27,7 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
         barGap: 1,
         barRadius: 2,
         normalize: true,
+        dragToSeek: true,
       })
 
       ws.on('ready', () => {

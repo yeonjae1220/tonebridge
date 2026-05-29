@@ -9,6 +9,7 @@ import { CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
+import { localizedLabel } from '@/lib/localizedLabels'
 
 type TFunction = ReturnType<typeof useI18n>['t']
 type FeedTab = 'help' | 'mine'
@@ -346,7 +347,7 @@ function RequestCard({
         <div className="flex flex-wrap gap-1">
           {request.feedbackGoals.map((g) => (
             <span key={g} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-              {g}
+              {localizedLabel(g, t)}
             </span>
           ))}
         </div>
