@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
+import { api } from '@/lib/api'
 import { useI18n } from '@/i18n/I18nProvider'
 
 function AuthCallbackInner() {
@@ -31,9 +32,23 @@ function AuthCallbackInner() {
     const isSafeRedirect = (path: string) => /^\/(?!\/)/.test(path)
 
     setAccessToken(token)
-    const raw = sessionStorage.getItem('auth_redirect') ?? '/onboarding'
+
+    const explicitRedirect = sessionStorage.getItem('auth_redirect')
     sessionStorage.removeItem('auth_redirect')
-    router.replace(isSafeRedirect(raw) ? raw : '/onboarding')
+
+    if (explicitRedirect && isSafeRedirect(explicitRedirect)) {
+      router.replace(explicitRedirect)
+      return
+    }
+
+    // 기존 사용자는 /feed로, 온보딩 미완료 사용자는 /onboarding으로 분기
+    api.get<{ onboardingCompleted: boolean }>('/users/me')
+      .then(({ data }) => {
+        router.replace(data.onboardingCompleted ? '/feed' : '/onboarding')
+      })
+      .catch(() => {
+        router.replace('/onboarding')
+      })
   }, [router, setAccessToken])
 
   return (
