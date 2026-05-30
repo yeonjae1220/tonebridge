@@ -70,6 +70,8 @@ public class SecurityConfig {
                     "[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
         }
         if (adminPasswordBcrypt == null
+                || adminPasswordBcrypt.contains("placeholder")  // CRITICAL fix: placeholder 명시 차단
+                || adminPasswordBcrypt.length() < 60            // BCrypt 해시 최소 길이
                 || (!adminPasswordBcrypt.startsWith("$2a$")
                     && !adminPasswordBcrypt.startsWith("$2b$")
                     && !adminPasswordBcrypt.startsWith("$2y$"))) {
