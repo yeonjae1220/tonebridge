@@ -8,13 +8,14 @@ export function middleware(request: NextRequest) {
 
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https: blob:",
     "font-src 'self'",
     "connect-src 'self' https://tonebridge.mungji.com wss://tonebridge.mungji.com",
     "frame-src 'none'",
     "object-src 'none'",
+    "base-uri 'self'",
   ].join('; ')
 
   // 인증 필요 경로 체크

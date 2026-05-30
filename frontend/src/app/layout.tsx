@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { headers } from 'next/headers'
 import './globals.css'
 import { Providers } from './providers'
 import { AppShell } from '@/components/AppShell'
@@ -60,13 +61,14 @@ export const viewport: Viewport = {
   themeColor: '#3B82F6',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? ''
   return (
     <html lang="ko">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
-      <body className={inter.variable}>
+      <body className={inter.variable} data-nonce={nonce}>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
