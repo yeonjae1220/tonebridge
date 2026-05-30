@@ -1,6 +1,8 @@
 package me.yeonjae.tonebridge.shared.config;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +32,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -45,6 +48,27 @@ public class SecurityConfig {
     /** BCrypt hash — k8s Secret ADMIN_PASSWORD_BCRYPT 에서 주입 */
     @Value("${admin.password.bcrypt}")
     private String adminPasswordBcrypt;
+
+    /**
+     * CRITICAL fix: 애플리케이션 시작 시 BCrypt 해시 유효성 검증.
+     * 환경변수 미설정(placeholder 값)인 채로 프로덕션 배포되는 것을 방지.
+     */
+    @PostConstruct
+    public void validateAdminCredentials() {
+        if (adminEmail == null || adminEmail.isBlank()) {
+            throw new IllegalStateException(
+                    "[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
+        }
+        if (adminPasswordBcrypt == null
+                || (!adminPasswordBcrypt.startsWith("$2a$")
+                    && !adminPasswordBcrypt.startsWith("$2b$")
+                    && !adminPasswordBcrypt.startsWith("$2y$"))) {
+            throw new IllegalStateException(
+                    "[Admin] ADMIN_PASSWORD_BCRYPT가 유효한 BCrypt 해시가 아닙니다. " +
+                    "다음 명령으로 생성: htpasswd -bnBC 10 '' 'password' | tr -d ':\\n' | sed 's/$2y/$2a/'");
+        }
+        log.info("[Admin] admin 계정 설정이 유효합니다: email={}", adminEmail);
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -155,7 +179,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(corsProperties.getAllowedOrigins().split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

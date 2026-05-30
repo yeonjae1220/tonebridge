@@ -1,14 +1,18 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import me.yeonjae.tonebridge.application.service.AdminService;
 
 import java.util.UUID;
 
+@Validated
 @Controller
 @RequestMapping("/admin")
 @RequiredArgsConstructor
@@ -23,8 +27,8 @@ public class AdminPageController {
     }
 
     @GetMapping("/users")
-    public String users(@RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size,
+    public String users(@RequestParam(defaultValue = "0") @Min(0) int page,
+                        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
                         Model model) {
         var userPage = adminService.listUsers(page, size);
         model.addAttribute("users", userPage.getContent());
