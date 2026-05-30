@@ -14,7 +14,10 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # T1 fix: create-drop → validate가 기본값
+      # - 로컬 H2: JPA_DDL_AUTO=create-drop (test application.yml에서 오버라이드)
+      # - 운영(prod profile): none (Flyway가 스키마 관리)
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     open-in-view: false
     properties:
       hibernate:

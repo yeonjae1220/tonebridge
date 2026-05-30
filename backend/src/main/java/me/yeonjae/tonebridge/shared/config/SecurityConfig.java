@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +41,15 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsProperties corsProperties;
+    private final Environment environment;
+
+    /** prod 프로파일에서 true — Swagger 차단 */
+    private boolean isProd() {
+        for (String p : environment.getActiveProfiles()) {
+            if (p.equalsIgnoreCase("prod")) return true;
+        }
+        return false;
+    }
 
     // Admin 계정 — k8s Secret에서 주입 (LOCAL provider 유저와 완전 분리)
     @Value("${admin.email}")
@@ -150,6 +160,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/languages/variants").permitAll()
+                        // T2 fix: Swagger는 prod 프로파일에서 차단
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**")
+                            .access((auth2, ctx) -> new org.springframework.security.authorization.AuthorizationDecision(!isProd()))
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN") // WARN fix: 나머지 actuator는 ADMIN 전용
                         .requestMatchers("/h2-console/**").access(
