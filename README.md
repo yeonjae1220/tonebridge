@@ -8,6 +8,7 @@
 ToneBridge/
 ├── backend/              Spring Boot 4.0.3 + Java 21 (헥사고날 아키텍처)
 ├── mobile/               Flutter (iOS · Android · Web PWA)
+├── frontend/             Next.js 15 (웹 서비스 — 교정 피드 · 스터디)
 ├── k8s/                  Kubernetes 매니페스트 (Lenovo k3s 클러스터)
 │   ├── namespace.yaml
 │   ├── network-policy.yaml   ← default-deny-all + 컴포넌트별 allowlist
@@ -15,10 +16,10 @@ ToneBridge/
 │   ├── redis.yaml
 │   ├── minio.yaml / minio-init.yaml
 │   ├── backend.yaml
-│   ├── frontend.yaml         ← Flutter Web (nginx:alpine)
+│   ├── frontend.yaml         ← Next.js (Node 18 alpine)
 │   └── ingress.yaml          ← cert-manager DNS-01 (Cloudflare)
 └── .github/workflows/
-    └── deploy.yml            ← GHCR 빌드 + k3s 자동 배포
+    └── deploy.yml            ← GHCR 빌드 + k3s 자동 배포 + Cloudflare 캐시 퍼지
 ```
 
 ## 로컬 실행
@@ -27,7 +28,12 @@ ToneBridge/
 # Backend (H2 인메모리 DB)
 cd backend && ./gradlew bootRun
 
-# Flutter Web (로컬 개발)
+# Next.js Web (로컬 개발)
+cd frontend
+npm install
+npm run dev          # http://localhost:3000
+
+# Flutter 앱 (iOS · Android · Web)
 cd mobile
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
@@ -37,7 +43,7 @@ flutter run -d chrome \
 ```
 
 접속:
-- 웹 앱: http://localhost:8080 (Flutter Web 빌드 시) / 브라우저 자동 오픈 (flutter run)
+- 웹 앱 (Next.js): http://localhost:3000
 - 백엔드 API: http://localhost:8080
 - MinIO 콘솔: http://localhost:9001
 
@@ -147,11 +153,25 @@ kubectl get certificate tonebridge-tls -n tonebridge
 
 | 레이어 | 기술 |
 |--------|------|
-| Frontend | Flutter 3 (iOS · Android · Web PWA), Riverpod, GoRouter, Freezed |
+| Web Frontend | Next.js 15, TypeScript, Tailwind CSS |
+| Mobile | Flutter 3 (iOS · Android · Web PWA), Riverpod, GoRouter, Freezed |
 | Backend | Spring Boot 4, Java 21 (Virtual Threads), JPA, Flyway |
 | DB | PostgreSQL 16 (prod) / H2 (로컬 단독 실행) |
 | Cache | Redis 7 |
 | Storage | MinIO (S3 호환, AWS S3 전환 시 endpoint만 변경) |
-| AI | Claude claude-sonnet-4-6 (첨삭 품질 검수 + AI 폴백) |
+| AI | Claude claude-sonnet-4-6 (첨삭 품질 검수 + AI 폴백, 기본 비활성) |
 | 푸시 알림 | Firebase Cloud Messaging (FCM) — 웹: VAPID, 네이티브: APNs/FCM |
 | 인프라 | k3s, cert-manager, ingress-nginx, Cloudflare Tunnel |
+
+## 최근 주요 변경 (2026-05)
+
+| 변경 | 내용 |
+|------|------|
+| **웹 프론트엔드 전환** | Flutter Web PWA → Next.js 15로 교체. 교정 피드·스터디 상세 페이지 구현 |
+| **다국어(i18n) 지원** | 한국어 / 영어 UI 전환 지원 (`ui_language.dart`) |
+| **교정 플로우 개선** | 첨삭 편집·삭제 기능 추가, 교정 결과 페이지(`result_page`) 신규 구현 |
+| **스터디 흐름 단순화** | 교정 학습 스텝 재구성, Next.js 스터디 상세 페이지 구현 |
+| **MinIO 업로드 URL** | presigned URL 방식으로 오디오 업로드 수정 |
+| **로그아웃 세션 정리** | 로그아웃 시 서버 세션 명시적 삭제 |
+| **AI 외부 호출 기본 비활성** | Claude API 비용 제어를 위해 외부 AI 호출 기본 off |
+| **CI/CD 개선** | CF 캐시 퍼지 스텝 YAML 수정, 배포 후 Cloudflare 캐시 자동 퍼지 |
