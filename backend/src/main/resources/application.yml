@@ -57,7 +57,7 @@ cookie:
   same-site: ${COOKIE_SAME_SITE:Lax}
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-key-that-is-long-enough-for-hs256}
+  secret: ${JWT_SECRET}   # FAIL fix: 기본값 제거 — 미설정 시 기동 실패로 운영 노출 방지
   access-token-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
   refresh-token-ttl-minutes: ${JWT_REFRESH_TTL_MINUTES:43200}
 

@@ -140,6 +140,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(headers -> headers
+                        .contentTypeOptions(Customizer.withDefaults())
+                        .frameOptions(f -> f.deny())
+                        .httpStrictTransportSecurity(hsts -> hsts  // WARN fix: HSTS 추가
+                                .maxAgeInSeconds(31536000)
+                                .includeSubDomains(true))
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/languages/variants").permitAll()
