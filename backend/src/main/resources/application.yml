@@ -44,6 +44,13 @@ spring:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
+# Admin SSR — InMemory 인증 (Firebase와 완전 분리)
+# ADMIN_PASSWORD_BCRYPT: BCrypt 해시 값을 k8s Secret으로 주입
+admin:
+  email: ${ADMIN_EMAIL:admin@tonebridge.local}
+  password:
+    bcrypt: ${ADMIN_PASSWORD_BCRYPT:$2a$10$placeholder-must-be-overridden-in-prod}
+
 # 로컬 개발(HTTP)에서는 false — prod 프로파일에서 true로 오버라이드
 cookie:
   secure: ${COOKIE_SECURE:false}

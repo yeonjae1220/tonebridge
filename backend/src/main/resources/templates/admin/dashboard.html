@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: layout(~{::body}, '대시보드', 'dashboard')}"
+      lang="ko">
+<body>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">전체 요청</div>
+    <div class="stat-value" th:text="${stats.totalRequests()}">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">대기 중</div>
+    <div class="stat-value" style="color:var(--warning);" th:text="${stats.pendingRequests()}">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">완료</div>
+    <div class="stat-value" style="color:var(--success);" th:text="${stats.completedRequests()}">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">품질 통과율</div>
+    <div class="stat-value"
+         th:text="${#numbers.formatDecimal(stats.qualityPassRate() * 100, 1, 1) + '%'}">0%</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+  <div class="card" style="padding:20px;">
+    <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px;">빠른 이동</div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <a th:href="@{/admin/users}" class="btn" style="justify-content:flex-start;">◎ 유저 관리</a>
+    </div>
+  </div>
+  <div class="card" style="padding:20px;">
+    <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px;">언어별 대기</div>
+    <div style="font-size:13px; line-height:2; color:var(--muted);">
+      <div th:if="${stats.pendingByLanguage().isEmpty()}" style="color:var(--muted);">데이터 없음</div>
+      <div th:each="entry : ${stats.pendingByLanguage()}">
+        <span th:text="${entry.key}"></span>:
+        <span style="color:var(--text); font-weight:600;" th:text="${entry.value}"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

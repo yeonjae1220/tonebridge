@@ -103,6 +103,16 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: CORS_ALLOWED_ORIGINS
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-secret
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD_BCRYPT
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-secret
+                  key: ADMIN_PASSWORD_BCRYPT
             - name: FRONTEND_URL
               value: https://tonebridge.mungji.com
             - name: GOOGLE_REDIRECT_URI

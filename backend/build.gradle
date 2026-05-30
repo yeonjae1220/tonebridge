@@ -27,6 +27,7 @@ repositories {
 dependencies {
     // ── Web ──────────────────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'   // Admin SSR
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // ── Security + JWT ────────────────────────────────────────────────────────
