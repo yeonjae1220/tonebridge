@@ -75,8 +75,8 @@ tonebridge:
     # Non-blank = S3-compatible (MinIO / local): uses forcePathStyle + endpointOverride.
     endpoint: ${STORAGE_ENDPOINT:}
     public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:}  # mobile/browser-accessible URL for presigned URLs; defaults to endpoint
-    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
-    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    access-key: ${STORAGE_ACCESS_KEY}   # WARN fix: minioadmin 기본값 제거 — 미설정 시 기동 실패
+    secret-key: ${STORAGE_SECRET_KEY}   # 로컬 개발은 환경변수 또는 .env.local 사용
     bucket: ${STORAGE_BUCKET:tonebridge-audio}
     region: ${STORAGE_REGION:us-east-1}
     upload-ttl-minutes: ${STORAGE_UPLOAD_TTL_MINUTES:15}

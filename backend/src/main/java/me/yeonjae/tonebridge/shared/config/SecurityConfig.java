@@ -151,6 +151,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/languages/variants").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN") // WARN fix: 나머지 actuator는 ADMIN 전용
                         .requestMatchers("/h2-console/**").access(
                                 (authReq, ctx) -> {
                                     String remoteAddr = ctx.getRequest().getRemoteAddr();
