@@ -205,6 +205,53 @@ ssh lenovo 'sudo kubectl get pods -n monitoring | grep grafana'
 ssh lenovo 'sudo systemctl list-units "actions.runner.*" --no-legend'
 ```
 
+---
+
+## GitHub Secrets 관리 (2026-05-31 추가)
+
+### 핵심 원칙
+- `k8s/secret.yaml`에 실제 값 절대 작성 금지 (주석/placeholder만)
+- 실제 값은 GitHub Secrets에만 저장
+- CI deploy step에서 `kubectl create secret --from-literal` 으로 동적 생성
+- **새 secret 추가 시 4곳 동시 수정 필수**: manifest, secret.yaml 주석, deploy.yml env+from-literal, GitHub Secrets
+
+### Secret이 빈 값으로 덮어씌워졌을 때 (긴급 복구)
+```bash
+# 실행 중인 old pod에서 실제 값 추출
+OLD_POD=$(sudo kubectl get pods -n <ns> -l app=backend --sort-by=.metadata.creationTimestamp -o jsonpath="{.items[0].metadata.name}")
+ssh lenovo "sudo kubectl exec -n <ns> $OLD_POD -- printenv JWT_SECRET" | \
+  gh secret set JWT_SECRET --repo yeonjae1220/<Repo>
+
+# k8s secret 즉시 패치
+ENCODED=$(printf '%s' "$VALUE" | base64 | tr -d '\n')
+ssh lenovo "sudo kubectl patch secret <secret> -n <ns> --type=json \
+  -p '[{\"op\":\"replace\",\"path\":\"/data/JWT_SECRET\",\"value\":\"$ENCODED\"}]'"
+
+# pod 재시작
+ssh lenovo "sudo kubectl rollout restart deployment/backend -n <ns>"
+```
+
+→ 상세 내용: `/Users/kim-yeonjae/Desktop/Project/docs/k8s-secrets-management.md`
+
+---
+
+## k8s 트러블슈팅 빠른 참조
+
+```bash
+# CrashLoopBackOff 원인 확인
+ssh lenovo 'sudo kubectl logs <pod> -n <ns> --previous --tail=20 | grep "Caused by"'
+
+# ProgressDeadlineExceeded 후 강제 재시작
+ssh lenovo 'sudo kubectl rollout restart deployment/<name> -n <ns>'
+
+# 전체 문제 pod 확인
+ssh lenovo 'sudo kubectl get pods -A | grep -v Running | grep -v Completed'
+```
+
+→ 상세 내용: `/Users/kim-yeonjae/Desktop/Project/docs/k8s-deployment-troubleshooting.md`
+
+---
+
 ## PWA 배포 현황 (2026-05-29)
 
 | 서비스 | manifest | SW | 설치 배너 |
