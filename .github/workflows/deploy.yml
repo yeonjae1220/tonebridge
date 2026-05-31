@@ -93,6 +93,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
@@ -113,6 +114,7 @@ jobs:
             --from-literal=JWT_SECRET="${JWT_SECRET}" \
             --from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
             --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+            --from-literal=GOOGLE_IOS_CLIENT_ID="${GOOGLE_IOS_CLIENT_ID}" \
             --from-literal=CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
             --from-literal=OPENAI_API_KEY="" \
             --from-literal=MINIO_ROOT_USER="minio-tonebridge" \
