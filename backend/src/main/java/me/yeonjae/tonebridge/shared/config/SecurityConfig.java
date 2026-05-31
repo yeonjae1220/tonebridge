@@ -69,6 +69,11 @@ public class SecurityConfig {
      */
     @PostConstruct
     public void validateAdminCredentials() {
+        boolean isTest = java.util.Arrays.asList(environment.getActiveProfiles()).contains("test");
+        if (isTest) {
+            log.info("[Admin] test 프로파일 — admin 자격증명 검증 생략");
+            return;
+        }
         if (adminEmail == null || adminEmail.isBlank()) {
             throw new IllegalStateException(
                     "[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
