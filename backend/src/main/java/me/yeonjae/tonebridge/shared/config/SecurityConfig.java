@@ -182,7 +182,7 @@ public class SecurityConfig {
                         // T2 fix: Swagger는 prod 프로파일에서 차단
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**")
                             .access((auth2, ctx) -> new org.springframework.security.authorization.AuthorizationDecision(!isProd()))
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN") // WARN fix: 나머지 actuator는 ADMIN 전용
                         .requestMatchers("/h2-console/**").access(
                                 (authReq, ctx) -> {
