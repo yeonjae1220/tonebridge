@@ -87,6 +87,7 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: OPENAI_API_KEY
+                  optional: true
             - name: STORAGE_ENDPOINT
               value: http://minio:9000
             - name: STORAGE_PUBLIC_ENDPOINT
