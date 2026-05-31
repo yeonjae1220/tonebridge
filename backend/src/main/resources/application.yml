@@ -121,14 +121,21 @@ tonebridge:
     emails: ${ADMIN_EMAILS:}  # required in production; set via ADMIN_EMAILS env var
 
 management:
+  health:
+    probes:
+      enabled: true
   endpoints:
     web:
       exposure:
-        # WARN fix: 기본 프로파일도 health만 공개 (metrics/prometheus는 ADMIN 인증 필요)
         include: health
   endpoint:
     health:
       show-details: when-authorized
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState, db, redis
 
 springdoc:
   swagger-ui:
@@ -172,6 +179,9 @@ spring:
       enabled: false
 
 management:
+  health:
+    probes:
+      enabled: true
   endpoints:
     web:
       exposure:
@@ -179,6 +189,11 @@ management:
   endpoint:
     health:
       show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState, db, redis
 
 logging:
   level:

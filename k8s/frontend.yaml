@@ -36,16 +36,18 @@ spec:
             - containerPort: 3000
           livenessProbe:
             httpGet:
-              path: /
+              path: /health/live
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /health/ready
               port: 3000
             initialDelaySeconds: 3
             periodSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: "256Mi"

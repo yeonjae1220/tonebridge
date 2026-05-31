@@ -85,3 +85,16 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 | 항목 | 위치 | 설명 |
 |------|------|------|
 | Redis key 해시화 | `RefreshTokenRedisAdapter.java:22` | refresh token 원문을 HMAC-SHA256 해시로 교체 권장 |
+
+---
+
+## k8s Health Probe (2026-05-31)
+
+liveness/readiness probe를 분리하여 의존성 장애 시 트래픽 차단.
+
+| 경로 | 목적 | 응답 |
+|------|------|------|
+| `GET /health/live` | 프로세스 생사 확인 | 항상 200 |
+| `GET /health/ready` | 백엔드 연결 확인 | 성공 200, 실패 503 |
+
+`/api/*` rewrites 충돌을 피해 `/health/*` 경로 사용. `force-dynamic`으로 캐싱 방지.

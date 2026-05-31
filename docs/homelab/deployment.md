@@ -252,6 +252,122 @@ ssh lenovo 'sudo kubectl get pods -A | grep -v Running | grep -v Completed'
 
 ---
 
+## k8s Health Probe 패턴 (2026-05-31)
+
+모든 프로젝트에 liveness/readiness probe 분리 적용 완료.
+
+### 원칙
+
+| Probe | 목적 | 실패 시 동작 |
+|-------|------|-------------|
+| **Liveness** | 프로세스 생사 확인 (데드락·크래시) | Pod 재시작 |
+| **Readiness** | 트래픽 수용 가능 여부 (DB·Redis 연결) | Service에서 제외 |
+
+동일 endpoint를 사용하면 DB 다운 시에도 트래픽이 유입되어 장애가 확산된다.
+
+### 백엔드 (Spring Boot Actuator)
+
+```yaml
+# application-*.yml
+management:
+  health:
+    probes:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      group:
+        liveness:
+          include: livenessState          # 프로세스 상태만
+        readiness:
+          include: readinessState, db, redis  # DB·Redis 연결 포함
+```
+
+```yaml
+# k8s manifest
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+```
+
+### 프론트엔드 (Next.js)
+
+`/api/*` rewrites가 있어 `/health/*`를 별도 경로로 사용.
+
+```ts
+// src/app/health/live/route.ts — liveness: 프로세스만 확인
+export const dynamic = 'force-dynamic';
+export function GET() {
+  return Response.json({ status: 'ok' });
+}
+
+// src/app/health/ready/route.ts — readiness: 백엔드 연결 확인
+export const dynamic = 'force-dynamic';
+export async function GET() {
+  try {
+    const res = await fetch(
+      `${process.env.API_URL}/actuator/health/readiness`,
+      { signal: AbortSignal.timeout(2000) }
+    );
+    if (!res.ok) throw new Error();
+    return Response.json({ status: 'ok' });
+  } catch {
+    return Response.json({ status: 'unavailable' }, { status: 503 });
+  }
+}
+```
+
+```yaml
+# k8s manifest
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 3000
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 3000
+```
+
+### NetworkPolicy 주의사항
+
+readiness route가 백엔드를 호출하므로 **backend-ingress에 frontend podSelector가 필요하다.**
+
+```yaml
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+      - podSelector:       # ← 이게 없으면 /health/ready가 항상 503
+          matchLabels:
+            app: frontend
+    ports:
+      - port: 8080
+```
+
+Snapguide는 이 설정이 누락되어 있어 2026-05-31에 추가함.
+
+### 적용 현황
+
+| 프로젝트 | 백엔드 actuator | 백엔드 그룹 | 프론트 live | 프론트 ready |
+|---------|----------------|------------|------------|-------------|
+| TimeManager | ✅ (2026-05-31 추가) | ✅ | ✅ | ✅ |
+| ToneBridge | ✅ | ✅ | ✅ | ✅ |
+| Ovlo | ✅ | ✅ | ✅ | ✅ |
+| Snapguide | ✅ | ✅ | ✅ | ✅ |
+
+---
+
 ## PWA 배포 현황 (2026-05-29)
 
 | 서비스 | manifest | SW | 설치 배너 |
