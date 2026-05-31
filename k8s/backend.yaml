@@ -75,7 +75,7 @@ spec:
                   name: tonebridge-secret
                   key: GOOGLE_IOS_CLIENT_ID
             - name: AI_ENABLED
-              value: "true"
+              value: "false"
             - name: CLAUDE_API_KEY
               valueFrom:
                 secretKeyRef:
