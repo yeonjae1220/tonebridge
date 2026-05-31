@@ -60,7 +60,7 @@ cors:
 admin:
   email: admin@test.example.com
   password:
-    bcrypt: "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi."
+    bcrypt: "$2a$10$E17h/tr3kDwmM0oJgz7ufulyuBxAaoMV/aXPqHw2twDi4cS3CL2q6"
 
 logging:
   level:

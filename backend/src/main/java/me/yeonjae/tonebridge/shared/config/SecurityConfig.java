@@ -59,6 +59,10 @@ public class SecurityConfig {
     @Value("${admin.password.bcrypt}")
     private String adminPasswordBcrypt;
 
+    private static final java.util.Set<String> KNOWN_TEST_HASHES = java.util.Set.of(
+            "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi."
+    );
+
     /**
      * CRITICAL fix: 애플리케이션 시작 시 BCrypt 해시 유효성 검증.
      * 환경변수 미설정(placeholder 값)인 채로 프로덕션 배포되는 것을 방지.
@@ -69,15 +73,23 @@ public class SecurityConfig {
             throw new IllegalStateException(
                     "[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
         }
+        if (adminEmail.endsWith(".local") || adminEmail.endsWith(".example.com")) {
+            throw new IllegalStateException(
+                    "[Admin] ADMIN_EMAIL 기본값이 운영 환경에서 사용되었습니다. ADMIN_EMAIL을 실제 값으로 설정하세요.");
+        }
         if (adminPasswordBcrypt == null
-                || adminPasswordBcrypt.contains("placeholder")  // CRITICAL fix: placeholder 명시 차단
-                || adminPasswordBcrypt.length() < 60            // BCrypt 해시 최소 길이
+                || adminPasswordBcrypt.contains("placeholder")
+                || adminPasswordBcrypt.length() < 60
                 || (!adminPasswordBcrypt.startsWith("$2a$")
                     && !adminPasswordBcrypt.startsWith("$2b$")
                     && !adminPasswordBcrypt.startsWith("$2y$"))) {
             throw new IllegalStateException(
                     "[Admin] ADMIN_PASSWORD_BCRYPT가 유효한 BCrypt 해시가 아닙니다. " +
                     "다음 명령으로 생성: htpasswd -bnBC 10 '' 'password' | tr -d ':\\n' | sed 's/$2y/$2a/'");
+        }
+        if (KNOWN_TEST_HASHES.contains(adminPasswordBcrypt)) {
+            throw new IllegalStateException(
+                    "[Admin] ADMIN_PASSWORD_BCRYPT가 공개된 테스트 해시입니다. 운영 환경에서 사용할 수 없습니다.");
         }
         log.info("[Admin] admin 계정 설정이 유효합니다: email={}", adminEmail);
     }
