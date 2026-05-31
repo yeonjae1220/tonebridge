@@ -47,15 +47,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Validate Flutter Web
+      - name: Test Flutter mobile
         working-directory: ./mobile
         run: |
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
           flutter test
-          flutter build web --release \
-            --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            --dart-define=API_BASE_URL=https://tonebridge.mungji.com
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
@@ -95,7 +92,10 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
           BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
@@ -116,10 +116,11 @@ jobs:
             --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
             --from-literal=GOOGLE_IOS_CLIENT_ID="${GOOGLE_IOS_CLIENT_ID}" \
             --from-literal=CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
-            --from-literal=OPENAI_API_KEY="" \
-            --from-literal=MINIO_ROOT_USER="minio-tonebridge" \
+            --from-literal=MINIO_ROOT_USER="${MINIO_ROOT_USER}" \
             --from-literal=MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-            --from-literal=CORS_ALLOWED_ORIGINS="https://tonebridge.mungji.com" \
+            --from-literal=STORAGE_ACCESS_KEY="${MINIO_ROOT_USER}" \
+            --from-literal=STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY}" \
+            --from-literal=CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
             --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
             --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
             -n tonebridge \
@@ -147,7 +148,8 @@ jobs:
             echo "=== Backend pod status ==="
             sudo kubectl get pods -n tonebridge -l app=backend -o wide
             NEW_POD=$(sudo kubectl get pods -n tonebridge -l app=backend \
-              --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+              --sort-by=.metadata.creationTimestamp \
+              -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | tail -1)
             sudo kubectl logs "$NEW_POD" -n tonebridge --tail=50 2>/dev/null || true
             sudo kubectl describe pod "$NEW_POD" -n tonebridge | tail -30
             exit 1
@@ -179,4 +181,4 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"files\":[\"${BASE}/\",\"${BASE}/feed\",\"${BASE}/request\",\"${BASE}/study\",\"${BASE}/friends\",\"${BASE}/profile\",\"${BASE}/profile/wallet\",\"${BASE}/profile/settings\",\"${BASE}/profile/language-edit\",\"${BASE}/wallet\",\"${BASE}/login\",\"${BASE}/onboarding\",\"${BASE}/admin\",\"${BASE}/admin/users\"]}")
           echo "CF purge response: ${RESULT}"
-          echo "${RESULT}" | python3 -c "import sys,json; r=json.load(sys.stdin); print('CF purge: OK' if r.get('success') else 'FAILED: '+str(r.get('errors','')))"
+          echo "${RESULT}" | jq -e '.success' > /dev/null && echo "CF purge: OK" || echo "CF purge FAILED: $(echo "${RESULT}" | jq -r '.errors')"
