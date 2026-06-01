@@ -134,7 +134,7 @@ export default function FriendsPage() {
 
         {/* 친구 검색 패널 */}
         {showSearch && (
-          <div ref={searchRef} className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
+          <div ref={searchRef} className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
             <p className="text-sm font-semibold text-gray-700 mb-3">{t('friends.searchTitle')}</p>
             <div className="relative">
               <input
@@ -190,7 +190,7 @@ export default function FriendsPage() {
         {pending.length > 0 && (
           <section className="mb-4">
             <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('friends.pending')} ({pending.length})</h2>
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
               {pending.map((req, idx) => (
                 <div
                   key={req.id}
@@ -230,7 +230,7 @@ export default function FriendsPage() {
             {t('friends.title')} {!friendsLoading && !friendsError ? `${friends.length}${t('friends.count')}` : ''}
           </h2>
           {friendsError ? (
-            <div className="bg-white rounded-2xl border border-red-100 py-10 text-center">
+            <div className="bg-surface rounded-2xl border border-red-100 py-10 text-center">
               <p className="text-sm text-red-500 font-medium">{t('friends.loadFailed')}</p>
               <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
             </div>
@@ -241,13 +241,13 @@ export default function FriendsPage() {
               ))}
             </div>
           ) : friends.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 py-12 text-center">
+            <div className="bg-surface rounded-2xl border border-gray-100 py-12 text-center">
               <p className="text-3xl mb-3">👥</p>
               <p className="text-sm font-semibold text-gray-700">{t('friends.emptyTitle')}</p>
               <p className="text-xs text-gray-400 mt-1">{t('friends.emptySubtitle')}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
               {friends.map((friend, idx) => (
                 <div
                   key={friend.id}

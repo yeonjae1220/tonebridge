@@ -55,7 +55,7 @@ export function BottomNav() {
   if (!accessToken) return null
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-gray-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="max-w-lg mx-auto flex items-stretch h-16">
         {TABS.map((tab) => {
           const active = tab.href === '/' ? pathname === '/' : pathname === tab.href || pathname.startsWith(tab.href + '/')

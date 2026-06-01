@@ -146,7 +146,7 @@ export default function StudyPage() {
                       type="button"
                       onClick={() => declineMutation.mutate(request.id)}
                       disabled={acceptMutation.isPending || declineMutation.isPending}
-                      className="px-3 py-1.5 rounded-lg bg-white text-blue-700 border border-blue-200 text-xs font-semibold disabled:opacity-40"
+                      className="px-3 py-1.5 rounded-lg bg-surface text-blue-700 border border-blue-200 text-xs font-semibold disabled:opacity-40"
                     >
                       {t('friends.decline')}
                     </button>
@@ -169,7 +169,7 @@ export default function StudyPage() {
             </button>
           </div>
           {friends.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-sm text-gray-400">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-4 text-sm text-gray-400">
               {t('study.noFriends')}{' '}
               <button type="button" onClick={() => router.push('/friends')} className="text-blue-500 underline">
                 {t('study.addFriend')}
@@ -200,7 +200,7 @@ export default function StudyPage() {
 
         {/* 새 세션 생성 패널 */}
         {showNewSession && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
             <p className="text-sm font-semibold text-gray-700 mb-4">{t('study.newPractice')}</p>
 
             <div className="flex flex-col gap-3">
@@ -220,7 +220,7 @@ export default function StudyPage() {
                   <select
                     value={selectedFriendId}
                     onChange={(e) => setSelectedFriendId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-white transition-colors"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-surface transition-colors"
                   >
                     <option value="">{t('study.selectFriend')}</option>
                     {friends.map((f) => (
@@ -264,7 +264,7 @@ export default function StudyPage() {
         )}
 
         {isError ? (
-          <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
+          <div className="bg-surface rounded-2xl border border-red-100 py-12 text-center">
             <p className="text-sm text-red-500 font-medium">{t('study.loadFailed')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
           </div>
@@ -275,7 +275,7 @@ export default function StudyPage() {
             ))}
           </div>
         ) : sessions.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
+          <div className="bg-surface rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">📖</p>
             <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
@@ -376,7 +376,7 @@ function RenameSessionSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{t('study.renameTitle')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
@@ -414,7 +414,7 @@ interface SessionCardProps {
 function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended }: SessionCardProps) {
   const { language, t } = useI18n()
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4">
+    <div className="bg-surface rounded-2xl border border-gray-100 p-4">
       <div className="flex items-start justify-between gap-3">
         <button onClick={onOpen} className="flex-1 text-left">
           <p className="text-sm font-semibold text-gray-900 leading-snug">

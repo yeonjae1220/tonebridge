@@ -39,7 +39,7 @@ export function DialectSheet({ languageCode, selectedVariant, onSelect, onClose 
   return (
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
-        className="w-full bg-white rounded-t-3xl max-h-[80vh] flex flex-col shadow-xl"
+        className="w-full bg-surface rounded-t-3xl max-h-[80vh] flex flex-col shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">

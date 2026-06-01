@@ -10,6 +10,7 @@ import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { ALL_LANG_LABELS, UI_LANGUAGES } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMessage, languageDisplayName } from '@/i18n/messages'
+import { type ThemePreference, useTheme } from '@/components/theme/ThemeProvider'
 
 const LEVEL_META = {
   NATIVE: { key: 'profile.level.native', color: 'text-blue-700', bg: 'bg-blue-50' },
@@ -22,6 +23,12 @@ const BADGE_META = {
   FAST_RESPONDER: { labelKey: 'profile.badge.fast.label', icon: '⚡', descKey: 'profile.badge.fast.desc' },
   AUDIO_EXPERT: { labelKey: 'profile.badge.audio.label', icon: '🎙', descKey: 'profile.badge.audio.desc' },
 } as const
+
+const THEME_OPTIONS: Array<{ value: ThemePreference; labelKey: 'settings.themeSystem' | 'settings.themeLight' | 'settings.themeDark' }> = [
+  { value: 'system', labelKey: 'settings.themeSystem' },
+  { value: 'light', labelKey: 'settings.themeLight' },
+  { value: 'dark', labelKey: 'settings.themeDark' },
+]
 
 function ReputationBar({ score }: { score: number }) {
   const pct = Math.min(100, (score / 10) * 100)
@@ -47,6 +54,7 @@ export default function ProfilePage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { language, setLanguage, t } = useI18n()
+  const { preference: themePreference, resolvedTheme, setPreference: setThemePreference } = useTheme()
 
   const [editingLanguages, setEditingLanguages] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -212,7 +220,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('profile.nativeLanguage')}</p>
               <LanguagePicker
                 value={nativeLang}
@@ -221,7 +229,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('profile.fluentLanguages')}</p>
               <LanguagePicker
                 multiSelect
@@ -231,7 +239,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('profile.learningLanguages')}</p>
               <LanguagePicker
                 multiSelect
@@ -271,7 +279,7 @@ export default function ProfilePage() {
             <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4">
               <label htmlFor="ui-language" className="block text-sm font-semibold text-gray-900">
                 {t('settings.uiLanguage')}
@@ -282,7 +290,7 @@ export default function ProfilePage() {
                 value={uiLang}
                 onChange={(event) => updateUiLanguageMutation.mutate(event.target.value)}
                 disabled={!me || updateUiLanguageMutation.isPending}
-                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white"
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
               >
                 {UI_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
@@ -291,6 +299,37 @@ export default function ProfilePage() {
                 ))}
               </select>
               {langError && <p className="mt-2 text-xs text-red-500">{langError}</p>}
+            </div>
+            <div className="h-px bg-gray-100" />
+            <div className="px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{t('settings.theme')}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatMessage(t('settings.themeSubtitle'), {
+                      mode: t(resolvedTheme === 'dark' ? 'settings.themeDark' : 'settings.themeLight'),
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
+                {THEME_OPTIONS.map((option) => {
+                  const selected = themePreference === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setThemePreference(option.value)}
+                      className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                        selected ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {t(option.labelKey)}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="h-px bg-gray-100" />
             <button
@@ -364,7 +403,7 @@ export default function ProfilePage() {
         {profile && (
           <div className="flex flex-col gap-4">
             {/* 기본 정보 */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex-1 min-w-0">
                   {editingNickname ? (
@@ -444,7 +483,7 @@ export default function ProfilePage() {
 
             <button
               onClick={() => router.push('/profile/wallet')}
-              className="bg-white rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+              className="bg-surface rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <span>
                 <span className="block text-sm font-semibold text-gray-500 mb-1">{t('profile.wallet')}</span>
@@ -454,7 +493,7 @@ export default function ProfilePage() {
             </button>
 
             {/* 스트릭 */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.streakTitle')}</p>
               <div className="flex items-end gap-2">
                 <span className="text-4xl font-black text-orange-500">{profile.correctionStreak}</span>
@@ -473,7 +512,7 @@ export default function ProfilePage() {
             </div>
 
             {/* 신뢰도 */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.reputationTitle')}</p>
               <ReputationBar score={profile.reputationScore} />
               <p className="text-xs text-gray-400 mt-2">
@@ -482,7 +521,7 @@ export default function ProfilePage() {
             </div>
 
             {/* 뱃지 */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.badgesTitle')}</p>
               {profile.badges.length === 0 ? (
                 <div className="text-center py-6 text-gray-400">

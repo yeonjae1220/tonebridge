@@ -41,9 +41,9 @@ export default function LandingPage() {
   const { language, t } = useI18n()
 
   return (
-    <div className="min-h-screen bg-white font-sans">
+    <div className="min-h-screen bg-surface font-sans">
       {/* Navbar */}
-      <nav aria-label="main navigation" className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100">
+      <nav aria-label="main navigation" className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
           <span className="text-lg font-bold tracking-tight text-gray-900">
             Tone<span className="text-blue-500">Bridge</span>
@@ -116,7 +116,7 @@ export default function LandingPage() {
             {EXAMPLES.map((ex) => (
               <div
                 key={ex.lang}
-                className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 flex flex-col gap-4"
+                className="bg-surface border border-gray-100 rounded-2xl shadow-sm p-6 flex flex-col gap-4"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{ex.flag}</span>
@@ -151,7 +151,7 @@ export default function LandingPage() {
             {LANGUAGES.map((lang) => (
               <span
                 key={lang.code}
-                className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-100 rounded-full text-sm text-gray-700 shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 bg-surface border border-gray-100 rounded-full text-sm text-gray-700 shadow-sm"
               >
                 {lang.flag} {languageDisplayName(lang.code, language)}
               </span>

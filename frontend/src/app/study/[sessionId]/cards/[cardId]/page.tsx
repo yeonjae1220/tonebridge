@@ -79,7 +79,7 @@ function AttemptNoteForm({
         <select
           value={score}
           onChange={(event) => setScore(Number(event.target.value))}
-          className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white"
+          className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
         >
           {[1, 2, 3, 4, 5].map((value) => (
             <option key={value} value={value}>{value}</option>
@@ -217,7 +217,7 @@ export default function StudyCardDetailPage() {
           <div className="h-40 rounded-2xl bg-gray-200 animate-pulse" />
         ) : (
           <>
-            <section className="bg-white rounded-2xl border border-gray-100 p-5">
+            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-lg font-black text-gray-900">{card.phrase}</p>
               {card.context && <p className="mt-2 text-sm text-gray-500">{card.context}</p>}
               {card.explanation && <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-sm text-blue-800">{card.explanation}</p>}
@@ -232,7 +232,7 @@ export default function StudyCardDetailPage() {
               )}
             </section>
 
-            <section className="bg-white rounded-2xl border border-gray-100 p-5">
+            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</h2>
               <textarea
                 value={noteDraft}
@@ -259,7 +259,7 @@ export default function StudyCardDetailPage() {
             {!permissionReady ? (
               <section className="h-32 rounded-2xl bg-gray-200 animate-pulse" />
             ) : canManageCard ? (
-              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+              <section className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.nativeAudioHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
@@ -297,7 +297,7 @@ export default function StudyCardDetailPage() {
                 </div>
               </section>
             ) : (
-              <section className="bg-white rounded-2xl border border-gray-100 p-5">
+              <section className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.practiceRecording')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.practiceHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
@@ -336,7 +336,7 @@ export default function StudyCardDetailPage() {
               </section>
             )}
 
-            <section className="bg-white rounded-2xl border border-gray-100 p-5">
+            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudios')}</h2>
               <div className="mt-3 flex flex-col gap-3">
                 {nativeAudios.length === 0 ? (
@@ -347,7 +347,7 @@ export default function StudyCardDetailPage() {
               </div>
             </section>
 
-            <section className="bg-white rounded-2xl border border-gray-100 p-5">
+            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.attempts')}</h2>
               <div className="mt-3 flex flex-col gap-3">
                 {attempts.length === 0 ? (

@@ -103,7 +103,7 @@ export default function RequestPage() {
           <p className="text-sm text-gray-500 mt-1">{t('request.subtitle')}</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-5">
+        <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-5">
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-3">{t('request.typeQuestion')}</p>
             <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
@@ -112,7 +112,7 @@ export default function RequestPage() {
                   key={kind}
                   onClick={() => { setTab(kind); setError('') }}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    tab === kind ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    tab === kind ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {kind === 'TEXT' ? t('common.text') : t('common.audio')}
@@ -199,7 +199,7 @@ export default function RequestPage() {
                   className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                     selectedGoals.includes(goal.value)
                       ? 'bg-blue-100 text-blue-700 border-blue-300'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
+                      : 'bg-surface text-gray-500 border-gray-200 hover:border-blue-300'
                   }`}
                 >
                   {t(goal.key)}

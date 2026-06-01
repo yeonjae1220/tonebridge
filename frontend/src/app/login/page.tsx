@@ -20,7 +20,7 @@ function LoginInner() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
+      <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">ToneBridge</h1>
           <p className="mt-2 text-sm text-gray-500">{t('login.subtitle')}</p>
@@ -46,7 +46,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <main className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
+        <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm flex flex-col gap-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">ToneBridge</h1>
           </div>

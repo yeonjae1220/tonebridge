@@ -216,7 +216,7 @@ export default function CorrectPage() {
 
         {/* Timestamp comments */}
         {isAudio && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <label className="text-sm font-semibold text-gray-700">{t('correct.timestampTitle')}</label>
             <p className="text-xs text-gray-400">{t('correct.timestampHelp')}</p>
             <div className="flex gap-2">
@@ -266,7 +266,7 @@ export default function CorrectPage() {
 
         {/* Scores */}
         {isAudio && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-4">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-4">
             <label className="text-sm font-semibold text-gray-700">{t('correct.scoreTitle')}</label>
             <ScoreSlider label={t('correct.pronunciationAccuracy')} value={pronunciationScore} onChange={setPronunciationScore} />
             <ScoreSlider label={t('correct.intonationNaturalness')} value={intonationScore} onChange={setIntonationScore} />
@@ -276,7 +276,7 @@ export default function CorrectPage() {
 
         {/* Reference audio */}
         {isAudio && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-gray-700">{t('correct.referenceAudio')}</label>
               <span className="text-xs text-green-600 font-medium">{t('correct.extraCredits')}</span>
@@ -311,7 +311,7 @@ export default function CorrectPage() {
 
         {/* Corrected text (TEXT only) */}
         {!isAudio && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <label className="text-sm font-semibold text-gray-700">{t('result.correctedText')}</label>
             <textarea
               value={correctedText}
@@ -324,7 +324,7 @@ export default function CorrectPage() {
         )}
 
         {/* Explanation */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+        <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <label className="text-sm font-semibold text-gray-700">{t('result.explanation')}</label>
             <span className={`text-xs ${explanation.length >= 20 ? 'text-green-500' : 'text-gray-400'}`}>
@@ -341,7 +341,7 @@ export default function CorrectPage() {
         </div>
 
         {/* Tags */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
+        <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
           <label className="text-sm font-semibold text-gray-700">{t('correct.tagsOptional')}</label>
           <div className="flex flex-wrap gap-2">
             {COMMON_TAGS.map((tag) => (
@@ -351,7 +351,7 @@ export default function CorrectPage() {
                 className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
                   selectedTags.includes(tag.value)
                     ? 'bg-blue-100 text-blue-700 border-blue-300'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'
+                    : 'bg-surface text-gray-500 border-gray-200 hover:border-blue-300'
                 }`}
               >
                 {t(tag.key)}

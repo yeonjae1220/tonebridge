@@ -29,7 +29,7 @@ export default function HomePage() {
         </div>
 
         <div className="flex flex-col gap-3 max-w-sm mx-auto">
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+          <div className="bg-surface rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
             <div className="text-left">
               <p className="text-sm text-gray-500">{t('home.myCredits')}</p>
               <p className="text-2xl font-bold text-blue-600">{user.credits}</p>

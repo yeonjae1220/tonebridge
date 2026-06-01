@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 
+function themeColor(variable: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+  return value ? `rgb(${value})` : fallback
+}
+
+function waveSurferThemeColors() {
+  return {
+    waveColor: themeColor('--color-indigo-500', 'rgb(99 102 241)'),
+    progressColor: themeColor('--color-indigo-600', 'rgb(165 180 252)'),
+    cursorColor: themeColor('--color-blue-100', 'rgb(219 234 254)'),
+  }
+}
+
 export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>, audioUrl: string | null) {
   const wavesurferRef = useRef<import('wavesurfer.js').default | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -19,9 +33,7 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
 
       ws = WaveSurfer.create({
         container: containerRef.current!,
-        waveColor: '#6366f1',
-        progressColor: '#a5b4fc',
-        cursorColor: '#e0e7ff',
+        ...waveSurferThemeColors(),
         height: 64,
         barWidth: 2,
         barGap: 1,
@@ -41,6 +53,13 @@ export function useWaveSurfer(containerRef: React.RefObject<HTMLElement | null>,
 
       ws.load(audioUrl)
       wavesurferRef.current = ws
+
+      const themeObserver = new MutationObserver(() => {
+        ws?.setOptions(waveSurferThemeColors())
+      })
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+
+      ws.on('destroy', () => themeObserver.disconnect())
     }
 
     init()

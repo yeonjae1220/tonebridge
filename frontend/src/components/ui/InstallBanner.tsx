@@ -47,7 +47,7 @@ export function InstallBanner({ className = '' }: Props) {
               href={PLAY_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-xs font-semibold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-gray-200 text-xs font-semibold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <GooglePlayIcon />
               Play Store
@@ -59,7 +59,7 @@ export function InstallBanner({ className = '' }: Props) {
               href={APP_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-xs font-semibold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-gray-200 text-xs font-semibold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <AppleIcon />
               App Store
@@ -84,7 +84,7 @@ export function InstallBanner({ className = '' }: Props) {
           onClick={() => setShowIOSGuide(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-3xl p-6 pb-8 shadow-2xl"
+            className="w-full max-w-sm bg-surface rounded-3xl p-6 pb-8 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">

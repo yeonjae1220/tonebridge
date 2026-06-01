@@ -153,7 +153,7 @@ export default function OnboardingPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md flex flex-col gap-8">
+      <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md flex flex-col gap-8">
         <div className="flex gap-2">
           {STEP_ORDER.map((_, i) => (
             <div

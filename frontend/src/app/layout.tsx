@@ -58,14 +58,32 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#3B82F6',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#3B82F6' },
+    { media: '(prefers-color-scheme: dark)', color: '#111827' },
+  ],
 }
+
+const themeInitScript = `
+(() => {
+  try {
+    const preference = localStorage.getItem('tonebridge_theme') || 'system';
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const resolvedTheme = preference === 'dark' || (preference === 'system' && systemDark) ? 'dark' : 'light';
+    const root = document.documentElement;
+    root.classList.toggle('dark', resolvedTheme === 'dark');
+    root.dataset.theme = resolvedTheme;
+    root.style.colorScheme = resolvedTheme;
+  } catch (_) {}
+})();
+`
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? ''
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
       <body className={inter.variable} data-nonce={nonce}>

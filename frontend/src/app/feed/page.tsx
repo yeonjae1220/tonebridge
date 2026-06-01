@@ -170,7 +170,7 @@ export default function FeedPage() {
                 type="button"
                 onClick={() => setTab(value)}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  tab === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  tab === value ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 {label}
@@ -303,7 +303,7 @@ function RequestCard({
 }) {
   return (
     <div
-      className={`bg-white rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
+      className={`bg-surface rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
         isDialectMatch ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-100'
       }`}
       onClick={onClick}
@@ -415,7 +415,7 @@ function RequestEditSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{t('request.editTitle')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>

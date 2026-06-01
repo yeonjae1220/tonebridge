@@ -45,7 +45,7 @@ export function RecordedAudioPreview({
       <button
         type="button"
         onClick={onReset}
-        className="mt-3 w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-white transition-colors"
+        className="mt-3 w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-surface transition-colors"
       >
         {t('request.recordAgain')}
       </button>
@@ -70,7 +70,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
         if (e.target === e.currentTarget && recorder.state !== 'recording') onClose()
       }}
     >
-      <div className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-5">
+      <div className="w-full max-w-sm bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{heading}</h2>
           {recorder.state !== 'recording' && (

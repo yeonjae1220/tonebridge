@@ -126,7 +126,7 @@ export default function StudySessionPage() {
         </div>
 
         {cardsError ? (
-          <div className="bg-white rounded-2xl border border-red-100 py-12 text-center">
+          <div className="bg-surface rounded-2xl border border-red-100 py-12 text-center">
             <p className="text-sm text-red-500 font-medium">{t('study.cards.loadFailed')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
           </div>
@@ -137,7 +137,7 @@ export default function StudySessionPage() {
             ))}
           </div>
         ) : orderedCards.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 py-14 text-center">
+          <div className="bg-surface rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">🃏</p>
             <p className="text-sm font-semibold text-gray-700">{t('study.cards.emptyTitle')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('study.cards.emptySubtitle')}</p>
@@ -170,7 +170,7 @@ export default function StudySessionPage() {
                     moveWithinSession(dragged, index)
                   }}
                   onDragEnd={() => setDraggingCardId(null)}
-                  className={`bg-white rounded-2xl border p-5 transition-colors ${
+                  className={`bg-surface rounded-2xl border p-5 transition-colors ${
                     draggingCardId === card.id ? 'border-blue-200 opacity-60' : 'border-gray-100'
                   }`}
                 >
@@ -323,7 +323,7 @@ function CardSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{initial ? t('study.cards.edit') : t('study.cards.new')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
@@ -395,7 +395,7 @@ function MoveCardSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-white rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{t('study.cards.move')}</h2>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
@@ -406,7 +406,7 @@ function MoveCardSheet({
           <select
             value={targetSessionId}
             onChange={(event) => setTargetSessionId(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white"
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
           >
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>
