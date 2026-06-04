@@ -41,3 +41,9 @@ ssh lenovo 'sudo systemctl status actions.runner.yeonjae1220-tonebridge.lenovo-k
 # 배포 확인
 ssh lenovo 'sudo kubectl get pods -n tonebridge'
 ```
+
+<!-- LLM-WIKI-REF:START -->
+## 📚 LLM-Wiki 참조
+이 프로젝트의 축적 지식(설계·기능·ADR·트러블슈팅): `~/Desktop/LLM-Wiki/Projects/ToneBridge/`
+작업 전 관련 노트 확인, 작업 후 `/llm-wiki-update`.
+<!-- LLM-WIKI-REF:END -->
