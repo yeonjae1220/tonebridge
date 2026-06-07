@@ -56,7 +56,7 @@ export default function OnboardingPage() {
         fluentLanguages,
         learningLanguages,
       })
-      router.replace('/feed')
+      router.replace('/study')
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 409) {

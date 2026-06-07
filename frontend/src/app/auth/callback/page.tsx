@@ -44,7 +44,7 @@ function AuthCallbackInner() {
     // 기존 사용자는 /feed로, 온보딩 미완료 사용자는 /onboarding으로 분기
     api.get<{ onboardingCompleted: boolean }>('/users/me')
       .then(({ data }) => {
-        router.replace(data.onboardingCompleted ? '/feed' : '/onboarding')
+        router.replace(data.onboardingCompleted ? '/study' : '/onboarding')
       })
       .catch(() => {
         router.replace('/onboarding')

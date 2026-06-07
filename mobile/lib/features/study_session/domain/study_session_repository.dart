@@ -6,7 +6,7 @@ import 'package:tonebridge/features/study_session/domain/model/study_session.dar
 abstract interface class StudySessionRepository {
   Future<List<StudySession>> getSessions();
   Future<StudySession> getSession(String sessionId);
-  Future<StudySession> createSession(String friendId, {String? title});
+  Future<StudySession> createSession(String? friendId, {String? title});
   Future<StudySession> endSession(String sessionId);
   Future<StudySession> updateSession(String sessionId, {String? title});
   Future<void> deleteSession(String sessionId);
@@ -30,17 +30,25 @@ abstract interface class StudySessionRepository {
     required int position,
   });
   Future<void> deleteCard(String cardId);
-  Future<Map<String, String>> getNativeAudioUploadUrl(String cardId, String fileName);
+  Future<Map<String, String>> getNativeAudioUploadUrl(
+    String cardId,
+    String fileName,
+  );
   Future<StudyCard> confirmNativeAudio(String cardId, String audioKey);
   Future<String> getNativeAudioDownloadUrl(String cardId);
   Future<LearnerAttempt> submitAttempt(String cardId, String audioKey);
   Future<List<LearnerAttempt>> getAttempts(String cardId);
   Future<LearnerAttempt> addCorrectionNote(
-      String attemptId, String correctionNote, int? score);
+    String attemptId,
+    String correctionNote,
+    int? score,
+  );
 
   // ── Multiple native audio recordings ──────────────────────────────────
   Future<Map<String, String>> getNativeAudioUploadUrlV2(
-      String cardId, String fileName);
+    String cardId,
+    String fileName,
+  );
   Future<NativeAudioEntry> confirmNativeAudioV2(String cardId, String audioKey);
   Future<List<NativeAudioEntry>> getNativeAudios(String cardId);
   Future<String> getNativeAudioDownloadUrlV2(String audioId);

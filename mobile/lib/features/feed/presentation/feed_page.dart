@@ -23,7 +23,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -103,6 +103,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
           tabs: [
             Tab(text: strings.correctionRequests),
             Tab(text: strings.myRequests),
+            const Tab(text: '완료됨'),
           ],
         ),
       ),
@@ -111,6 +112,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
         children: [
           _FeedTab(profileAsync: profileAsync),
           const _MyRequestsTab(),
+          const _DoneRequestsTab(),
         ],
       ),
     );
@@ -185,7 +187,13 @@ class _MyRequestsTab extends ConsumerWidget {
         onRetry: () => ref.read(myRequestsStateProvider.notifier).refresh(),
       ),
       data: (items) {
-        if (items.isEmpty) {
+        final activeItems = items
+            .where(
+              (item) =>
+                  item.status == 'PENDING' || item.status == 'IN_PROGRESS',
+            )
+            .toList();
+        if (activeItems.isEmpty) {
           return _EmptyView(
             icon: Icons.edit_note_rounded,
             message: strings.noMyRequests,
@@ -195,9 +203,9 @@ class _MyRequestsTab extends ConsumerWidget {
           onRefresh: () => ref.read(myRequestsStateProvider.notifier).refresh(),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: items.length,
+            itemCount: activeItems.length,
             itemBuilder: (context, index) {
-              final item = items[index];
+              final item = activeItems[index];
               return CorrectionRequestCard(
                 item: item,
                 onTap: () => context.push(AppRoute.result(item.id)),
@@ -339,6 +347,50 @@ class _MyRequestsTab extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DoneRequestsTab extends ConsumerWidget {
+  const _DoneRequestsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final myAsync = ref.watch(myRequestsStateProvider);
+    return myAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _ErrorView(
+        message: e.toString(),
+        onRetry: () => ref.read(myRequestsStateProvider.notifier).refresh(),
+      ),
+      data: (items) {
+        final doneItems = items
+            .where(
+              (item) =>
+                  item.status == 'COMPLETED' || item.status == 'AI_COMPLETED',
+            )
+            .toList();
+        if (doneItems.isEmpty) {
+          return const _EmptyView(
+            icon: Icons.check_circle_outline_rounded,
+            message: '완료된 요청이 아직 없습니다.',
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () => ref.read(myRequestsStateProvider.notifier).refresh(),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: doneItems.length,
+            itemBuilder: (context, index) {
+              final item = doneItems[index];
+              return CorrectionRequestCard(
+                item: item,
+                onTap: () => context.push(AppRoute.result(item.id)),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

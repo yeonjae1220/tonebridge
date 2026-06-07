@@ -206,7 +206,7 @@ export default function StudyCardDetailPage() {
   const permissionReady = !!card && !currentUserLoading && !!currentUser
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-20">
+    <main className="min-h-screen bg-gray-50 pb-28">
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push(`/study/${sessionId}`)} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100">←</button>
@@ -232,7 +232,7 @@ export default function StudyCardDetailPage() {
               )}
             </section>
 
-            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
+            <section id="card-note" className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</h2>
               <textarea
                 value={noteDraft}
@@ -259,7 +259,7 @@ export default function StudyCardDetailPage() {
             {!permissionReady ? (
               <section className="h-32 rounded-2xl bg-gray-200 animate-pulse" />
             ) : canManageCard ? (
-              <section className="bg-surface rounded-2xl border border-gray-100 p-5">
+              <section id="recording-panel" className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.nativeAudioHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
@@ -297,7 +297,7 @@ export default function StudyCardDetailPage() {
                 </div>
               </section>
             ) : (
-              <section className="bg-surface rounded-2xl border border-gray-100 p-5">
+              <section id="recording-panel" className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.practiceRecording')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.practiceHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
@@ -386,6 +386,37 @@ export default function StudyCardDetailPage() {
           onClose={() => setAttemptModalOpen(false)}
           title={t('study.cardDetail.practiceRecording')}
         />
+      )}
+      {card && (
+        <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto flex max-w-lg gap-2 rounded-2xl border border-gray-100 bg-surface/95 p-2 shadow-lg backdrop-blur">
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById('recording-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                if (permissionReady && canManageCard) setNativeModalOpen(true)
+                if (permissionReady && !canManageCard) setAttemptModalOpen(true)
+              }}
+              className="flex-1 rounded-xl bg-red-500 py-2.5 text-xs font-bold text-white"
+            >
+              {t('study.recordVoice')}
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById('card-note')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-xs font-bold text-gray-700"
+            >
+              {t('study.writeNote')}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/request')}
+              className="flex-1 rounded-xl bg-gray-900 py-2.5 text-xs font-bold text-white"
+            >
+              {t('study.askCommunity')}
+            </button>
+          </div>
+        </div>
       )}
     </main>
   )

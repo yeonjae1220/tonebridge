@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PROTECTED = ['/request', '/correct', '/wallet', '/profile', '/admin', '/onboarding']
+const PROTECTED = ['/request', '/correct', '/wallet', '/profile', '/admin', '/onboarding', '/study', '/friends']
 
 export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')

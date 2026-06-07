@@ -12,6 +12,7 @@ import 'package:tonebridge/features/auth/presentation/onboarding/onboarding_page
 import 'package:tonebridge/features/correction/presentation/correct_page.dart';
 import 'package:tonebridge/features/correction/presentation/result_page.dart';
 import 'package:tonebridge/features/feed/presentation/feed_page.dart';
+import 'package:tonebridge/features/friend/presentation/friend_page.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/presentation/language_edit_page.dart';
 import 'package:tonebridge/features/profile/presentation/profile_page.dart';
@@ -29,8 +30,9 @@ abstract final class AppRoute {
   static const String login = '/login';
   static const String onboarding = '/onboarding';
   static const String authCallback = '/auth/callback';
-  static const String feed = '/feed';
+  static const String community = '/community';
   static const String request = '/request';
+  static const String friends = '/friends';
   static const String profile = '/profile';
   static const String languageEdit = '/profile/language-edit';
   static const String wallet = '/profile/wallet';
@@ -69,7 +71,7 @@ GoRouter appRouter(Ref ref) {
   ref.onDispose(listenable.dispose);
 
   final router = GoRouter(
-    initialLocation: AppRoute.feed,
+    initialLocation: AppRoute.study,
     refreshListenable: listenable,
     redirect: (context, state) {
       final authAsync = ref.read(authStateProvider);
@@ -93,12 +95,12 @@ GoRouter appRouter(Ref ref) {
         return path == AppRoute.onboarding ? null : AppRoute.onboarding;
       }
       // After login: redirect post-auth pages and the bare root path
-      // (used by the PWA manifest start_url: "/") to the feed.
+      // (used by the PWA manifest start_url: "/") to the study home.
       if (path == '/' ||
           path == AppRoute.login ||
           path == AppRoute.onboarding ||
           path == AppRoute.authCallback) {
-        return AppRoute.feed;
+        return AppRoute.study;
       }
       return null;
     },
@@ -126,6 +128,10 @@ GoRouter appRouter(Ref ref) {
             ResultPage(requestId: state.pathParameters['requestId']!),
       ),
       GoRoute(
+        path: AppRoute.request,
+        builder: (context, state) => const RequestPage(),
+      ),
+      GoRoute(
         path: AppRoute.admin,
         builder: (context, state) => const AdminPage(),
         routes: [
@@ -142,7 +148,35 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoute.feed,
+                path: AppRoute.study,
+                builder: (context, state) => const StudyPage(),
+                routes: [
+                  GoRoute(
+                    path: ':sessionId',
+                    builder: (context, state) => SessionDetailPage(
+                      sessionId: state.pathParameters['sessionId']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'cards/:cardId',
+                        builder: (context, state) => CardDetailPage(
+                          cardId: state.pathParameters['cardId']!,
+                          sessionId: state.pathParameters['sessionId']!,
+                          initialCard: state.extra is StudyCard
+                              ? state.extra as StudyCard
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.community,
                 builder: (context, state) => const FeedPage(),
               ),
             ],
@@ -150,8 +184,8 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoute.request,
-                builder: (context, state) => const RequestPage(),
+                path: AppRoute.friends,
+                builder: (context, state) => const FriendPage(),
               ),
             ],
           ),
@@ -181,34 +215,6 @@ GoRouter appRouter(Ref ref) {
                   GoRoute(
                     path: 'settings',
                     builder: (context, state) => const ProfileSettingsPage(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoute.study,
-                builder: (context, state) => const StudyPage(),
-                routes: [
-                  GoRoute(
-                    path: ':sessionId',
-                    builder: (context, state) => SessionDetailPage(
-                      sessionId: state.pathParameters['sessionId']!,
-                    ),
-                    routes: [
-                      GoRoute(
-                        path: 'cards/:cardId',
-                        builder: (context, state) => CardDetailPage(
-                          cardId: state.pathParameters['cardId']!,
-                          sessionId: state.pathParameters['sessionId']!,
-                          initialCard: state.extra is StudyCard
-                              ? state.extra as StudyCard
-                              : null,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

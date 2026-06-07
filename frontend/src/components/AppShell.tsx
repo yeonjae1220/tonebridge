@@ -5,13 +5,14 @@ import { BottomNav } from '@/components/ui/BottomNav'
 
 const NAV_PATHS = [
   '/',
+  '/study',
+  '/community',
   '/feed',
-  '/request',
+  '/friends',
   '/profile',
   '/profile/wallet',
   '/profile/settings',
   '/profile/language-edit',
-  '/study',
 ]
 
 function shouldShowNav(pathname: string) {

@@ -78,7 +78,7 @@ export default function LandingPage() {
               {t('landing.startFree')}
             </Link>
             <Link
-              href="/feed"
+              href="/community"
               className="px-6 py-3.5 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
             >
               {t('landing.browseFeed')} →

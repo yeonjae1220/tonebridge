@@ -134,7 +134,7 @@ export default function CorrectPage() {
         }),
       })
     },
-    onSuccess: () => router.push('/feed'),
+    onSuccess: () => router.push('/community'),
     onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('correct.submitFailed')),
   })
 

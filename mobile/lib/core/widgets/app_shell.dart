@@ -14,24 +14,24 @@ class AppShell extends StatelessWidget {
         onDestinationSelected: _onTap,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.feed_outlined),
-            selectedIcon: Icon(Icons.feed_rounded),
-            label: '피드',
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book_rounded),
+            label: '스터디',
           ),
           NavigationDestination(
-            icon: Icon(Icons.add_circle_outline_rounded),
-            selectedIcon: Icon(Icons.add_circle_rounded),
-            label: '요청',
+            icon: Icon(Icons.forum_outlined),
+            selectedIcon: Icon(Icons.forum_rounded),
+            label: '커뮤니티',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline_rounded),
+            selectedIcon: Icon(Icons.people_rounded),
+            label: '친구',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
             label: '프로필',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline_rounded),
-            selectedIcon: Icon(Icons.people_rounded),
-            label: '스터디',
           ),
         ],
       ),

@@ -18,7 +18,7 @@ class StudySessionListState extends _$StudySessionListState {
     return future;
   }
 
-  Future<StudySession> createSession(String friendId, {String? title}) async {
+  Future<StudySession> createSession(String? friendId, {String? title}) async {
     final repo = ref.read(studySessionRepositoryProvider);
     final session = await repo.createSession(friendId, title: title);
     state = AsyncData(await repo.getSessions());
@@ -61,15 +61,20 @@ class CardAttemptState extends _$CardAttemptState {
 
   Future<void> submit(String cardId, String audioKey) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() =>
-        ref.read(studySessionRepositoryProvider).submitAttempt(cardId, audioKey));
+    state = await AsyncValue.guard(
+      () => ref
+          .read(studySessionRepositoryProvider)
+          .submitAttempt(cardId, audioKey),
+    );
   }
 
   Future<void> addNote(String attemptId, String note, int? score) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref
-        .read(studySessionRepositoryProvider)
-        .addCorrectionNote(attemptId, note, score));
+    state = await AsyncValue.guard(
+      () => ref
+          .read(studySessionRepositoryProvider)
+          .addCorrectionNote(attemptId, note, score),
+    );
   }
 
   void reset() => state = const AsyncData(null);
@@ -101,7 +106,9 @@ class StudyCardEditState extends _$StudyCardEditState {
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      await ref.read(studySessionRepositoryProvider).updateCard(
+      await ref
+          .read(studySessionRepositoryProvider)
+          .updateCard(
             cardId: cardId,
             phrase: phrase,
             context: context,

@@ -27,17 +27,18 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<StudySession> getSession(String sessionId) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/api/sessions/$sessionId');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/sessions/$sessionId',
+    );
     return StudySession.fromJson(response.data!);
   }
 
   @override
-  Future<StudySession> createSession(String friendId, {String? title}) async {
+  Future<StudySession> createSession(String? friendId, {String? title}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/sessions',
       data: {
-        'friendId': friendId,
+        if (friendId != null) 'friendId': friendId,
         if (title != null) 'title': title,
       },
     );
@@ -68,15 +69,15 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<StudyCard> getCard(String cardId) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/api/cards/$cardId');
+    final response = await _dio.get<Map<String, dynamic>>('/api/cards/$cardId');
     return StudyCard.fromJson(response.data!);
   }
 
   @override
   Future<List<StudyCard>> getCards(String sessionId) async {
-    final response =
-        await _dio.get<List<dynamic>>('/api/sessions/$sessionId/cards');
+    final response = await _dio.get<List<dynamic>>(
+      '/api/sessions/$sessionId/cards',
+    );
     return response.data!
         .map((e) => StudyCard.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -126,10 +127,7 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/api/cards/$cardId/move',
-      data: {
-        'targetSessionId': targetSessionId,
-        'position': position,
-      },
+      data: {'targetSessionId': targetSessionId, 'position': position},
     );
     return StudyCard.fromJson(response.data!);
   }
@@ -141,7 +139,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<Map<String, String>> getNativeAudioUploadUrl(
-      String cardId, String fileName) async {
+    String cardId,
+    String fileName,
+  ) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/cards/$cardId/native-audio',
       data: {'fileName': fileName},
@@ -180,8 +180,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<List<LearnerAttempt>> getAttempts(String cardId) async {
-    final response =
-        await _dio.get<List<dynamic>>('/api/cards/$cardId/attempts');
+    final response = await _dio.get<List<dynamic>>(
+      '/api/cards/$cardId/attempts',
+    );
     return response.data!
         .map((e) => LearnerAttempt.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -189,7 +190,10 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<LearnerAttempt> addCorrectionNote(
-      String attemptId, String correctionNote, int? score) async {
+    String attemptId,
+    String correctionNote,
+    int? score,
+  ) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/api/attempts/$attemptId/correction',
       data: {
@@ -204,7 +208,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<Map<String, String>> getNativeAudioUploadUrlV2(
-      String cardId, String fileName) async {
+    String cardId,
+    String fileName,
+  ) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/cards/$cardId/native-audios/upload-url',
       data: {'fileName': fileName},
@@ -217,7 +223,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<NativeAudioEntry> confirmNativeAudioV2(
-      String cardId, String audioKey) async {
+    String cardId,
+    String audioKey,
+  ) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/cards/$cardId/native-audios',
       data: {'audioKey': audioKey},
@@ -227,8 +235,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<List<NativeAudioEntry>> getNativeAudios(String cardId) async {
-    final response =
-        await _dio.get<List<dynamic>>('/api/cards/$cardId/native-audios');
+    final response = await _dio.get<List<dynamic>>(
+      '/api/cards/$cardId/native-audios',
+    );
     return response.data!
         .map((e) => NativeAudioEntry.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -236,8 +245,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<String> getNativeAudioDownloadUrlV2(String audioId) async {
-    final response = await _dio
-        .get<Map<String, dynamic>>('/api/native-audios/$audioId/download-url');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/native-audios/$audioId/download-url',
+    );
     return response.data!['downloadUrl'] as String;
   }
 
@@ -257,7 +267,9 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
 
   @override
   Future<NativeAudioEntry> updateNativeAudioNote(
-      String audioId, String? note) async {
+    String audioId,
+    String? note,
+  ) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/api/native-audios/$audioId/note',
       data: {'note': note},

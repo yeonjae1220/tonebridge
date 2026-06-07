@@ -242,7 +242,7 @@ export default function ResultPage() {
     mutationFn: () => api.delete(`/correction-requests/${requestId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
-      router.push('/feed')
+      router.push('/community')
     },
   })
 
@@ -254,7 +254,7 @@ export default function ResultPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/feed')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
+          <button onClick={() => router.push('/community')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <h1 className="text-xl font-bold text-gray-900">{t('result.title')}</h1>
         </div>
 

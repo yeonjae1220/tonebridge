@@ -1,7 +1,6 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudySessionResponse;
@@ -89,6 +88,6 @@ public class StudySessionController {
         return ResponseEntity.ok(cards.stream().map(StudyCardResponse::from).toList());
     }
 
-    record CreateSessionDto(@NotNull UUID friendId, String title) {}
+    record CreateSessionDto(UUID friendId, String title) {}
     record UpdateSessionDto(String title) {}
 }

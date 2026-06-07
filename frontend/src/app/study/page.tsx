@@ -10,6 +10,11 @@ import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 
+type CreateSessionPayload = {
+  friendId?: string | null
+  title?: string | null
+}
+
 function formatMessage(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce(
     (text, [key, value]) => text.replace(`{${key}}`, String(value)),
@@ -53,10 +58,10 @@ export default function StudyPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: CreateSessionPayload) =>
       api.post('/sessions', {
-        friendId: selectedFriendId,
-        title: sessionTitle.trim() || null,
+        friendId: payload.friendId ?? null,
+        title: payload.title?.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -101,35 +106,55 @@ export default function StudyPage() {
 
   const activeSessions = sessions.filter((s) => s.status === 'ACTIVE')
   const endedSessions = sessions.filter((s) => s.status === 'ENDED')
+  const personalSessions = activeSessions.filter((s) => s.memberIds.length === 1)
+  const friendSessions = activeSessions.filter((s) => s.memberIds.length > 1)
+  const personalSession = personalSessions[0]
+  const todoCount = pendingRequests.length + activeSessions.length
+
+  const openPersonalPractice = () => {
+    if (personalSession) {
+      router.push(`/study/${personalSession.id}`)
+      return
+    }
+    createMutation.mutate(
+      { title: t('study.personalDefault') },
+      { onSuccess: (response) => router.push(`/study/${response.data.id}`) },
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('study.title')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{t('study.subtitle')}</p>
           </div>
           <button
-            onClick={() => { setShowNewSession(true); setCreateError(null) }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+            onClick={openPersonalPractice}
+            disabled={createMutation.isPending}
+            className="shrink-0 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 disabled:opacity-40 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            {t('study.startPractice')}
+            {t('study.writeNote')}
           </button>
         </div>
 
-        {pendingRequests.length > 0 && (
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
-            <p className="text-sm font-bold text-blue-900 mb-3">
-              {formatMessage(t('study.pendingFriendRequests'), { count: pendingRequests.length })}
-            </p>
+        <section className="bg-surface rounded-2xl border border-gray-100 p-5 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">{t('study.todayTitle')}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{t('study.todaySubtitle')}</p>
+            </div>
+            <span className="shrink-0 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+              {todoCount}
+            </span>
+          </div>
+          {pendingRequests.length === 0 && activeSessions.length === 0 ? (
+            <p className="text-sm text-gray-500">{t('study.allCaughtUp')}</p>
+          ) : (
             <div className="flex flex-col gap-2">
-              {pendingRequests.map((request) => (
-                <div key={request.id} className="flex items-center justify-between gap-3">
+              {pendingRequests.slice(0, 2).map((request) => (
+                <div key={request.id} className="flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2">
                   <span className="text-sm font-semibold text-blue-800">
                     {request.senderUsername ?? t('friends.unknown')}
                   </span>
@@ -153,49 +178,96 @@ export default function StudyPage() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        <section className="mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-500">{t('friends.title')}</h2>
-            <button
-              type="button"
-              onClick={() => router.push('/friends')}
-              className="text-xs font-semibold text-blue-500 hover:text-blue-600"
-            >
-              {t('friends.add')}
-            </button>
-          </div>
-          {friends.length === 0 ? (
-            <div className="bg-surface rounded-2xl border border-gray-100 p-4 text-sm text-gray-400">
-              {t('study.noFriends')}{' '}
-              <button type="button" onClick={() => router.push('/friends')} className="text-blue-500 underline">
-                {t('study.addFriend')}
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {friends.map((friend) => (
+              {friendSessions.slice(0, 2).map((session) => (
                 <button
-                  key={friend.id}
+                  key={session.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedFriendId(friend.id)
-                    setShowNewSession(true)
-                    setCreateError(null)
-                  }}
-                  className="shrink-0 w-20 flex flex-col items-center gap-2"
+                  onClick={() => router.push(`/study/${session.id}`)}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 text-left"
                 >
-                  <span className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                    {friend.username.charAt(0).toUpperCase()}
+                  <span className="text-sm font-semibold text-gray-700 truncate">
+                    {session.title ?? t('study.practiceDefault')}
                   </span>
-                  <span className="w-full truncate text-xs font-medium text-gray-600">{friend.username}</span>
+                  <span className="text-xs text-green-600 font-semibold">{t('study.active')}</span>
                 </button>
               ))}
             </div>
           )}
+        </section>
+
+        <section className="mb-4 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/friends')}
+            className="rounded-2xl border border-gray-100 bg-surface p-3 text-left transition-colors hover:border-blue-200"
+          >
+            <p className="text-xl font-black text-blue-600">{pendingRequests.length}</p>
+            <p className="mt-1 text-xs font-bold text-gray-900">{t('study.inboxLane')}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] text-gray-400">{t('study.inboxLaneSub')}</p>
+          </button>
+          <button
+            type="button"
+            onClick={openPersonalPractice}
+            disabled={createMutation.isPending}
+            className="rounded-2xl border border-gray-100 bg-surface p-3 text-left transition-colors hover:border-blue-200 disabled:opacity-40"
+          >
+            <p className="text-xl font-black text-gray-900">{personalSessions.length}</p>
+            <p className="mt-1 text-xs font-bold text-gray-900">{t('study.myLane')}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] text-gray-400">{t('study.myLaneSub')}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowNewSession(true); setCreateError(null) }}
+            className="rounded-2xl border border-gray-100 bg-surface p-3 text-left transition-colors hover:border-blue-200"
+          >
+            <p className="text-xl font-black text-green-600">{friendSessions.length}</p>
+            <p className="mt-1 text-xs font-bold text-gray-900">{t('study.friendLane')}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] text-gray-400">{t('study.friendLaneSub')}</p>
+          </button>
+        </section>
+
+        <section className="mb-4">
+          <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.quickActions')}</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={openPersonalPractice}
+              disabled={createMutation.isPending}
+              className="rounded-2xl bg-surface border border-gray-100 p-4 text-left hover:border-blue-200 transition-colors disabled:opacity-40"
+            >
+              <span className="block text-lg mb-2">✍️</span>
+              <span className="text-sm font-bold text-gray-900">{t('study.writeNote')}</span>
+              <span className="block text-xs text-gray-400 mt-1">{t('study.personalDefault')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={openPersonalPractice}
+              disabled={createMutation.isPending}
+              className="rounded-2xl bg-surface border border-gray-100 p-4 text-left hover:border-blue-200 transition-colors disabled:opacity-40"
+            >
+              <span className="block text-lg mb-2">🎙</span>
+              <span className="text-sm font-bold text-gray-900">{t('study.recordVoice')}</span>
+              <span className="block text-xs text-gray-400 mt-1">{t('study.personalDefault')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNewSession(true); setCreateError(null) }}
+              className="rounded-2xl bg-surface border border-gray-100 p-4 text-left hover:border-blue-200 transition-colors"
+            >
+              <span className="block text-lg mb-2">👥</span>
+              <span className="text-sm font-bold text-gray-900">{t('study.sendFriend')}</span>
+              <span className="block text-xs text-gray-400 mt-1">{t('friends.title')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/request')}
+              className="rounded-2xl bg-surface border border-gray-100 p-4 text-left hover:border-blue-200 transition-colors"
+            >
+              <span className="block text-lg mb-2">💬</span>
+              <span className="text-sm font-bold text-gray-900">{t('study.askCommunity')}</span>
+              <span className="block text-xs text-gray-400 mt-1">{t('nav.feed')}</span>
+            </button>
+          </div>
         </section>
 
         {/* 새 세션 생성 패널 */}
@@ -246,7 +318,10 @@ export default function StudyPage() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => createMutation.mutate()}
+                  onClick={() => createMutation.mutate({
+                    friendId: selectedFriendId,
+                    title: sessionTitle,
+                  })}
                   disabled={!selectedFriendId || createMutation.isPending}
                   className="flex-1 py-2.5 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 disabled:opacity-40 transition-colors"
                 >
@@ -275,18 +350,55 @@ export default function StudyPage() {
             ))}
           </div>
         ) : sessions.length === 0 ? (
-          <div className="bg-surface rounded-2xl border border-gray-100 py-14 text-center">
-            <p className="text-4xl mb-3">📖</p>
-            <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
-            <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
+          <div className="bg-surface rounded-2xl border border-gray-100 py-12 px-5 text-center">
+            <p className="text-sm font-semibold text-gray-700">{t('study.personalTitle')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('study.personalSubtitle')}</p>
+            <button
+              type="button"
+              onClick={openPersonalPractice}
+              disabled={createMutation.isPending}
+              className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+            >
+              {t('study.personalOpen')}
+            </button>
           </div>
         ) : (
           <>
-            {activeSessions.length > 0 && (
+            {personalSessions.length > 0 && (
               <section className="mb-4">
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.active')} ({activeSessions.length})</h2>
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.personalTitle')}</h2>
                 <div className="flex flex-col gap-3">
-                  {activeSessions.map((session) => {
+                  {personalSessions.map((session) => {
+                    const canManage = currentUser?.id === session.createdBy
+                    return (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        onOpen={() => router.push(`/study/${session.id}`)}
+                        onEnd={canManage ? () => {
+                          if (window.confirm(t('study.confirmEnd'))) {
+                            endMutation.mutate(session.id)
+                          }
+                        } : undefined}
+                        onRename={canManage ? () => setRenamingSession(session) : undefined}
+                        onDelete={canManage ? () => {
+                          if (window.confirm(t('study.confirmDelete'))) {
+                            deleteMutation.mutate(session.id)
+                          }
+                        } : undefined}
+                        ending={endMutation.isPending}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {friendSessions.length > 0 && (
+              <section className="mb-4">
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.friendSessions')} ({friendSessions.length})</h2>
+                <div className="flex flex-col gap-3">
+                  {friendSessions.map((session) => {
                     const canManage = currentUser?.id === session.createdBy
                     return (
                       <SessionCard

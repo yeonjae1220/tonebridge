@@ -413,15 +413,15 @@ class ToneBridgeStrings {
   );
 
   String get feedTitle => _pick({
-    'ko': '첨삭하기',
-    'en': 'Feed',
-    'ja': 'フィード',
-    'zh': '动态',
-    'es': 'Feed',
-    'fr': 'Fil',
-    'de': 'Feed',
-    'pt': 'Feed',
-    'ru': 'Лента',
+    'ko': '커뮤니티',
+    'en': 'Community',
+    'ja': 'コミュニティ',
+    'zh': '社区',
+    'es': 'Comunidad',
+    'fr': 'Communauté',
+    'de': 'Community',
+    'pt': 'Comunidade',
+    'ru': 'Сообщество',
   });
 
   String get requestAction => _pick({
@@ -512,15 +512,15 @@ class ToneBridgeStrings {
   });
 
   String get feedSubtitle => _pick({
-    'ko': '내가 도와줄 수 있는 요청을 고르고 크레딧을 받아요',
-    'en': 'Pick requests you can help with and earn credits',
-    'ja': '手伝える依頼を選んでクレジットを獲得しましょう',
-    'zh': '选择你能帮助的请求并获得积分',
-    'es': 'Elige solicitudes que puedas ayudar y gana créditos',
-    'fr': 'Choisissez des demandes à aider et gagnez des crédits',
-    'de': 'Wähle Anfragen, bei denen du helfen kannst, und verdiene Credits',
-    'pt': 'Escolha pedidos em que pode ajudar e ganhe créditos',
-    'ru': 'Выбирайте запросы, где можете помочь, и получайте кредиты',
+    'ko': '공개 요청을 도와주고 크레딧을 받아요',
+    'en': 'Help with public requests and earn credits',
+    'ja': '公開依頼を手伝ってクレジットを獲得しましょう',
+    'zh': '帮助公开请求并获得积分',
+    'es': 'Ayuda con solicitudes públicas y gana créditos',
+    'fr': 'Aidez sur des demandes publiques et gagnez des crédits',
+    'de': 'Hilf bei öffentlichen Anfragen und verdiene Credits',
+    'pt': 'Ajude em pedidos públicos e ganhe créditos',
+    'ru': 'Помогайте с открытыми запросами и получайте кредиты',
   });
 
   String get requestTitle => _pick({

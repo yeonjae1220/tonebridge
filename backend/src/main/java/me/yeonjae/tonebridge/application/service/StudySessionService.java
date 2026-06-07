@@ -35,6 +35,18 @@ public class StudySessionService implements
 
     @Override
     public StudySession create(CreateStudySessionUseCase.Command command) {
+        if (command.friendId() == null || command.friendId().equals(command.creatorId())) {
+            StudySession personalSession = new StudySession(
+                    null,
+                    command.title(),
+                    command.creatorId(),
+                    List.of(command.creatorId()),
+                    SessionStatus.ACTIVE,
+                    null
+            );
+            return sessionPort.save(personalSession);
+        }
+
         userPort.findById(command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 

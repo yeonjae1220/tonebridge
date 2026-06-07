@@ -12,7 +12,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { localizedLabel } from '@/lib/localizedLabels'
 
 type TFunction = ReturnType<typeof useI18n>['t']
-type FeedTab = 'help' | 'mine'
+type FeedTab = 'help' | 'mine' | 'done'
 
 function formatMessage(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce(
@@ -131,10 +131,17 @@ export default function FeedPage() {
     }
   }
 
+  const pendingMine = (myRequestsQuery.data ?? []).filter((req) =>
+    ['PENDING', 'IN_PROGRESS'].includes(req.status),
+  )
+  const completedMine = (myRequestsQuery.data ?? []).filter((req) =>
+    ['COMPLETED', 'AI_COMPLETED'].includes(req.status) || !!req.acceptedCorrectionId,
+  )
+
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('feed.title')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{t('feed.subtitle')}</p>
@@ -160,10 +167,21 @@ export default function FeedPage() {
         {isGuest && <GuestBanner />}
 
         {!isGuest && (
+          <section className="mb-4 rounded-2xl border border-gray-100 bg-surface p-4">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <CommunityMetric label={t('feed.helpRequests')} value={feedQuery.data?.length ?? 0} />
+              <CommunityMetric label={t('feed.myRequests')} value={pendingMine.length} />
+              <CommunityMetric label={t('feed.doneRequests')} value={completedMine.length} />
+            </div>
+          </section>
+        )}
+
+        {!isGuest && (
           <div className="mb-4 flex rounded-xl bg-gray-100 p-1 gap-1">
             {([
               ['help', t('feed.helpRequests')],
               ['mine', t('feed.myRequests')],
+              ['done', t('feed.doneRequests')],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
@@ -188,9 +206,9 @@ export default function FeedPage() {
             variantLabel={variantLabel}
             onCardClick={(req) => router.push(isGuest ? `/login?redirect=/correct/${req.id}` : `/correct/${req.id}`)}
           />
-        ) : (
+        ) : tab === 'mine' ? (
           <RequestList
-            requests={myRequestsQuery.data}
+            requests={pendingMine}
             isLoading={myRequestsQuery.isLoading}
             emptyMessage={t('feed.myRequestsEmpty')}
             correctorVariants={correctorVariants}
@@ -199,6 +217,17 @@ export default function FeedPage() {
             mine
             onEdit={(req) => setEditingRequest(req)}
             onDelete={handleDelete}
+          />
+        ) : (
+          <RequestList
+            requests={completedMine}
+            isLoading={myRequestsQuery.isLoading}
+            emptyMessage={t('feed.doneRequestsEmpty')}
+            correctorVariants={correctorVariants}
+            variantLabel={variantLabel}
+            onCardClick={(req) => router.push(`/result/${req.id}`)}
+            mine
+            completed
           />
         )}
       </div>
@@ -218,6 +247,15 @@ export default function FeedPage() {
   )
 }
 
+function CommunityMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-gray-50 px-3 py-2">
+      <p className="text-lg font-black text-gray-900">{value}</p>
+      <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-500">{label}</p>
+    </div>
+  )
+}
+
 function RequestList({
   requests,
   isLoading,
@@ -226,6 +264,7 @@ function RequestList({
   variantLabel,
   onCardClick,
   mine = false,
+  completed = false,
   onEdit,
   onDelete,
 }: {
@@ -236,6 +275,7 @@ function RequestList({
   variantLabel: (code: string) => string
   onCardClick: (request: CorrectionRequest) => void
   mine?: boolean
+  completed?: boolean
   onEdit?: (request: CorrectionRequest) => void
   onDelete?: (requestId: string) => void
 }) {
@@ -272,6 +312,7 @@ function RequestList({
             variantLabel={variantLabel}
             onClick={() => onCardClick(req)}
             mine={mine}
+            completed={completed}
             onEdit={req.status === 'PENDING' ? () => onEdit?.(req) : undefined}
             onDelete={req.status === 'PENDING' ? () => onDelete?.(req.id) : undefined}
             t={t}
@@ -288,6 +329,7 @@ function RequestCard({
   variantLabel,
   onClick,
   mine,
+  completed,
   onEdit,
   onDelete,
   t,
@@ -297,12 +339,13 @@ function RequestCard({
   variantLabel: (code: string) => string
   onClick: () => void
   mine: boolean
+  completed: boolean
   onEdit?: () => void
   onDelete?: () => void
   t: TFunction
 }) {
   return (
-    <div
+    <article
       className={`bg-surface rounded-2xl border p-5 hover:border-blue-200 transition-colors cursor-pointer ${
         isDialectMatch ? 'border-blue-200 ring-1 ring-blue-100' : 'border-gray-100'
       }`}
@@ -325,9 +368,16 @@ function RequestCard({
               🎙 {t('common.audio')}
             </span>
           )}
+          {request.type === 'TEXT' && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+              {t('common.text')}
+            </span>
+          )}
           {mine && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-              {request.status}
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+              completed ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              {statusLabel(request.status, t)}
             </span>
           )}
         </div>
@@ -338,9 +388,9 @@ function RequestCard({
       </div>
 
       {request.type === 'TEXT' ? (
-        <p className="text-sm text-gray-800 line-clamp-3 mb-3">{request.contentText}</p>
+        <p className="text-sm leading-6 text-gray-800 line-clamp-3 mb-3">{request.contentText}</p>
       ) : (
-        <p className="text-sm text-gray-400 italic mb-3">🎙 {t('feed.audioRequest')}</p>
+        <p className="text-sm text-gray-500 mb-3">🎙 {t('feed.audioRequest')}</p>
       )}
 
       {request.feedbackGoals && request.feedbackGoals.length > 0 && (
@@ -354,11 +404,26 @@ function RequestCard({
       )}
 
       {request.context && (
-        <p className="text-xs text-gray-400 mt-2 italic">&quot;{request.context}&quot;</p>
+        <p className="text-xs text-gray-400 mt-2">&quot;{request.context}&quot;</p>
       )}
 
-      {mine && (onEdit || onDelete) && (
-        <div className="mt-4 flex gap-2 border-t border-gray-50 pt-3">
+      <div className="mt-4 flex items-center gap-2 border-t border-gray-50 pt-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            onClick()
+          }}
+          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${
+            mine
+              ? 'bg-gray-900 text-white hover:bg-gray-800'
+              : 'bg-blue-500 text-white hover:bg-blue-600'
+          }`}
+        >
+          {mine ? t('feed.viewResult') : t('feed.correctNow')}
+        </button>
+        {mine && (onEdit || onDelete) && (
+          <>
           {onEdit && (
             <button
               type="button"
@@ -366,7 +431,7 @@ function RequestCard({
                 event.stopPropagation()
                 onEdit()
               }}
-              className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              className="px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
             >
               {t('common.edit')}
             </button>
@@ -378,15 +443,24 @@ function RequestCard({
                 event.stopPropagation()
                 onDelete()
               }}
-              className="flex-1 py-2 rounded-xl border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              className="px-3 py-2 rounded-xl border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
             >
               {t('common.delete')}
             </button>
           )}
-        </div>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </article>
   )
+}
+
+function statusLabel(status: CorrectionRequest['status'], t: TFunction) {
+  if (status === 'PENDING') return t('feed.statusPending')
+  if (status === 'IN_PROGRESS') return t('feed.statusInProgress')
+  if (status === 'COMPLETED' || status === 'AI_COMPLETED') return t('feed.statusCompleted')
+  if (status === 'EXPIRED') return t('feed.statusExpired')
+  return status
 }
 
 function RequestEditSheet({

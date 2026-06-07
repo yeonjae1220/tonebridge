@@ -84,7 +84,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
         ref.invalidate(myRequestsStateProvider);
         ref.read(requestStateProvider.notifier).reset();
         if (!mounted) return;
-        context.go(AppRoute.feed);
+        context.go(AppRoute.community);
       }
     });
 

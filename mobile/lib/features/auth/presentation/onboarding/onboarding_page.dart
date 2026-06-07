@@ -54,7 +54,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     if (_nativeLanguage == null) return;
     setState(() => _isSaving = true);
     try {
-      await ref.read(authStateProvider.notifier).completeOnboarding(
+      await ref
+          .read(authStateProvider.notifier)
+          .completeOnboarding(
             username: _username.isNotEmpty ? _username : null,
             nativeLanguage: _nativeLanguage!,
             uiLanguage: _nativeLanguage!,
@@ -65,13 +67,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             learningLanguageVariants: _learningLanguageVariants,
           );
       if (!mounted) return;
-      context.go(AppRoute.feed);
+      context.go(AppRoute.study);
     } catch (e) {
       if (!mounted) return;
       debugPrint('Onboarding save error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장에 실패했습니다. 다시 시도해 주세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('저장에 실패했습니다. 다시 시도해 주세요.')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

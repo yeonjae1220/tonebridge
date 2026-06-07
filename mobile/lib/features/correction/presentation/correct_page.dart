@@ -166,7 +166,7 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
         ).showSnackBar(const SnackBar(content: Text('교정이 제출됐습니다!')));
         ref.read(submitCorrectionStateProvider.notifier).reset();
         if (!mounted) return;
-        context.go(AppRoute.feed);
+        context.go(AppRoute.community);
       }
     });
 

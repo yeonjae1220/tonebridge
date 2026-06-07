@@ -245,6 +245,22 @@ class _StudyPageState extends ConsumerState<StudyPage> {
         child: CustomScrollView(
           slivers: [
             const _PendingRequestsSection(),
+            SliverToBoxAdapter(
+              child: _TodayStudyPanel(
+                sessionsAsync: sessionsAsync,
+                friendsAsync: friendsAsync,
+                onOpenPersonal: () => _openPersonalPractice(context),
+                onStartWithFriend: () {
+                  final friends =
+                      friendsAsync.asData?.value ?? const <Friend>[];
+                  if (friends.isEmpty) {
+                    _showAddFriendSheet(context);
+                  } else {
+                    _showCreateSessionSheet(context, friends);
+                  }
+                },
+              ),
+            ),
             _FriendAvatarRow(friendsAsync: friendsAsync),
             SliverToBoxAdapter(
               child: Padding(
@@ -324,6 +340,186 @@ class _StudyPageState extends ConsumerState<StudyPage> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _CreateSessionSheet(friends: friends),
+    );
+  }
+
+  Future<void> _openPersonalPractice(BuildContext context) async {
+    final sessions =
+        ref.read(studySessionListStateProvider).asData?.value ?? [];
+    StudySession? personal;
+    for (final session in sessions) {
+      if (session.status == 'ACTIVE' && session.memberIds.length == 1) {
+        personal = session;
+        break;
+      }
+    }
+    if (personal != null) {
+      context.push(AppRoute.sessionDetail(personal.id));
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final session = await ref
+          .read(studySessionListStateProvider.notifier)
+          .createSession(null, title: '내 연습장');
+      if (context.mounted) {
+        context.push(AppRoute.sessionDetail(session.id));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(ref.read(tProvider).genericError),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _TodayStudyPanel extends StatelessWidget {
+  const _TodayStudyPanel({
+    required this.sessionsAsync,
+    required this.friendsAsync,
+    required this.onOpenPersonal,
+    required this.onStartWithFriend,
+  });
+
+  final AsyncValue<List<StudySession>> sessionsAsync;
+  final AsyncValue<List<Friend>> friendsAsync;
+  final VoidCallback onOpenPersonal;
+  final VoidCallback onStartWithFriend;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sessions = sessionsAsync.asData?.value ?? const <StudySession>[];
+    final friends = friendsAsync.asData?.value ?? const <Friend>[];
+    final activeSessions = sessions
+        .where((session) => session.status == 'ACTIVE')
+        .length;
+    final todoCount = activeSessions + friends.length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '오늘의 스터디',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        activeSessions == 0
+                            ? '떠오른 표현을 먼저 내 연습장에 기록해보세요.'
+                            : '진행 중인 연습과 기록할 표현을 한 곳에 모았어요.',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$todoCount',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.4,
+            children: [
+              _QuickActionButton(
+                icon: Icons.edit_note_rounded,
+                label: '글 작성',
+                onTap: onOpenPersonal,
+              ),
+              _QuickActionButton(
+                icon: Icons.mic_rounded,
+                label: '녹음',
+                onTap: onOpenPersonal,
+              ),
+              _QuickActionButton(
+                icon: Icons.people_rounded,
+                label: '친구에게 보내기',
+                onTap: onStartWithFriend,
+              ),
+              _QuickActionButton(
+                icon: Icons.forum_rounded,
+                label: '커뮤니티에 요청',
+                onTap: () => context.push(AppRoute.request),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        foregroundColor: theme.colorScheme.onSurface,
+      ),
     );
   }
 }
