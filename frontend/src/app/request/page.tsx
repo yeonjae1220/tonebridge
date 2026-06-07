@@ -24,6 +24,21 @@ const FEEDBACK_GOALS = [
 
 type RequestKind = 'TEXT' | 'AUDIO'
 type Destination = 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
+type SubmitPayload = {
+  kind: RequestKind
+  destination: Destination
+  selectedFriendId: string
+  selectedFriendName?: string
+  targetLanguage: string
+  targetVariant: string | null
+  contentText: string
+  context: string
+  selectedGoals: string[]
+  audioFile?: File
+}
+type SubmitResult =
+  | { type: 'community' }
+  | { type: 'study'; sessionId: string; cardId: string }
 
 export default function RequestPage() {
   const router = useRouter()
@@ -63,90 +78,95 @@ export default function RequestPage() {
 
   const selectedFriend = friends.find((friend) => friend.id === selectedFriendId)
 
-  const submitMutation = useMutation({
-    mutationFn: async () => {
+  const submitMutation = useMutation<SubmitResult, unknown, SubmitPayload>({
+    mutationFn: async (payload) => {
       setError('')
-      if (destination === 'COMMUNITY') {
-        if (kind === 'TEXT') {
-          return api.post('/correction-requests', {
-            targetLanguage,
-            targetVariant: targetVariant ?? undefined,
-            contentText,
-            context,
-            feedbackGoals: selectedGoals,
+      if (payload.destination === 'COMMUNITY') {
+        if (payload.kind === 'TEXT') {
+          await api.post('/correction-requests', {
+            targetLanguage: payload.targetLanguage,
+            targetVariant: payload.targetVariant ?? undefined,
+            contentText: payload.contentText,
+            context: payload.context,
+            feedbackGoals: payload.selectedGoals,
           })
+          return { type: 'community' }
         }
-        const file = recorder.getFile(`audio_${Date.now()}.webm`)
-        if (!file) throw new Error(t('request.noAudioFile'))
-        const audioKey = await upload(file)
-        return api.post('/correction-requests/audio', {
-          targetLanguage,
-          targetVariant: targetVariant ?? undefined,
+        if (!payload.audioFile) throw new Error(t('request.noAudioFile'))
+        const audioKey = await upload(payload.audioFile)
+        await api.post('/correction-requests/audio', {
+          targetLanguage: payload.targetLanguage,
+          targetVariant: payload.targetVariant ?? undefined,
           audioKey,
-          context,
-          feedbackGoals: selectedGoals,
+          context: payload.context,
+          feedbackGoals: payload.selectedGoals,
         })
+        return { type: 'community' }
       }
 
-      const session = await ensureStudySession()
-      const card = await createStudyCard(session.id)
+      const session = await ensureStudySession(payload)
+      const card = await createStudyCard(session.id, payload)
 
-      if (kind === 'AUDIO') {
-        await attachNativeAudio(card.id)
+      if (payload.kind === 'AUDIO') {
+        try {
+          await attachNativeAudio(card.id, payload.audioFile)
+        } catch (error) {
+          await api.delete(`/cards/${card.id}`).catch(() => undefined)
+          throw error
+        }
       }
 
-      return { data: { sessionId: session.id, cardId: card.id } }
+      return { type: 'study', sessionId: session.id, cardId: card.id }
     },
-    onSuccess: (response) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      if (destination === 'COMMUNITY') {
+      if (result.type === 'community') {
         router.push('/community')
         return
       }
-      const data = response.data as { sessionId: string; cardId: string }
-      router.push(`/study/${data.sessionId}/cards/${data.cardId}`)
+      queryClient.invalidateQueries({ queryKey: ['cards', result.sessionId] })
+      router.push(`/study/${result.sessionId}/cards/${result.cardId}`)
     },
     onError: (e: unknown) => {
       setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('request.failed'))
     },
   })
 
-  const ensureStudySession = async () => {
-    if (destination === 'PERSONAL') {
+  const ensureStudySession = async (payload: SubmitPayload) => {
+    if (payload.destination === 'PERSONAL') {
       const existing = sessions.find((session) => session.status === 'ACTIVE' && session.memberIds.length === 1)
       if (existing) return existing
       const { data } = await api.post<StudySession>('/sessions', { title: t('study.personalDefault') })
       return data
     }
 
-    if (!selectedFriendId) throw new Error('NO_FRIEND')
+    if (!payload.selectedFriendId) throw new Error('NO_FRIEND')
     const existing = sessions.find((session) =>
       session.status === 'ACTIVE' &&
       session.memberIds.length > 1 &&
-      session.memberIds.includes(selectedFriendId),
+      session.memberIds.includes(payload.selectedFriendId),
     )
     if (existing) return existing
     const { data } = await api.post<StudySession>('/sessions', {
-      friendId: selectedFriendId,
-      title: selectedFriend ? `${selectedFriend.username} ${t('study.practiceDefault')}` : null,
+      friendId: payload.selectedFriendId,
+      title: payload.selectedFriendName ? `${payload.selectedFriendName} ${t('study.practiceDefault')}` : null,
     })
     return data
   }
 
-  const createStudyCard = async (sessionId: string) => {
-    const phrase = kind === 'TEXT'
-      ? contentText.trim()
-      : context.trim() || t('request.audioCardTitle')
+  const createStudyCard = async (sessionId: string, payload: SubmitPayload) => {
+    const phrase = payload.kind === 'TEXT'
+      ? payload.contentText.trim()
+      : payload.context.trim() || t('request.audioCardTitle')
     const { data } = await api.post<StudyCard>(`/sessions/${sessionId}/cards`, {
       phrase,
-      context: context.trim() || null,
-      tags: selectedGoals,
+      context: payload.context.trim() || null,
+      tags: payload.selectedGoals,
     })
     return data
   }
 
-  const attachNativeAudio = async (cardId: string) => {
-    const file = recorder.getFile(`study_audio_${Date.now()}.webm`)
+  const attachNativeAudio = async (cardId: string, file?: File) => {
     if (!file) throw new Error(t('request.noAudioFile'))
     const { data } = await api.post<{ uploadUrl: string; audioKey: string }>(
       `/cards/${cardId}/native-audios/upload-url`,
@@ -165,6 +185,22 @@ export default function RequestPage() {
     setSelectedGoals((prev) =>
       prev.includes(goal) ? prev.filter((g) => g !== goal) : [...prev, goal]
     )
+  }
+
+  const handleSubmit = () => {
+    const audioFile = kind === 'AUDIO' ? recorder.getFile(`audio_${Date.now()}.webm`) ?? undefined : undefined
+    submitMutation.mutate({
+      kind,
+      destination,
+      selectedFriendId,
+      selectedFriendName: selectedFriend?.username,
+      targetLanguage,
+      targetVariant,
+      contentText,
+      context,
+      selectedGoals: [...selectedGoals],
+      audioFile,
+    })
   }
 
   const creditCost = destination === 'COMMUNITY' ? (kind === 'TEXT' ? 5 : 10) : 0
@@ -211,7 +247,8 @@ export default function RequestPage() {
                   {(['TEXT', 'AUDIO'] as const).map((nextKind) => (
                     <button
                       key={nextKind}
-                      onClick={() => { setKind(nextKind); setError('') }}
+                    onClick={() => { setKind(nextKind); setError('') }}
+                    disabled={isPending}
                       className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
                         kind === nextKind ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                       }`}
@@ -240,6 +277,7 @@ export default function RequestPage() {
                     <button
                       type="button"
                       onClick={() => setRecordSheetOpen(true)}
+                      disabled={isPending}
                       className="w-full rounded-xl bg-red-500 py-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600"
                     >
                       {t('request.startRecording')}
@@ -248,7 +286,7 @@ export default function RequestPage() {
                   {recorder.state === 'recording' && (
                     <div className="flex w-full items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
                       <span className="font-mono text-sm font-semibold text-red-600">{formatDuration(recorder.duration)}</span>
-                      <button onClick={recorder.stop} className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+                      <button type="button" onClick={recorder.stop} className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">
                         {t('request.stopRecording')}
                       </button>
                     </div>
@@ -278,6 +316,7 @@ export default function RequestPage() {
                   key={value}
                   type="button"
                   onClick={() => setDestination(value)}
+                  disabled={isPending}
                   className={`rounded-2xl border p-4 text-left transition-colors ${
                     destination === value ? 'border-blue-300 bg-blue-50' : 'border-gray-100 bg-surface hover:border-blue-200'
                   }`}
@@ -293,6 +332,7 @@ export default function RequestPage() {
                   <select
                     value={selectedFriendId}
                     onChange={(e) => setSelectedFriendId(e.target.value)}
+                    disabled={isPending}
                     className="w-full rounded-xl border border-gray-200 bg-surface px-3 py-2.5 text-sm"
                   >
                     <option value="">{t('study.selectFriend')}</option>
@@ -340,6 +380,7 @@ export default function RequestPage() {
                       key={goal.key}
                       type="button"
                       onClick={() => toggleGoal(goal.value)}
+                      disabled={isPending}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                         selectedGoals.includes(goal.value)
                           ? 'border-blue-300 bg-blue-100 text-blue-700'
@@ -366,6 +407,7 @@ export default function RequestPage() {
               <button
                 type="button"
                 onClick={() => setStep((prev) => prev - 1)}
+                disabled={isPending}
                 className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50"
               >
                 {t('common.cancel')}
@@ -375,14 +417,14 @@ export default function RequestPage() {
               <button
                 type="button"
                 onClick={() => setStep((prev) => prev + 1)}
-                disabled={!stepReady}
+                disabled={!stepReady || isPending}
                 className="flex-1 rounded-xl bg-blue-500 py-3 font-semibold text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
               >
                 {t('common.next')}
               </button>
             ) : (
               <button
-                onClick={() => submitMutation.mutate()}
+                onClick={handleSubmit}
                 disabled={!canSubmit}
                 className="flex-1 rounded-xl bg-blue-500 py-3 font-semibold text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
               >

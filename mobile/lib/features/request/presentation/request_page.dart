@@ -13,9 +13,17 @@ import 'package:tonebridge/core/services/audio_recorder_service.dart';
 import 'package:tonebridge/core/services/presigned_upload_service.dart';
 import 'package:tonebridge/core/widgets/language_picker/language_picker.dart';
 import 'package:tonebridge/features/feed/presentation/feed_provider.dart';
+import 'package:tonebridge/features/friend/domain/model/friend.dart';
+import 'package:tonebridge/features/friend/presentation/friend_provider.dart';
 import 'package:tonebridge/features/request/presentation/request_provider.dart';
+import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
+import 'package:tonebridge/features/study_session/domain/model/study_session.dart';
+import 'package:tonebridge/features/study_session/domain/study_session_repository.dart';
+import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 const _kFeedbackGoals = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스'];
+
+enum _RequestDestination { personal, friend, community }
 
 class RequestPage extends ConsumerStatefulWidget {
   const RequestPage({super.key});
@@ -34,6 +42,9 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   final List<String> _feedbackGoals = [];
   bool _isAudio = false;
   bool _uploading = false;
+  bool _submittingStudy = false;
+  _RequestDestination _destination = _RequestDestination.personal;
+  String _selectedFriendId = '';
 
   late final AudioRecorderService _recorder;
 
@@ -64,7 +75,9 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     final theme = Theme.of(context);
     final strings = ref.watch(tProvider);
     final requestAsync = ref.watch(requestStateProvider);
-    final isLoading = requestAsync.isLoading || _uploading;
+    final friendsAsync = ref.watch(friendListStateProvider);
+    final friends = friendsAsync.value ?? const <Friend>[];
+    final isLoading = requestAsync.isLoading || _uploading || _submittingStudy;
 
     ref.listen(requestStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {
@@ -123,20 +136,109 @@ class _RequestPageState extends ConsumerState<RequestPage> {
             ),
             const SizedBox(height: 24),
 
-            // ── 언어 선택 ──
+            // ── 저장 위치 ──
             _SectionCard(
-              label: strings.correctionLanguage,
-              child: LanguagePicker(
-                value: _targetLanguage,
-                variant: _targetVariant,
-                onChanged: (code) => setState(() {
-                  _targetLanguage = code;
-                  _targetVariant = null;
-                }),
-                onVariantChanged: (v) => setState(() => _targetVariant = v),
+              label: '어디에 남길까요?',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _DestinationButton(
+                    selected: _destination == _RequestDestination.personal,
+                    icon: Icons.edit_note_rounded,
+                    title: '내 스터디',
+                    subtitle: '혼자 쓰는 노트와 연습장에 저장',
+                    onTap: isLoading
+                        ? null
+                        : () => setState(() {
+                            _destination = _RequestDestination.personal;
+                            _selectedFriendId = '';
+                          }),
+                  ),
+                  const SizedBox(height: 8),
+                  _DestinationButton(
+                    selected: _destination == _RequestDestination.friend,
+                    icon: Icons.people_rounded,
+                    title: '친구 스터디',
+                    subtitle: '친구와 함께 보는 스터디 카드로 저장',
+                    onTap: isLoading
+                        ? null
+                        : () => setState(
+                            () => _destination = _RequestDestination.friend,
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  _DestinationButton(
+                    selected: _destination == _RequestDestination.community,
+                    icon: Icons.forum_rounded,
+                    title: '커뮤니티',
+                    subtitle: '공개 게시판에 첨삭 요청으로 올리기',
+                    onTap: isLoading
+                        ? null
+                        : () => setState(() {
+                            _destination = _RequestDestination.community;
+                            _selectedFriendId = '';
+                          }),
+                  ),
+                  if (_destination == _RequestDestination.friend) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _selectedFriendId.isEmpty
+                          ? null
+                          : _selectedFriendId,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: '친구 선택',
+                      ),
+                      items: friends
+                          .map(
+                            (Friend friend) => DropdownMenuItem<String>(
+                              value: friend.id,
+                              child: Text(friend.username),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: isLoading
+                          ? null
+                          : (value) =>
+                                setState(() => _selectedFriendId = value ?? ''),
+                    ),
+                    if (friendsAsync.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: LinearProgressIndicator(),
+                      ),
+                    if (!friendsAsync.isLoading && friends.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '친구 탭에서 먼저 친구를 추가해 주세요.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(height: 16),
+
+            // ── 언어 선택 ──
+            if (_destination == _RequestDestination.community) ...[
+              _SectionCard(
+                label: strings.correctionLanguage,
+                child: LanguagePicker(
+                  value: _targetLanguage,
+                  variant: _targetVariant,
+                  onChanged: (code) => setState(() {
+                    _targetLanguage = code;
+                    _targetVariant = null;
+                  }),
+                  onVariantChanged: (v) => setState(() => _targetVariant = v),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // ── 내용 ──
             if (!_isAudio) ...[
@@ -218,7 +320,10 @@ class _RequestPageState extends ConsumerState<RequestPage> {
             const SizedBox(height: 16),
 
             // ── 크레딧 비용 ──
-            _CreditBanner(isAudio: _isAudio),
+            _CreditBanner(
+              isAudio: _isAudio,
+              isCommunity: _destination == _RequestDestination.community,
+            ),
             const SizedBox(height: 20),
 
             // ── 제출 ──
@@ -237,7 +342,11 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(strings.submitCorrectionRequest),
+                  : Text(
+                      _destination == _RequestDestination.community
+                          ? strings.submitCorrectionRequest
+                          : '스터디에 저장',
+                    ),
             ),
             const SizedBox(height: 32),
           ],
@@ -247,14 +356,29 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   }
 
   bool get _canSubmit {
-    if (_targetLanguage.isEmpty) return false;
+    if (_destination == _RequestDestination.community &&
+        _targetLanguage.isEmpty) {
+      return false;
+    }
+    if (_destination == _RequestDestination.friend &&
+        _selectedFriendId.isEmpty) {
+      return false;
+    }
     if (_isAudio) return _recorder.state == RecorderState.stopped;
     return _textController.text.trim().isNotEmpty;
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_destination == _RequestDestination.community) {
+      await _submitCommunityRequest();
+      return;
+    }
 
+    await _submitStudyCard();
+  }
+
+  Future<void> _submitCommunityRequest() async {
     final context = _contextController.text.trim();
 
     if (_isAudio) {
@@ -309,6 +433,141 @@ class _RequestPageState extends ConsumerState<RequestPage> {
     }
   }
 
+  Future<void> _submitStudyCard() async {
+    setState(() => _submittingStudy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final phrase = _studyPhrase();
+
+    StudySession? session;
+
+    try {
+      final repo = ref.read(studySessionRepositoryProvider);
+      final sessions = await ref.read(studySessionListStateProvider.future);
+      session = await _ensureStudySession(sessions);
+      final card = await repo.createCard(
+        sessionId: session.id,
+        phrase: phrase,
+        context: _contextController.text.trim().isEmpty
+            ? null
+            : _contextController.text.trim(),
+        tags: List.from(_feedbackGoals),
+      );
+
+      if (_isAudio) {
+        try {
+          await _attachNativeAudio(repo, card.id);
+        } on Exception {
+          await _deleteCreatedCard(repo, card.id);
+          rethrow;
+        }
+      }
+
+      ref.invalidate(studySessionListStateProvider);
+      ref.invalidate(sessionCardsProvider(session.id));
+
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('스터디에 저장했어요.')));
+      router.go(AppRoute.cardDetail(session.id, card.id));
+    } on Exception catch (e) {
+      if (!mounted) return;
+      _showError('스터디 저장에 실패했어요. ${_friendlyError(e)}');
+    } finally {
+      if (mounted) setState(() => _submittingStudy = false);
+    }
+  }
+
+  String _studyPhrase() {
+    if (!_isAudio) return _textController.text.trim();
+    final context = _contextController.text.trim();
+    if (context.isNotEmpty) return context;
+    final now = DateTime.now();
+    return '음성 카드 ${now.month}/${now.day} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<StudySession> _ensureStudySession(List<StudySession> sessions) async {
+    final active = sessions.where((session) => session.status == 'ACTIVE');
+    if (_destination == _RequestDestination.personal) {
+      final existing = active
+          .where((session) => session.memberIds.length == 1)
+          .firstOrNull;
+      if (existing != null) return existing;
+      return ref
+          .read(studySessionListStateProvider.notifier)
+          .createSession(null, title: '내 연습장');
+    }
+
+    final friendId = _selectedFriendId;
+    final existing = active
+        .where(
+          (session) =>
+              session.memberIds.length > 1 &&
+              session.memberIds.contains(friendId),
+        )
+        .firstOrNull;
+    if (existing != null) return existing;
+
+    final friends = ref.read(friendListStateProvider).value ?? const <Friend>[];
+    final friend = friends
+        .where((Friend item) => item.id == friendId)
+        .firstOrNull;
+    return ref
+        .read(studySessionListStateProvider.notifier)
+        .createSession(
+          friendId,
+          title: friend == null ? null : '${friend.username} 연습장',
+        );
+  }
+
+  Future<void> _attachNativeAudio(
+    StudySessionRepository repo,
+    String cardId,
+  ) async {
+    final hasRecording = kIsWeb
+        ? _recorder.webBlobUrl != null
+        : _recorder.file != null;
+    if (!hasRecording) throw Exception('녹음 파일이 없어요.');
+
+    const ext = kIsWeb ? 'webm' : 'm4a';
+    final fileName =
+        'study_audio_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final urls = await repo.getNativeAudioUploadUrlV2(cardId, fileName);
+    final uploadUrl = urls['uploadUrl'];
+    final audioKey = urls['audioKey'];
+    if (uploadUrl == null || audioKey == null) {
+      throw const FormatException(
+        'presigned URL response missing required keys',
+      );
+    }
+
+    final uploader = PresignedUploadService(dio: ref.read(dioProvider));
+    if (kIsWeb) {
+      await uploader.uploadBytesToUrl(
+        bytes: await _recorder.getWebBytes(),
+        uploadUrl: uploadUrl,
+      );
+    } else {
+      await uploader.uploadToUrl(
+        file: _recorder.file!,
+        uploadUrl: uploadUrl,
+        contentType: PresignedUploadService.contentTypeForFileName(fileName),
+      );
+    }
+
+    await repo.confirmNativeAudioV2(cardId, audioKey);
+  }
+
+  Future<void> _deleteCreatedCard(
+    StudySessionRepository repo,
+    String cardId,
+  ) async {
+    try {
+      await repo.deleteCard(cardId);
+    } on Exception {
+      // Best-effort cleanup: surface the original upload error to the user.
+    }
+  }
+
   Future<void> _startRecording() async {
     try {
       await _recorder.start();
@@ -342,6 +601,77 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 }
 
 // ── Sub-widgets ─────────────────────────────────────────────────────────────
+
+class _DestinationButton extends StatelessWidget {
+  const _DestinationButton({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.all(14),
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+        ),
+        backgroundColor: selected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.36)
+            : theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (selected)
+            Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary),
+        ],
+      ),
+    );
+  }
+}
 
 class _SegmentRow extends ConsumerWidget {
   const _SegmentRow({required this.isAudio, required this.onChanged});
@@ -395,16 +725,17 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _CreditBanner extends ConsumerWidget {
-  const _CreditBanner({required this.isAudio});
+  const _CreditBanner({required this.isAudio, required this.isCommunity});
   final bool isAudio;
+  final bool isCommunity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final strings = ref.watch(tProvider);
-    final cost = isAudio
-        ? AppConfig.audioRequestCost
-        : AppConfig.textRequestCost;
+    final cost = isCommunity
+        ? (isAudio ? AppConfig.audioRequestCost : AppConfig.textRequestCost)
+        : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(

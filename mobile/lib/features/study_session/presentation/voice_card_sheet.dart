@@ -66,14 +66,15 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
 
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
+    final repo = ref.read(studySessionRepositoryProvider);
+    String? createdCardId;
 
     try {
-      final repo = ref.read(studySessionRepositoryProvider);
-
       final card = await repo.createCard(
         sessionId: widget.sessionId,
         phrase: phrase,
       );
+      createdCardId = card.id;
 
       const ext = kIsWeb ? 'webm' : 'm4a';
       final fileName =
@@ -108,11 +109,17 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
       Navigator.of(context).pop();
       router.push(AppRoute.cardDetail(widget.sessionId, card.id));
     } on Exception catch (e) {
+      if (createdCardId != null) {
+        try {
+          await repo.deleteCard(createdCardId);
+        } on Exception {
+          // Best-effort cleanup: keep the original upload error visible.
+        }
+      }
       if (!mounted) return;
-      // Card was created but audio upload failed — user can re-record from card detail.
       messenger.showSnackBar(
         SnackBar(
-          content: Text('음성 업로드에 실패했어요. 카드는 생성됐으니 카드 상세에서 다시 녹음할 수 있어요. ($e)'),
+          content: Text('음성 업로드에 실패했어요. 다시 시도해 주세요. ($e)'),
           backgroundColor: Theme.of(context).colorScheme.error,
           duration: const Duration(seconds: 6),
         ),
