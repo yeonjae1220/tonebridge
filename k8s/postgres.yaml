@@ -4,6 +4,7 @@ metadata:
   name: tonebridge-postgres-pvc
   namespace: tonebridge
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
