@@ -4,6 +4,7 @@ metadata:
   name: tonebridge-minio-pvc
   namespace: tonebridge
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
