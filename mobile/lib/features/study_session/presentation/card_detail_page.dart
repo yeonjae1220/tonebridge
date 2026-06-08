@@ -4,8 +4,10 @@ import 'dart:math' show pi;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
+import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
 import 'package:tonebridge/core/services/presigned_upload_service.dart';
 import 'package:tonebridge/core/utils/permission_dialogs.dart';
@@ -215,69 +217,78 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     return '오류가 발생했어요. 다시 시도해 주세요.';
   }
 
+  void _goBack() {
+    context.go(AppRoute.sessionDetail(widget.sessionId));
+  }
+
   Future<void> _editCard(StudyCard card) async {
     final phraseController = TextEditingController(text: card.phrase);
     final contextController = TextEditingController(text: card.context ?? '');
-    final result = await showModalBottomSheet<({String phrase, String? context})>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('카드 수정',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phraseController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '표현',
-                border: OutlineInputBorder(),
-              ),
+    final result =
+        await showModalBottomSheet<({String phrase, String? context})>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: contextController,
-              decoration: const InputDecoration(
-                labelText: '상황 설명',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '카드 수정',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phraseController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: '표현',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contextController,
+                  decoration: const InputDecoration(
+                    labelText: '상황 설명',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      final phrase = phraseController.text.trim();
+                      if (phrase.isEmpty) return;
+                      final contextText = contextController.text.trim();
+                      Navigator.pop(context, (
+                        phrase: phrase,
+                        context: contextText.isEmpty ? null : contextText,
+                      ));
+                    },
+                    child: const Text('저장'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  final phrase = phraseController.text.trim();
-                  if (phrase.isEmpty) return;
-                  final contextText = contextController.text.trim();
-                  Navigator.pop(
-                    context,
-                    (phrase: phrase, context: contextText.isEmpty ? null : contextText),
-                  );
-                },
-                child: const Text('저장'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
     if (result == null || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(studySessionRepositoryProvider).updateCard(
+      await ref
+          .read(studySessionRepositoryProvider)
+          .updateCard(
             cardId: card.id,
             phrase: result.phrase,
             context: result.context,
@@ -322,7 +333,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       ref.invalidate(sessionCardsProvider(widget.sessionId));
       if (!mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('카드를 삭제했어요')));
-      Navigator.of(context).pop();
+      _goBack();
     } on Exception catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
     }
@@ -336,108 +347,116 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     final attemptsAsync = ref.watch(cardAttemptsProvider(widget.cardId));
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('카드 학습'),
-        actions: [
-          cardAsync.maybeWhen(
-            data: (card) => currentUserId == card.createdByUserId
-                ? PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _editCard(card);
-                      } else if (value == 'delete') {
-                        _deleteCard(card);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit_outlined),
-                            SizedBox(width: 8),
-                            Text('카드 수정'),
-                          ],
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _goBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: _goBack),
+          title: const Text('카드 학습'),
+          actions: [
+            cardAsync.maybeWhen(
+              data: (card) => currentUserId == card.createdByUserId
+                  ? PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _editCard(card);
+                        } else if (value == 'delete') {
+                          _deleteCard(card);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined),
+                              SizedBox(width: 8),
+                              Text('카드 수정'),
+                            ],
+                          ),
                         ),
-                      ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline),
-                            SizedBox(width: 8),
-                            Text('카드 삭제'),
-                          ],
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline),
+                              SizedBox(width: 8),
+                              Text('카드 삭제'),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-            orElse: () => const SizedBox.shrink(),
-          ),
-        ],
-      ),
-      body: cardAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            '카드를 불러올 수 없어요: ${_errorMessage(e is Exception ? e : Exception(e))}',
-          ),
-        ),
-        data: (card) {
-          final isCardCreator = currentUserId == card.createdByUserId;
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _FlashCard(
-                    card: card,
-                    isFlipped: _isFlipped,
-                    flipAnimation: _flipAnimation,
-                    onFlip: _flip,
-                    onPlayNative: () => _playNativeAudio(card),
-                  ),
-                  const SizedBox(height: 24),
-                  if (isCardCreator) ...[
-                    NativeAudiosSection(
-                      cardId: widget.cardId,
-                      sessionId: widget.sessionId,
-                      recorder: _recorder,
-                      uploading: _uploading,
-                      onSubmit: () => _submitNativeAudio(card),
-                    ),
-                    const SizedBox(height: 24),
-                  ] else if (!isCardCreator) ...[
-                    _RecordingSection(
-                      recorder: _recorder,
-                      uploading: _uploading,
-                      hasNativeAudio: card.nativeAudioUrl != null,
-                      onSubmit: _submitAttempt,
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  CardNoteSection(
-                    card: card,
-                    onSaved: () {
-                      setState(() => _usedInitialCard = false);
-                      ref.invalidate(sessionCardsProvider(widget.sessionId));
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  _AttemptsSection(
-                    attemptsAsync: attemptsAsync,
-                    cardId: widget.cardId,
-                    currentUserId: currentUserId,
-                    cardCreatorId: card.createdByUserId,
-                  ),
-                ],
-              ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+              orElse: () => const SizedBox.shrink(),
             ),
-          );
-        },
+          ],
+        ),
+        body: cardAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Text(
+              '카드를 불러올 수 없어요: ${_errorMessage(e is Exception ? e : Exception(e))}',
+            ),
+          ),
+          data: (card) {
+            final isCardCreator = currentUserId == card.createdByUserId;
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FlashCard(
+                      card: card,
+                      isFlipped: _isFlipped,
+                      flipAnimation: _flipAnimation,
+                      onFlip: _flip,
+                      onPlayNative: () => _playNativeAudio(card),
+                    ),
+                    const SizedBox(height: 24),
+                    if (isCardCreator) ...[
+                      NativeAudiosSection(
+                        cardId: widget.cardId,
+                        sessionId: widget.sessionId,
+                        recorder: _recorder,
+                        uploading: _uploading,
+                        onSubmit: () => _submitNativeAudio(card),
+                      ),
+                      const SizedBox(height: 24),
+                    ] else if (!isCardCreator) ...[
+                      _RecordingSection(
+                        recorder: _recorder,
+                        uploading: _uploading,
+                        hasNativeAudio: card.nativeAudioUrl != null,
+                        onSubmit: _submitAttempt,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    CardNoteSection(
+                      card: card,
+                      onSaved: () {
+                        setState(() => _usedInitialCard = false);
+                        ref.invalidate(sessionCardsProvider(widget.sessionId));
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    _AttemptsSection(
+                      attemptsAsync: attemptsAsync,
+                      cardId: widget.cardId,
+                      currentUserId: currentUserId,
+                      cardCreatorId: card.createdByUserId,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

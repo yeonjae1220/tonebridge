@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.domain.user.CorrectorLevel;
+import me.yeonjae.tonebridge.domain.user.OAuthProvider;
 import me.yeonjae.tonebridge.domain.user.User;
 
 import java.time.LocalDate;
@@ -94,9 +95,19 @@ public class UserEntity {
     @Column(nullable = false)
     private boolean isAdmin;
 
+    /** 인증 제공자. 기존 회원은 V21 마이그레이션에서 'GOOGLE'로 채워짐. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private OAuthProvider provider;
+
+    /** BCrypt 해시(60자). LOCAL 회원만 보유, GOOGLE 회원은 null. */
+    @Column(name = "password_hash", length = 60)
+    private String passwordHash;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (provider == null) provider = OAuthProvider.GOOGLE;
     }
 
     public User toDomain() {
@@ -107,7 +118,8 @@ public class UserEntity {
                 parseMap(fluentLangVariantsRaw),
                 parseMap(learningLangVariantsRaw),
                 credits, reputationScore, correctorLevel,
-                correctionStreak, lastCorrectionDate, createdAt, isAdmin);
+                correctionStreak, lastCorrectionDate, createdAt, isAdmin,
+                provider == null ? OAuthProvider.GOOGLE : provider, passwordHash);
     }
 
     public static UserEntity fromDomain(User user) {
@@ -129,6 +141,8 @@ public class UserEntity {
                 .lastCorrectionDate(user.lastCorrectionDate())
                 .createdAt(user.createdAt())
                 .isAdmin(user.isAdmin())
+                .provider(user.provider())
+                .passwordHash(user.passwordHash())
                 .build();
     }
 

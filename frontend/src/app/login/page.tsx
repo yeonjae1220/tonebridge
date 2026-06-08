@@ -1,21 +1,50 @@
 'use client'
 
-import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState, type FormEvent } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
+import { loginWithPassword } from '@/lib/api'
+import { isSafeRedirect, resolvePostAuthPath } from '@/lib/authNavigate'
 
 function LoginInner() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useI18n()
 
-  const handleGoogleLogin = () => {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const stashRedirect = () => {
     const redirect = searchParams.get('redirect')
-    // /로 시작하고 //가 아닌 경우만 허용 — open redirect 방지
-    const isSafeRedirect = (path: string) => /^\/(?!\/)/.test(path)
     if (redirect && isSafeRedirect(redirect)) {
       sessionStorage.setItem('auth_redirect', redirect)
     }
+  }
+
+  const handleGoogleLogin = () => {
+    stashRedirect()
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/auth/google`
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (submitting) return
+    setError(null)
+    setSubmitting(true)
+    stashRedirect()
+    try {
+      await loginWithPassword(email.trim(), password)
+      const path = await resolvePostAuthPath()
+      router.replace(path)
+    } catch (err) {
+      // 401(자격증명 오류)과 그 외를 구분해 메시지 노출 (서버는 사유를 통일된 401로 응답)
+      const status = (err as { response?: { status?: number } })?.response?.status
+      setError(status === 401 ? t('login.failed') : t('login.error'))
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -26,6 +55,52 @@ function LoginInner() {
           <p className="mt-2 text-sm text-gray-500">{t('login.subtitle')}</p>
         </div>
 
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-gray-700">{t('login.email')}</span>
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-gray-700">{t('login.password')}</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
+            />
+          </label>
+
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 px-4 rounded-xl bg-gray-900 text-white font-medium hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {t('login.submit')}
+          </button>
+        </form>
+
+        <div className="flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-gray-100" />
+          <span className="text-xs uppercase tracking-wide text-gray-400">{t('login.or')}</span>
+          <span className="h-px flex-1 bg-gray-100" />
+        </div>
+
         <button
           onClick={handleGoogleLogin}
           className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors font-medium text-gray-700"
@@ -34,8 +109,11 @@ function LoginInner() {
           {t('login.google')}
         </button>
 
-        <p className="text-center text-xs text-gray-400">
-          {t('login.bonus')}
+        <p className="text-center text-sm text-gray-500">
+          {t('login.noAccount')}{' '}
+          <Link href="/signup" className="font-medium text-gray-900 underline-offset-2 hover:underline">
+            {t('login.signupLink')}
+          </Link>
         </p>
       </div>
     </main>

@@ -86,7 +86,8 @@ class _FeedPageState extends ConsumerState<FeedPage>
           Padding(
             padding: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
             child: FilledButton(
-              onPressed: () => context.push(AppRoute.request),
+              onPressed: () =>
+                  context.push(AppRoute.request, extra: AppRoute.community),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,

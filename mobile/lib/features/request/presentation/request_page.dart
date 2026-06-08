@@ -23,10 +23,17 @@ import 'package:tonebridge/features/study_session/presentation/study_provider.da
 
 const _kFeedbackGoals = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스'];
 
-enum _RequestDestination { personal, friend, community }
+enum RequestDestination { personal, friend, community }
 
 class RequestPage extends ConsumerStatefulWidget {
-  const RequestPage({super.key});
+  const RequestPage({
+    super.key,
+    this.returnRoute = AppRoute.community,
+    this.initialDestination = RequestDestination.personal,
+  });
+
+  final String returnRoute;
+  final RequestDestination initialDestination;
 
   @override
   ConsumerState<RequestPage> createState() => _RequestPageState();
@@ -43,7 +50,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   bool _isAudio = false;
   bool _uploading = false;
   bool _submittingStudy = false;
-  _RequestDestination _destination = _RequestDestination.personal;
+  late RequestDestination _destination;
   String _selectedFriendId = '';
 
   late final AudioRecorderService _recorder;
@@ -51,6 +58,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   @override
   void initState() {
     super.initState();
+    _destination = widget.initialDestination;
     _textController.addListener(_onFormChanged);
     _recorder = AudioRecorderService();
     _recorder.addListener(_onRecorderChange);
@@ -59,6 +67,10 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   void _onRecorderChange() => setState(() {});
 
   void _onFormChanged() => setState(() {});
+
+  void _goBack() {
+    context.go(widget.returnRoute);
+  }
 
   @override
   void dispose() {
@@ -101,266 +113,277 @@ class _RequestPageState extends ConsumerState<RequestPage> {
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(title: Text(strings.requestTitle)),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                strings.requestSubtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _goBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: _goBack),
+          title: Text(strings.requestTitle),
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Text(
+                  strings.requestSubtitle,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-            ),
-            // ── 요청 유형 탭 ──
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                strings.requestTypeQuestion,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+              // ── 요청 유형 탭 ──
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  strings.requestTypeQuestion,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            _SegmentRow(
-              isAudio: _isAudio,
-              onChanged: (v) => setState(() {
-                _isAudio = v;
-                _recorder.reset();
-              }),
-            ),
-            const SizedBox(height: 24),
+              _SegmentRow(
+                isAudio: _isAudio,
+                onChanged: (v) => setState(() {
+                  _isAudio = v;
+                  _recorder.reset();
+                }),
+              ),
+              const SizedBox(height: 24),
 
-            // ── 저장 위치 ──
-            _SectionCard(
-              label: '어디에 남길까요?',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _DestinationButton(
-                    selected: _destination == _RequestDestination.personal,
-                    icon: Icons.edit_note_rounded,
-                    title: '내 스터디',
-                    subtitle: '혼자 쓰는 노트와 연습장에 저장',
-                    onTap: isLoading
-                        ? null
-                        : () => setState(() {
-                            _destination = _RequestDestination.personal;
-                            _selectedFriendId = '';
-                          }),
-                  ),
-                  const SizedBox(height: 8),
-                  _DestinationButton(
-                    selected: _destination == _RequestDestination.friend,
-                    icon: Icons.people_rounded,
-                    title: '친구 스터디',
-                    subtitle: '친구와 함께 보는 스터디 카드로 저장',
-                    onTap: isLoading
-                        ? null
-                        : () => setState(
-                            () => _destination = _RequestDestination.friend,
-                          ),
-                  ),
-                  const SizedBox(height: 8),
-                  _DestinationButton(
-                    selected: _destination == _RequestDestination.community,
-                    icon: Icons.forum_rounded,
-                    title: '커뮤니티',
-                    subtitle: '공개 게시판에 첨삭 요청으로 올리기',
-                    onTap: isLoading
-                        ? null
-                        : () => setState(() {
-                            _destination = _RequestDestination.community;
-                            _selectedFriendId = '';
-                          }),
-                  ),
-                  if (_destination == _RequestDestination.friend) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _selectedFriendId.isEmpty
+              // ── 저장 위치 ──
+              _SectionCard(
+                label: '어디에 남길까요?',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DestinationButton(
+                      selected: _destination == RequestDestination.personal,
+                      icon: Icons.edit_note_rounded,
+                      title: '내 스터디',
+                      subtitle: '혼자 쓰는 노트와 연습장에 저장',
+                      onTap: isLoading
                           ? null
-                          : _selectedFriendId,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: '친구 선택',
-                      ),
-                      items: friends
-                          .map(
-                            (Friend friend) => DropdownMenuItem<String>(
-                              value: friend.id,
-                              child: Text(friend.username),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: isLoading
-                          ? null
-                          : (value) =>
-                                setState(() => _selectedFriendId = value ?? ''),
+                          : () => setState(() {
+                              _destination = RequestDestination.personal;
+                              _selectedFriendId = '';
+                            }),
                     ),
-                    if (friendsAsync.isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    _DestinationButton(
+                      selected: _destination == RequestDestination.friend,
+                      icon: Icons.people_rounded,
+                      title: '친구 스터디',
+                      subtitle: '친구와 함께 보는 스터디 카드로 저장',
+                      onTap: isLoading
+                          ? null
+                          : () => setState(
+                              () => _destination = RequestDestination.friend,
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    _DestinationButton(
+                      selected: _destination == RequestDestination.community,
+                      icon: Icons.forum_rounded,
+                      title: '커뮤니티',
+                      subtitle: '공개 게시판에 첨삭 요청으로 올리기',
+                      onTap: isLoading
+                          ? null
+                          : () => setState(() {
+                              _destination = RequestDestination.community;
+                              _selectedFriendId = '';
+                            }),
+                    ),
+                    if (_destination == RequestDestination.friend) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _selectedFriendId.isEmpty
+                            ? null
+                            : _selectedFriendId,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: '친구 선택',
+                        ),
+                        items: friends
+                            .map(
+                              (Friend friend) => DropdownMenuItem<String>(
+                                value: friend.id,
+                                child: Text(friend.username),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: isLoading
+                            ? null
+                            : (value) => setState(
+                                () => _selectedFriendId = value ?? '',
+                              ),
                       ),
-                    if (!friendsAsync.isLoading && friends.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          '친구 탭에서 먼저 친구를 추가해 주세요.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                      if (friendsAsync.isLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: LinearProgressIndicator(),
+                        ),
+                      if (!friendsAsync.isLoading && friends.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            '친구 탭에서 먼저 친구를 추가해 주세요.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // ── 언어 선택 ──
-            if (_destination == _RequestDestination.community) ...[
-              _SectionCard(
-                label: strings.correctionLanguage,
-                child: LanguagePicker(
-                  value: _targetLanguage,
-                  variant: _targetVariant,
-                  onChanged: (code) => setState(() {
-                    _targetLanguage = code;
-                    _targetVariant = null;
-                  }),
-                  onVariantChanged: (v) => setState(() => _targetVariant = v),
                 ),
               ),
               const SizedBox(height: 16),
-            ],
 
-            // ── 내용 ──
-            if (!_isAudio) ...[
-              _SectionCard(
-                label: strings.requestContentLabel,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _textController,
-                      minLines: 4,
-                      maxLines: 8,
-                      maxLength: 1000,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: strings.requestContentPlaceholder,
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? strings.requestContentRequired
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _contextController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: strings.requestTextContextHint,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              _SectionCard(
-                label: strings.audioRecording,
-                child: Column(
-                  children: [
-                    _AudioRecorderWidget(
-                      recorder: _recorder,
-                      onStart: _startRecording,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _contextController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: strings.requestAudioContextHint,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-
-            // ── 피드백 목표 ──
-            _SectionCard(
-              label: strings.feedbackGoalOptional,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _kFeedbackGoals.map((g) {
-                  final selected = _feedbackGoals.contains(g);
-                  return FilterChip(
-                    label: Text(g),
-                    selected: selected,
-                    onSelected: (v) => setState(() {
-                      if (v) {
-                        _feedbackGoals.add(g);
-                      } else {
-                        _feedbackGoals.remove(g);
-                      }
+              // ── 언어 선택 ──
+              if (_destination == RequestDestination.community) ...[
+                _SectionCard(
+                  label: strings.correctionLanguage,
+                  child: LanguagePicker(
+                    value: _targetLanguage,
+                    variant: _targetVariant,
+                    onChanged: (code) => setState(() {
+                      _targetLanguage = code;
+                      _targetVariant = null;
                     }),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 16),
+                    onVariantChanged: (v) => setState(() => _targetVariant = v),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
-            // ── 크레딧 비용 ──
-            _CreditBanner(
-              isAudio: _isAudio,
-              isCommunity: _destination == _RequestDestination.community,
-            ),
-            const SizedBox(height: 20),
+              // ── 내용 ──
+              if (!_isAudio) ...[
+                _SectionCard(
+                  label: strings.requestContentLabel,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _textController,
+                        minLines: 4,
+                        maxLines: 8,
+                        maxLength: 1000,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          hintText: strings.requestContentPlaceholder,
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? strings.requestContentRequired
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _contextController,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          hintText: strings.requestTextContextHint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                _SectionCard(
+                  label: strings.audioRecording,
+                  child: Column(
+                    children: [
+                      _AudioRecorderWidget(
+                        recorder: _recorder,
+                        onStart: _startRecording,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _contextController,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          hintText: strings.requestAudioContextHint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
 
-            // ── 제출 ──
-            FilledButton(
-              onPressed: isLoading
-                  ? null
-                  : _canSubmit
-                  ? _submit
-                  : null,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+              // ── 피드백 목표 ──
+              _SectionCard(
+                label: strings.feedbackGoalOptional,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _kFeedbackGoals.map((g) {
+                    final selected = _feedbackGoals.contains(g);
+                    return FilterChip(
+                      label: Text(g),
+                      selected: selected,
+                      onSelected: (v) => setState(() {
+                        if (v) {
+                          _feedbackGoals.add(g);
+                        } else {
+                          _feedbackGoals.remove(g);
+                        }
+                      }),
+                    );
+                  }).toList(),
+                ),
               ),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      _destination == _RequestDestination.community
-                          ? strings.submitCorrectionRequest
-                          : '스터디에 저장',
-                    ),
-            ),
-            const SizedBox(height: 32),
-          ],
+              const SizedBox(height: 16),
+
+              // ── 크레딧 비용 ──
+              _CreditBanner(
+                isAudio: _isAudio,
+                isCommunity: _destination == RequestDestination.community,
+              ),
+              const SizedBox(height: 20),
+
+              // ── 제출 ──
+              FilledButton(
+                onPressed: isLoading
+                    ? null
+                    : _canSubmit
+                    ? _submit
+                    : null,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        _destination == RequestDestination.community
+                            ? strings.submitCorrectionRequest
+                            : '스터디에 저장',
+                      ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
   }
 
   bool get _canSubmit {
-    if (_destination == _RequestDestination.community &&
+    if (_destination == RequestDestination.community &&
         _targetLanguage.isEmpty) {
       return false;
     }
-    if (_destination == _RequestDestination.friend &&
+    if (_destination == RequestDestination.friend &&
         _selectedFriendId.isEmpty) {
       return false;
     }
@@ -370,7 +393,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_destination == _RequestDestination.community) {
+    if (_destination == RequestDestination.community) {
       await _submitCommunityRequest();
       return;
     }
@@ -486,8 +509,8 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   }
 
   Future<StudySession> _ensureStudySession(List<StudySession> sessions) async {
-    final active = sessions.where((session) => session.status == 'ACTIVE');
-    if (_destination == _RequestDestination.personal) {
+    final active = sessions;
+    if (_destination == RequestDestination.personal) {
       final existing = active
           .where((session) => session.memberIds.length == 1)
           .firstOrNull;

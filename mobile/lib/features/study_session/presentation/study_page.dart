@@ -486,7 +486,8 @@ class _TodayStudyPanel extends StatelessWidget {
               _QuickActionButton(
                 icon: Icons.forum_rounded,
                 label: '커뮤니티에 요청',
-                onTap: () => context.push(AppRoute.request),
+                onTap: () =>
+                    context.push(AppRoute.request, extra: AppRoute.study),
               ),
             ],
           ),
