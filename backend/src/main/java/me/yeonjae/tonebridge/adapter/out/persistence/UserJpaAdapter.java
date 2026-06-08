@@ -28,6 +28,16 @@ public class UserJpaAdapter implements UserPort {
     }
 
     @Override
+    public boolean existsByEmail(String email) {
+        return userJpaRepository.existsByEmail(email);
+    }
+
+    @Override
+    public boolean existsByUsername(String username) {
+        return userJpaRepository.existsByUsername(username);
+    }
+
+    @Override
     public Optional<User> findById(UUID id) {
         return userJpaRepository.findById(id).map(UserEntity::toDomain);
     }

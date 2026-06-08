@@ -89,6 +89,35 @@ api.interceptors.response.use(
   }
 )
 
+/**
+ * 이메일/비밀번호 로그인. 성공 시 accessToken을 메모리에 저장하고 refresh 쿠키가 설정됩니다.
+ * `api` 인스턴스 대신 bare axios를 사용 — 401 응답이 refresh 인터셉터 루프를 타지 않도록 함.
+ */
+export async function loginWithPassword(email: string, password: string): Promise<void> {
+  const { data } = await axios.post<{ accessToken: string }>(
+    '/api/auth/login',
+    { email, password },
+    { withCredentials: true }
+  )
+  useAuthStore.getState().setAccessToken(data.accessToken)
+}
+
+/**
+ * 이메일/비밀번호 회원가입. 성공 시 즉시 로그인 처리되어 accessToken이 저장됩니다.
+ */
+export async function registerWithPassword(
+  email: string,
+  username: string,
+  password: string
+): Promise<void> {
+  const { data } = await axios.post<{ accessToken: string }>(
+    '/api/auth/register',
+    { email, username, password },
+    { withCredentials: true }
+  )
+  useAuthStore.getState().setAccessToken(data.accessToken)
+}
+
 /** 페이지 최초 로드 시 accessToken이 없으면 쿠키로 조용히 복원을 시도합니다. */
 export async function tryRestoreSession(): Promise<boolean> {
   if (useAuthStore.getState().accessToken) return true

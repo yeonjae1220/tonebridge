@@ -3,12 +3,17 @@ package me.yeonjae.tonebridge.adapter.in.web;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.adapter.in.web.dto.AccessTokenResponse;
+import me.yeonjae.tonebridge.adapter.in.web.dto.LoginRequest;
+import me.yeonjae.tonebridge.adapter.in.web.dto.RegisterRequest;
 import me.yeonjae.tonebridge.adapter.in.web.dto.TokenResponse;
+import me.yeonjae.tonebridge.application.port.in.LoginLocalUseCase;
 import me.yeonjae.tonebridge.application.port.in.LoginWithGoogleUseCase;
 import me.yeonjae.tonebridge.application.port.in.RefreshTokenUseCase;
+import me.yeonjae.tonebridge.application.port.in.RegisterLocalUserUseCase;
 import me.yeonjae.tonebridge.application.port.out.GoogleOAuthPort;
 import me.yeonjae.tonebridge.application.port.out.OAuthStatePort;
 import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
@@ -16,7 +21,9 @@ import me.yeonjae.tonebridge.shared.config.JwtProperties;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
+import me.yeonjae.tonebridge.shared.security.LoginRateLimiter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,10 +49,13 @@ public class AuthController {
     private String sameSiteCookie;
 
     private final LoginWithGoogleUseCase loginWithGoogleUseCase;
+    private final RegisterLocalUserUseCase registerLocalUserUseCase;
+    private final LoginLocalUseCase loginLocalUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final RefreshTokenPort refreshTokenPort;
     private final GoogleOAuthPort googleOAuthPort;
     private final OAuthStatePort oAuthStatePort;
+    private final LoginRateLimiter loginRateLimiter;
     private final ToneBridgeProperties properties;
     private final JwtProperties jwtProperties;
 
@@ -82,6 +92,30 @@ public class AuthController {
             log.error("Google OAuth callback failed", e);
             response.sendRedirect(frontendUrl + "/login?error=oauth_failed");
         }
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<AccessTokenResponse> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+        loginRateLimiter.checkRegister(extractClientIp(httpRequest));
+        TokenResponse tokens = registerLocalUserUseCase.register(
+                request.email(), request.username(), request.password());
+        setRefreshCookie(response, tokens.refreshToken());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new AccessTokenResponse(tokens.accessToken()));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AccessTokenResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+        loginRateLimiter.checkLogin(extractClientIp(httpRequest), request.email());
+        TokenResponse tokens = loginLocalUseCase.loginLocal(request.email(), request.password());
+        setRefreshCookie(response, tokens.refreshToken());
+        return ResponseEntity.ok(new AccessTokenResponse(tokens.accessToken()));
     }
 
     @PostMapping("/refresh")
@@ -146,5 +180,18 @@ public class AuthController {
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * 레이트 리미트 키 산출용 클라이언트 IP.
+     * nginx/k8s 인그레스가 설정하는 X-Real-IP 를 우선 사용하고, 없으면 소켓 주소로 폴백한다.
+     * 스푸핑 가능성이 있으나 레이트 리미터는 이메일 차원 제한을 병행하므로 허용 가능한 위험.
+     */
+    private String extractClientIp(HttpServletRequest request) {
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

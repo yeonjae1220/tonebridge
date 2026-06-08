@@ -65,6 +65,14 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
     });
   }
 
+  void _goBack() {
+    if (_isSearchActive) {
+      _deactivateSearch();
+      return;
+    }
+    context.go(AppRoute.study);
+  }
+
   List<StudyCard> _applyFilter(List<StudyCard> cards) {
     var result = cards;
 
@@ -113,7 +121,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
       return AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: _deactivateSearch,
+          onPressed: _goBack,
         ),
         title: TextField(
           controller: _searchController,
@@ -138,6 +146,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
     }
 
     return AppBar(
+      leading: BackButton(onPressed: _goBack),
       title: const Text('카드 목록'),
       actions: [
         IconButton(
@@ -224,113 +233,120 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
   Widget build(BuildContext context) {
     final cardsAsync = ref.watch(sessionCardsProvider(widget.sessionId));
 
-    return GestureDetector(
-      onTap: _fabExpanded ? _closeFab : null,
-      child: Scaffold(
-        appBar: _buildAppBar(),
-        body: cardsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('오류: $e')),
-          data: (allCards) {
-            final cards = _applyFilter(allCards);
-            final noAudio = allCards
-                .where((c) => c.cardStatus == CardStatus.noAudio)
-                .length;
-            final recorded = allCards
-                .where((c) => c.cardStatus == CardStatus.recorded)
-                .length;
-            final corrected = allCards
-                .where((c) => c.cardStatus == CardStatus.corrected)
-                .length;
-            final canReorder =
-                !_isSearchActive && _sortOrder == _CardSort.manual;
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _goBack();
+      },
+      child: GestureDetector(
+        onTap: _fabExpanded ? _closeFab : null,
+        child: Scaffold(
+          appBar: _buildAppBar(),
+          body: cardsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('오류: $e')),
+            data: (allCards) {
+              final cards = _applyFilter(allCards);
+              final noAudio = allCards
+                  .where((c) => c.cardStatus == CardStatus.noAudio)
+                  .length;
+              final recorded = allCards
+                  .where((c) => c.cardStatus == CardStatus.recorded)
+                  .length;
+              final corrected = allCards
+                  .where((c) => c.cardStatus == CardStatus.corrected)
+                  .length;
+              final canReorder =
+                  !_isSearchActive && _sortOrder == _CardSort.manual;
 
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _ProgressHeader(
-                    total: allCards.length,
-                    corrected: corrected,
-                    recorded: recorded,
-                    noAudio: noAudio,
-                  ),
-                ),
-                if (_isSearchActive && _searchQuery.isNotEmpty)
+              return CustomScrollView(
+                slivers: [
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                      child: Text(
-                        '검색 결과 ${cards.length}개',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.outline,
-                          fontSize: 13,
+                    child: _ProgressHeader(
+                      total: allCards.length,
+                      corrected: corrected,
+                      recorded: recorded,
+                      noAudio: noAudio,
+                    ),
+                  ),
+                  if (_isSearchActive && _searchQuery.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        child: Text(
+                          '검색 결과 ${cards.length}개',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.outline,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (allCards.isEmpty)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: Text(
-                        '아직 카드가 없어요.\n아래 버튼으로 첫 카드를 추가해보세요!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
+                  if (allCards.isEmpty)
+                    const SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          '아직 카드가 없어요.\n아래 버튼으로 첫 카드를 추가해보세요!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ),
-                    ),
-                  )
-                else if (cards.isEmpty)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: Text(
-                        '검색 결과가 없어요.',
-                        style: TextStyle(color: Colors.grey),
+                    )
+                  else if (cards.isEmpty)
+                    const SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          '검색 결과가 없어요.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ),
-                    ),
-                  )
-                else if (canReorder)
-                  SliverToBoxAdapter(
-                    child: ReorderableListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                    )
+                  else if (canReorder)
+                    SliverToBoxAdapter(
+                      child: ReorderableListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                        itemCount: cards.length,
+                        onReorder: (oldIndex, newIndex) =>
+                            _moveWithinSession(cards, oldIndex, newIndex),
+                        itemBuilder: (_, i) => _CardListItem(
+                          key: ValueKey(cards[i].id),
+                          card: cards[i],
+                          sessionId: widget.sessionId,
+                          showDragHandle: true,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                      itemCount: cards.length,
-                      onReorder: (oldIndex, newIndex) =>
-                          _moveWithinSession(cards, oldIndex, newIndex),
-                      itemBuilder: (_, i) => _CardListItem(
-                        key: ValueKey(cards[i].id),
-                        card: cards[i],
-                        sessionId: widget.sessionId,
-                        showDragHandle: true,
+                      sliver: SliverList.builder(
+                        itemCount: cards.length,
+                        itemBuilder: (_, i) => _CardListItem(
+                          key: ValueKey(cards[i].id),
+                          card: cards[i],
+                          sessionId: widget.sessionId,
+                        ),
                       ),
                     ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                    sliver: SliverList.builder(
-                      itemCount: cards.length,
-                      itemBuilder: (_, i) => _CardListItem(
-                        key: ValueKey(cards[i].id),
-                        card: cards[i],
-                        sessionId: widget.sessionId,
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        floatingActionButton: SpeedDialFab(
-          expanded: _fabExpanded,
-          onToggle: _toggleFab,
-          onTextCard: () {
-            _closeFab();
-            _showAddCardSheet(context);
-          },
-          onVoiceCard: () {
-            _closeFab();
-            _showVoiceCardSheet(context);
-          },
+                ],
+              );
+            },
+          ),
+          floatingActionButton: SpeedDialFab(
+            expanded: _fabExpanded,
+            onToggle: _toggleFab,
+            onTextCard: () {
+              _closeFab();
+              _showAddCardSheet(context);
+            },
+            onVoiceCard: () {
+              _closeFab();
+              _showVoiceCardSheet(context);
+            },
+          ),
         ),
       ),
     );

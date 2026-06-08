@@ -129,7 +129,12 @@ GoRouter appRouter(Ref ref) {
       ),
       GoRoute(
         path: AppRoute.request,
-        builder: (context, state) => const RequestPage(),
+        builder: (context, state) {
+          final returnRoute = state.extra == AppRoute.study
+              ? AppRoute.study
+              : AppRoute.community;
+          return RequestPage(returnRoute: returnRoute);
+        },
       ),
       GoRoute(
         path: AppRoute.admin,
