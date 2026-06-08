@@ -348,7 +348,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
         ref.read(studySessionListStateProvider).asData?.value ?? [];
     StudySession? personal;
     for (final session in sessions) {
-      if (session.status == 'ACTIVE' && session.memberIds.length == 1) {
+      if (session.memberIds.length == 1) {
         personal = session;
         break;
       }
@@ -397,10 +397,7 @@ class _TodayStudyPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final sessions = sessionsAsync.asData?.value ?? const <StudySession>[];
     final friends = friendsAsync.asData?.value ?? const <Friend>[];
-    final activeSessions = sessions
-        .where((session) => session.status == 'ACTIVE')
-        .length;
-    final todoCount = activeSessions + friends.length;
+    final todoCount = sessions.length + friends.length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -429,9 +426,9 @@ class _TodayStudyPanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        activeSessions == 0
+                        sessions.isEmpty
                             ? '떠오른 표현을 먼저 내 연습장에 기록해보세요.'
-                            : '진행 중인 연습과 기록할 표현을 한 곳에 모았어요.',
+                            : '연습과 기록할 표현을 한 곳에 모았어요.',
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

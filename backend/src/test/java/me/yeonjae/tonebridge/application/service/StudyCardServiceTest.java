@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -77,19 +78,21 @@ class StudyCardServiceTest {
     }
 
     @Test
-    void cannotCreateCardInEndedSession() {
+    void canCreateCardInLegacyEndedSession() {
         UUID sessionId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
+        StudyCard savedCard = card(UUID.randomUUID(), sessionId, creatorId, null);
 
         when(sessionPort.findById(sessionId)).thenReturn(Optional.of(session(sessionId, creatorId, SessionStatus.ENDED)));
+        when(cardPort.findBySessionId(sessionId)).thenReturn(List.of());
+        when(cardPort.save(org.mockito.ArgumentMatchers.any())).thenReturn(savedCard);
 
-        assertThatThrownBy(() -> service.create(new CreateStudyCardUseCase.Command(
+        StudyCard result = service.create(new CreateStudyCardUseCase.Command(
                 sessionId, creatorId, "hello", null, List.of()
-        )))
-                .isInstanceOf(ToneBridgeException.class)
-                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
-                .isEqualTo(ErrorCode.SESSION_ALREADY_ENDED);
-        verify(cardPort, never()).save(org.mockito.ArgumentMatchers.any());
+        ));
+
+        assertThat(result).isEqualTo(savedCard);
+        verify(cardPort).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -161,7 +164,7 @@ class StudyCardServiceTest {
     }
 
     @Test
-    void cannotMoveCardIntoEndedSession() {
+    void canMoveCardIntoLegacyEndedSession() {
         UUID creatorId = UUID.randomUUID();
         UUID cardId = UUID.randomUUID();
         UUID sourceSessionId = UUID.randomUUID();
@@ -173,14 +176,16 @@ class StudyCardServiceTest {
                 .thenReturn(Optional.of(session(sourceSessionId, creatorId, SessionStatus.ACTIVE)));
         when(sessionPort.findById(targetSessionId))
                 .thenReturn(Optional.of(session(targetSessionId, creatorId, SessionStatus.ENDED)));
+        when(attemptPort.findByCardId(cardId)).thenReturn(List.of());
+        when(nativeAudioPort.findAllByCardId(cardId)).thenReturn(List.of());
+        when(cardPort.move(cardId, targetSessionId, 0)).thenReturn(card);
 
-        assertThatThrownBy(() -> service.move(new MoveStudyCardUseCase.Command(
+        StudyCard result = service.move(new MoveStudyCardUseCase.Command(
                 cardId, creatorId, targetSessionId, 0
-        )))
-                .isInstanceOf(ToneBridgeException.class)
-                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
-                .isEqualTo(ErrorCode.SESSION_ALREADY_ENDED);
-        verify(cardPort, never()).move(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+        ));
+
+        assertThat(result).isEqualTo(card);
+        verify(cardPort).move(cardId, targetSessionId, 0);
     }
 
     private StudyCard card(UUID cardId, UUID sessionId, UUID creatorId, String nativeAudioUrl) {

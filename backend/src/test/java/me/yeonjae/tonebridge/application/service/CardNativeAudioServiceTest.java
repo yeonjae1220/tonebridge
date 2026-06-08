@@ -8,8 +8,6 @@ import me.yeonjae.tonebridge.application.port.out.StudySessionPort;
 import me.yeonjae.tonebridge.domain.session.SessionStatus;
 import me.yeonjae.tonebridge.domain.session.StudySession;
 import me.yeonjae.tonebridge.domain.studycard.StudyCard;
-import me.yeonjae.tonebridge.shared.exception.ErrorCode;
-import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,8 +20,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,7 +88,7 @@ class CardNativeAudioServiceTest {
     }
 
     @Test
-    void cannotCreateNativeAudioUploadUrlForEndedSession() {
+    void canCreateNativeAudioUploadUrlForLegacyEndedSession() {
         UUID cardId = UUID.randomUUID();
         UUID uploaderId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
@@ -108,18 +104,16 @@ class CardNativeAudioServiceTest {
 
         when(cardPort.findById(cardId)).thenReturn(Optional.of(card));
         when(sessionPort.findById(sessionId)).thenReturn(Optional.of(endedSession));
+        when(storagePort.generatePresignedUploadUrl(
+                "native_123.webm", "audio/webm", Duration.ofMinutes(15)))
+                .thenReturn(new StoragePort.PresignedUpload("https://upload.example", "audio/key.webm"));
 
-        assertThatThrownBy(() -> service.getUploadUrl(new AddCardNativeAudioUseCase.GetUrlCommand(
+        service.getUploadUrl(new AddCardNativeAudioUseCase.GetUrlCommand(
                 cardId, uploaderId, "native_123.webm"
-        )))
-                .isInstanceOf(ToneBridgeException.class)
-                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
-                .isEqualTo(ErrorCode.SESSION_ALREADY_ENDED);
-        verify(storagePort, never()).generatePresignedUploadUrl(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any()
-        );
+        ));
+
+        verify(storagePort).generatePresignedUploadUrl(
+                "native_123.webm", "audio/webm", Duration.ofMinutes(15));
     }
 
     private StudyCard card(UUID cardId, UUID sessionId, UUID creatorId) {

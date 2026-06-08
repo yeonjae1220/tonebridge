@@ -73,11 +73,6 @@ export default function StudyPage() {
     onError: () => setCreateError(t('study.createFailed')),
   })
 
-  const endMutation = useMutation({
-    mutationFn: (sessionId: string) => api.patch(`/sessions/${sessionId}/end`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
-  })
-
   const updateMutation = useMutation({
     mutationFn: ({ sessionId, title }: { sessionId: string; title: string | null }) =>
       api.patch(`/sessions/${sessionId}`, { title }),
@@ -104,12 +99,10 @@ export default function StudyPage() {
 
   if (!accessToken) return null
 
-  const activeSessions = sessions.filter((s) => s.status === 'ACTIVE')
-  const endedSessions = sessions.filter((s) => s.status === 'ENDED')
-  const personalSessions = activeSessions.filter((s) => s.memberIds.length === 1)
-  const friendSessions = activeSessions.filter((s) => s.memberIds.length > 1)
+  const personalSessions = sessions.filter((s) => s.memberIds.length === 1)
+  const friendSessions = sessions.filter((s) => s.memberIds.length > 1)
   const personalSession = personalSessions[0]
-  const todoCount = pendingRequests.length + activeSessions.length
+  const todoCount = pendingRequests.length + sessions.length
 
   const openPersonalPractice = () => {
     if (personalSession) {
@@ -149,7 +142,7 @@ export default function StudyPage() {
               {todoCount}
             </span>
           </div>
-          {pendingRequests.length === 0 && activeSessions.length === 0 ? (
+          {pendingRequests.length === 0 && sessions.length === 0 ? (
             <p className="text-sm text-gray-500">{t('study.allCaughtUp')}</p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -188,7 +181,6 @@ export default function StudyPage() {
                   <span className="text-sm font-semibold text-gray-700 truncate">
                     {session.title ?? t('study.practiceDefault')}
                   </span>
-                  <span className="text-xs text-green-600 font-semibold">{t('study.active')}</span>
                 </button>
               ))}
             </div>
@@ -375,18 +367,12 @@ export default function StudyPage() {
                         key={session.id}
                         session={session}
                         onOpen={() => router.push(`/study/${session.id}`)}
-                        onEnd={canManage ? () => {
-                          if (window.confirm(t('study.confirmEnd'))) {
-                            endMutation.mutate(session.id)
-                          }
-                        } : undefined}
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm(t('study.confirmDelete'))) {
                             deleteMutation.mutate(session.id)
                           }
                         } : undefined}
-                        ending={endMutation.isPending}
                       />
                     )
                   })}
@@ -405,37 +391,6 @@ export default function StudyPage() {
                         key={session.id}
                         session={session}
                         onOpen={() => router.push(`/study/${session.id}`)}
-                        onEnd={canManage ? () => {
-                          if (window.confirm(t('study.confirmEnd'))) {
-                            endMutation.mutate(session.id)
-                          }
-                        } : undefined}
-                        onRename={canManage ? () => setRenamingSession(session) : undefined}
-                        onDelete={canManage ? () => {
-                          if (window.confirm(t('study.confirmDelete'))) {
-                            deleteMutation.mutate(session.id)
-                          }
-                        } : undefined}
-                        ending={endMutation.isPending}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            {endedSessions.length > 0 && (
-              <section>
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">{t('study.ended')} ({endedSessions.length})</h2>
-                <div className="flex flex-col gap-3">
-                  {endedSessions.map((session) => {
-                    const canManage = currentUser?.id === session.createdBy
-                    return (
-                      <SessionCard
-                        key={session.id}
-                        session={session}
-                        onOpen={() => router.push(`/study/${session.id}`)}
-                        ended
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm(t('study.confirmDelete'))) {
@@ -516,14 +471,11 @@ function RenameSessionSheet({
 interface SessionCardProps {
   session: StudySession
   onOpen: () => void
-  onEnd?: () => void
   onRename?: () => void
   onDelete?: () => void
-  ending?: boolean
-  ended?: boolean
 }
 
-function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended }: SessionCardProps) {
+function SessionCard({ session, onOpen, onRename, onDelete }: SessionCardProps) {
   const { language, t } = useI18n()
   return (
     <div className="bg-surface rounded-2xl border border-gray-100 p-4">
@@ -534,17 +486,6 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
           </p>
           <p className="text-xs text-gray-400 mt-1">{formatDate(session.createdAt, language)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}</p>
         </button>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {!ended && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-              {t('study.active')}
-            </span>
-          )}
-          {ended && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">{t('study.ended')}</span>
-          )}
-        </div>
       </div>
       <div className="flex gap-2 mt-3">
         <button
@@ -553,15 +494,6 @@ function SessionCard({ session, onOpen, onEnd, onRename, onDelete, ending, ended
         >
           {t('study.openCards')}
         </button>
-        {!ended && onEnd && (
-          <button
-            onClick={onEnd}
-            disabled={ending}
-            className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-colors"
-          >
-            {t('study.endSession')}
-          </button>
-        )}
         {onRename && (
           <button
             onClick={onRename}

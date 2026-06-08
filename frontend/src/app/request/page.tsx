@@ -134,7 +134,7 @@ export default function RequestPage() {
 
   const ensureStudySession = async (payload: SubmitPayload) => {
     if (payload.destination === 'PERSONAL') {
-      const existing = sessions.find((session) => session.status === 'ACTIVE' && session.memberIds.length === 1)
+      const existing = sessions.find((session) => session.memberIds.length === 1)
       if (existing) return existing
       const { data } = await api.post<StudySession>('/sessions', { title: t('study.personalDefault') })
       return data
@@ -142,7 +142,6 @@ export default function RequestPage() {
 
     if (!payload.selectedFriendId) throw new Error('NO_FRIEND')
     const existing = sessions.find((session) =>
-      session.status === 'ACTIVE' &&
       session.memberIds.length > 1 &&
       session.memberIds.includes(payload.selectedFriendId),
     )

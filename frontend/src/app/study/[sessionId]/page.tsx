@@ -108,21 +108,16 @@ export default function StudySessionPage() {
               {session && (
                 <p className="text-xs text-gray-400">
                   {formatDate(session.createdAt, language)} · {t('study.members')} {session.memberIds.length}{t('friends.count')}
-                  {session.status === 'ACTIVE' && (
-                    <span className="ml-2 text-green-600 font-medium">{t('study.active')}</span>
-                  )}
                 </p>
               )}
             </div>
           )}
-          {session?.status === 'ACTIVE' && (
-            <button
-              onClick={() => setCardSheet({ mode: 'create' })}
-              className="px-3 py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
-            >
-              {t('study.cards.add')}
-            </button>
-          )}
+          <button
+            onClick={() => setCardSheet({ mode: 'create' })}
+            className="px-3 py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+          >
+            {t('study.cards.add')}
+          </button>
         </div>
 
         {cardsError ? (
@@ -141,14 +136,12 @@ export default function StudySessionPage() {
             <p className="text-4xl mb-3">🃏</p>
             <p className="text-sm font-semibold text-gray-700">{t('study.cards.emptyTitle')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('study.cards.emptySubtitle')}</p>
-            {session?.status === 'ACTIVE' && (
-              <button
-                onClick={() => setCardSheet({ mode: 'create' })}
-                className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
-              >
-                {t('study.cards.first')}
-              </button>
-            )}
+            <button
+              onClick={() => setCardSheet({ mode: 'create' })}
+              className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+            >
+              {t('study.cards.first')}
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -277,7 +270,7 @@ export default function StudySessionPage() {
       {movingCard && (
         <MoveCardSheet
           card={movingCard}
-          sessions={sessions.filter((item) => item.status === 'ACTIVE')}
+          sessions={sessions}
           currentSessionId={sessionId}
           pending={moveCardMutation.isPending}
           onClose={() => setMovingCard(null)}

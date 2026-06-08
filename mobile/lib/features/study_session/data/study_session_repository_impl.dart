@@ -46,14 +46,6 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   }
 
   @override
-  Future<StudySession> endSession(String sessionId) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
-      '/api/sessions/$sessionId/end',
-    );
-    return StudySession.fromJson(response.data!);
-  }
-
-  @override
   Future<StudySession> updateSession(String sessionId, {String? title}) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/api/sessions/$sessionId',

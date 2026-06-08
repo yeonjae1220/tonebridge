@@ -25,13 +25,6 @@ class StudySessionListState extends _$StudySessionListState {
     return session;
   }
 
-  Future<StudySession> endSession(String sessionId) async {
-    final repo = ref.read(studySessionRepositoryProvider);
-    final session = await repo.endSession(sessionId);
-    state = AsyncData(await repo.getSessions());
-    return session;
-  }
-
   Future<StudySession> updateSession(String sessionId, {String? title}) async {
     final repo = ref.read(studySessionRepositoryProvider);
     final session = await repo.updateSession(sessionId, title: title);

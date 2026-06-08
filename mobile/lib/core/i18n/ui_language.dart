@@ -1376,9 +1376,9 @@ class ToneBridgeStrings {
   });
 
   String get noSessions => _pick({
-    'ko': '아직 같이 연습 중인 친구가 없어요.\n친구를 골라 첫 표현을 주고받아보세요.',
+    'ko': '아직 같이 연습하는 친구가 없어요.\n친구를 골라 첫 표현을 주고받아보세요.',
     'en':
-        'No active practice yet.\nPick a friend and exchange your first phrase.',
+        'No practice yet.\nPick a friend and exchange your first phrase.',
     'ja': 'セッションはまだありません。\n友達と学習を始めましょう！',
     'zh': '还没有会话。\n和好友一起开始学习吧！',
     'es': 'Aún no hay sesiones.\n¡Empieza a estudiar con un amigo!',
@@ -1614,15 +1614,15 @@ class ToneBridgeStrings {
   });
 
   String get sessionAlreadyExists => _pick({
-    'ko': '이미 해당 친구와 진행 중인 연습이 있어요.',
-    'en': 'You already have active practice with this friend.',
+    'ko': '이미 해당 친구와 연습장이 있어요.',
+    'en': 'You already have practice with this friend.',
     'ja': 'この友達とは進行中のセッションがあります。',
     'zh': '你已经和这位好友有进行中的会话。',
     'es': 'Ya tienes una sesión activa con este amigo.',
-    'fr': 'Vous avez déjà une session active avec cet ami.',
-    'de': 'Mit diesem Freund gibt es bereits eine aktive Sitzung.',
-    'pt': 'Você já tem uma sessão ativa com esse amigo.',
-    'ru': 'У вас уже есть активная сессия с этим другом.',
+    'fr': 'Vous avez déjà une session avec cet ami.',
+    'de': 'Mit diesem Freund gibt es bereits eine Sitzung.',
+    'pt': 'Você já tem uma sessão com esse amigo.',
+    'ru': 'У вас уже есть сессия с этим другом.',
   });
 
   String get sessionCreateFailed => _pick({
