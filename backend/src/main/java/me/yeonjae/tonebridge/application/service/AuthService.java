@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.application.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.adapter.in.web.dto.TokenResponse;
@@ -31,6 +32,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -48,6 +50,18 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
     private final JwtProperties jwtProperties;
     private final ToneBridgeProperties properties;
 
+    /**
+     * loginLocal의 "계정 없음/비-LOCAL 계정" 경로에서 비교할 더미 해시.
+     * 실제 계정 비교와 동일한 BCrypt 비용을 지불해 응답 지연 차이로
+     * 이메일 존재 여부가 드러나는 타이밍 사이드채널을 막는다.
+     */
+    private String dummyPasswordHash;
+
+    @PostConstruct
+    void initDummyPasswordHash() {
+        dummyPasswordHash = passwordHasherPort.encode("tonebridge-constant-time-dummy-password");
+    }
+
     @Override
     @Transactional
     public TokenResponse login(String code, String redirectUri) {
@@ -61,8 +75,11 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
     }
 
     private TokenResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
-        User user = userPort.findByEmail(googleUser.email())
-                .orElseGet(() -> registerNewUser(googleUser));
+        // LOCAL 가입과 동일하게 정규화된 이메일로 조회/저장한다 — 대소문자 표기가 다른
+        // 동일 이메일이 별개 계정으로 분기되거나 상호 조회에 실패하는 것을 방지.
+        String normalizedEmail = normalizeEmail(googleUser.email());
+        User user = userPort.findByEmail(normalizedEmail)
+                .orElseGet(() -> registerNewUser(normalizedEmail));
         return issueTokens(user.id());
     }
 
@@ -86,13 +103,16 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
     public TokenResponse loginLocal(String email, String rawPassword) {
         // 실패 사유(이메일 미존재 / 소셜 계정 / 비밀번호 불일치)를 구분하지 않고
         // 동일한 LOGIN_FAILED 로 응답 — 계정 열거(account enumeration) 방지.
-        User user = userPort.findByEmail(normalizeEmail(email))
-                .orElseThrow(() -> new ToneBridgeException(ErrorCode.LOGIN_FAILED));
-        if (!user.isLocalAccount()
-                || !passwordHasherPort.matches(rawPassword, user.passwordHash())) {
+        // 계정 미존재/비-LOCAL 경로에서도 더미 해시로 BCrypt 비교를 수행해 두 경로의
+        // 응답 시간을 맞춘다 — 그렇지 않으면 비교를 건너뛰는 쪽이 더 빨리 응답해
+        // 타이밍으로 이메일 존재 여부가 드러난다.
+        Optional<User> localUser = userPort.findByEmail(normalizeEmail(email)).filter(User::isLocalAccount);
+        String hashToCompare = localUser.map(User::passwordHash).orElse(dummyPasswordHash);
+        boolean passwordMatches = passwordHasherPort.matches(rawPassword, hashToCompare);
+        if (localUser.isEmpty() || !passwordMatches) {
             throw new ToneBridgeException(ErrorCode.LOGIN_FAILED);
         }
-        return issueTokens(user.id());
+        return issueTokens(localUser.get().id());
     }
 
     @Override
@@ -109,9 +129,9 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
         return issueTokens(userId);
     }
 
-    private User registerNewUser(GoogleUserInfo googleUser) {
-        String username = generateUsername(googleUser.email());
-        return createUser(googleUser.email(), username, OAuthProvider.GOOGLE, null);
+    private User registerNewUser(String normalizedEmail) {
+        String username = generateUsername(normalizedEmail);
+        return createUser(normalizedEmail, username, OAuthProvider.GOOGLE, null);
     }
 
     /**

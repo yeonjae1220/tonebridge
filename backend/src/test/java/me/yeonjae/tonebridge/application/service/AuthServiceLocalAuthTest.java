@@ -57,8 +57,10 @@ class AuthServiceLocalAuthTest {
 
     @BeforeEach
     void setUp() {
+        when(passwordHasherPort.encode("tonebridge-constant-time-dummy-password")).thenReturn("DUMMY_HASH");
         authService = new AuthService(userPort, creditPort, googleOAuthPort, refreshTokenPort,
                 passwordHasherPort, jwtProvider, jwtProperties, properties);
+        authService.initDummyPasswordHash();
     }
 
     private User localUser(UUID id, String email, String username, String passwordHash) {
@@ -101,7 +103,9 @@ class AuthServiceLocalAuthTest {
         assertThatThrownBy(() -> authService.register("Alice@Example.com", "alice", "Str0ng!pw"))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.EMAIL_ALREADY_EXISTS);
-        verify(passwordHasherPort, never()).encode(anyString());
+        // setUp()의 @PostConstruct가 더미 해시를 인코딩하므로 encode(anyString())는 이미 호출된 상태 —
+        // 여기서 확인할 것은 "실제 입력 비밀번호"가 해시되지 않았다는 점이다.
+        verify(passwordHasherPort, never()).encode("Str0ng!pw");
     }
 
     @Test
@@ -135,13 +139,16 @@ class AuthServiceLocalAuthTest {
     }
 
     @Test
-    @DisplayName("loginLocal: 존재하지 않는 이메일은 LOGIN_FAILED")
+    @DisplayName("loginLocal: 존재하지 않는 이메일은 LOGIN_FAILED — 더미 해시로 비교해 응답 시간을 맞춘다")
     void loginLocal_unknownEmail_throwsLoginFailed() {
         when(userPort.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+        when(passwordHasherPort.matches("whatever1!A", "DUMMY_HASH")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.loginLocal("ghost@example.com", "whatever1!A"))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.LOGIN_FAILED);
+        // 계정이 없어도 더미 해시와 BCrypt 비교를 수행해 동일한 비용을 지불한다 — 타이밍 사이드채널 방지
+        verify(passwordHasherPort).matches("whatever1!A", "DUMMY_HASH");
     }
 
     @Test
@@ -165,10 +172,12 @@ class AuthServiceLocalAuthTest {
                 null, Map.of(), Map.of(), 30, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), false,
                 OAuthProvider.GOOGLE, null);
         when(userPort.findByEmail("alice@example.com")).thenReturn(Optional.of(googleUser));
+        when(passwordHasherPort.matches("Str0ng!pw", "DUMMY_HASH")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.loginLocal("alice@example.com", "Str0ng!pw"))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.LOGIN_FAILED);
-        verify(passwordHasherPort, never()).matches(anyString(), anyString());
+        // GOOGLE 계정의 passwordHash(null)가 아닌 더미 해시로 비교한다 — 계정 존재 여부가 타이밍으로 드러나지 않도록
+        verify(passwordHasherPort).matches("Str0ng!pw", "DUMMY_HASH");
     }
 }
