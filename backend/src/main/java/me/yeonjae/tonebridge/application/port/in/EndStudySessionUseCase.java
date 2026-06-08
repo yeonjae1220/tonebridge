@@ -6,6 +6,6 @@ import java.util.UUID;
 
 public interface EndStudySessionUseCase {
 
-    /** Marks the session as ENDED. Only a session member may end it. */
+    /** Compatibility endpoint. Sessions are no longer ended; only membership is checked. */
     StudySession end(UUID sessionId, UUID requesterId);
 }

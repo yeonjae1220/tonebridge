@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,5 +76,26 @@ class StudySessionServiceTest {
         assertThat(result.memberIds()).containsExactly(creatorId);
         verify(userPort, never()).findById(any());
         verify(friendPort, never()).findAcceptedBetween(any(), any());
+    }
+
+    @Test
+    void endSessionIsCompatibilityNoop() {
+        UUID sessionId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        StudySession session = new StudySession(
+                sessionId,
+                "study",
+                memberId,
+                List.of(memberId),
+                SessionStatus.ACTIVE,
+                Instant.now()
+        );
+
+        when(sessionPort.findById(sessionId)).thenReturn(Optional.of(session));
+
+        StudySession result = service.end(sessionId, memberId);
+
+        assertThat(result).isEqualTo(session);
+        verify(sessionPort, never()).save(any());
     }
 }

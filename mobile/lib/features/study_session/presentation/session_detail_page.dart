@@ -26,7 +26,7 @@ extension _CardSortLabel on _CardSort {
 
 // ── Session Detail Page ───────────────────────────────────────────────────────
 
-enum _SessionMenu { renameSession, endSession, deleteSession }
+enum _SessionMenu { renameSession, deleteSession }
 
 class SessionDetailPage extends ConsumerStatefulWidget {
   const SessionDetailPage({super.key, required this.sessionId});
@@ -186,8 +186,6 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
             onSelected: (item) {
               if (item == _SessionMenu.renameSession) {
                 _showRenameSessionSheet(context);
-              } else if (item == _SessionMenu.endSession) {
-                _confirmEndSession(context);
               } else if (item == _SessionMenu.deleteSession) {
                 _confirmDeleteSession(context);
               }
@@ -200,16 +198,6 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
                     Icon(Icons.edit_outlined),
                     SizedBox(width: 8),
                     Text('세션 이름 수정'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: _SessionMenu.endSession,
-                child: Row(
-                  children: [
-                    Icon(Icons.stop_circle_outlined),
-                    SizedBox(width: 8),
-                    Text('세션 종료'),
                   ],
                 ),
               ),
@@ -374,40 +362,6 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('카드 이동 실패: $e')));
-    }
-  }
-
-  Future<void> _confirmEndSession(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('세션 종료'),
-        content: const Text('세션을 종료하면 더 이상 카드를 추가하거나 수정할 수 없습니다.\n종료하시겠어요?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('종료'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref
-          .read(studySessionListStateProvider.notifier)
-          .endSession(widget.sessionId);
-      if (!context.mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('세션이 종료되었습니다')));
-      context.pop();
-    } on Exception catch (e) {
-      if (!context.mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('오류: $e')));
     }
   }
 
@@ -785,9 +739,7 @@ class _CardListItem extends ConsumerWidget {
           child: Center(child: Text('세션을 불러오지 못했어요: $e')),
         ),
         data: (sessions) {
-          final targets = sessions
-              .where((s) => s.id != sessionId && s.status == 'ACTIVE')
-              .toList();
+          final targets = sessions.where((s) => s.id != sessionId).toList();
           return Padding(
             padding: const EdgeInsets.all(20),
             child: Column(

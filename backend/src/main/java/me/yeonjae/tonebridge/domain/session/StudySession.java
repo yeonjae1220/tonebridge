@@ -15,12 +15,4 @@ public record StudySession(
     public boolean hasMember(UUID userId) {
         return memberIds.contains(userId);
     }
-
-    public boolean isActive() {
-        return status == SessionStatus.ACTIVE;
-    }
-
-    public StudySession withStatus(SessionStatus newStatus) {
-        return new StudySession(id, title, createdBy, memberIds, newStatus, createdAt);
-    }
 }

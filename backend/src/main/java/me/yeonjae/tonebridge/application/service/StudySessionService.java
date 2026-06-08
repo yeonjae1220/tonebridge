@@ -91,10 +91,7 @@ public class StudySessionService implements
         if (!session.hasMember(requesterId)) {
             throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
         }
-        if (!session.isActive()) {
-            throw new ToneBridgeException(ErrorCode.SESSION_ALREADY_ENDED);
-        }
-        return sessionPort.save(session.withStatus(SessionStatus.ENDED));
+        return session;
     }
 
     @Override

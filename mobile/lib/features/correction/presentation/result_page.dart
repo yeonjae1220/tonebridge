@@ -346,7 +346,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
       builder: (_) => _SaveCardSheet(
         correction: correction,
         request: request,
-        sessions: sessions.where((s) => s.status == 'ACTIVE').toList(),
+        sessions: sessions,
         onSaved: () {
           ref.invalidate(studySessionListStateProvider);
           for (final session in sessions) {

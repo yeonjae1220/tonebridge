@@ -7,7 +7,6 @@ abstract interface class StudySessionRepository {
   Future<List<StudySession>> getSessions();
   Future<StudySession> getSession(String sessionId);
   Future<StudySession> createSession(String? friendId, {String? title});
-  Future<StudySession> endSession(String sessionId);
   Future<StudySession> updateSession(String sessionId, {String? title});
   Future<void> deleteSession(String sessionId);
   Future<StudyCard> getCard(String cardId);

@@ -86,7 +86,6 @@ public class StudyCardService implements
     public StudyCard create(CreateStudyCardUseCase.Command command) {
         StudySession session = requireSession(command.sessionId());
         requireMemberInSession(session, command.creatorId());
-        requireActive(session);
 
         int nextPosition = cardPort.findBySessionId(command.sessionId()).size();
         StudyCard card = new StudyCard(null, command.sessionId(), command.creatorId(),
@@ -107,7 +106,7 @@ public class StudyCardService implements
     public UploadUrlResult getUploadUrl(GetUrlCommand command) {
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
-        requireActiveMember(card.sessionId(), command.uploaderId());
+        requireMember(card.sessionId(), command.uploaderId());
         var presigned = storagePort.generatePresignedUploadUrl(
                 command.fileName(),
                 AudioContentTypes.fromFileName(command.fileName()),
@@ -119,7 +118,7 @@ public class StudyCardService implements
     public StudyCard upload(UploadNativeAudioUseCase.Command command) {
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
-        requireActiveMember(card.sessionId(), command.uploaderId());
+        requireMember(card.sessionId(), command.uploaderId());
         return cardPort.save(card.withNativeAudio(command.audioKey()));
     }
 
@@ -148,7 +147,7 @@ public class StudyCardService implements
             throw new ToneBridgeException(ErrorCode.CANNOT_ATTEMPT_OWN_CARD);
         }
 
-        requireActiveMember(card.sessionId(), command.learnerId());
+        requireMember(card.sessionId(), command.learnerId());
 
         LearnerAttempt attempt = new LearnerAttempt(
                 null, command.cardId(), command.learnerId(), command.audioKey(), null, null, null);
@@ -165,7 +164,7 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(attempt.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
 
-        requireActiveMember(card.sessionId(), command.reviewerId());
+        requireMember(card.sessionId(), command.reviewerId());
 
         LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score()));
 
@@ -183,7 +182,7 @@ public class StudyCardService implements
     public StudyCard updateNote(UUID cardId, UUID requesterId, String note) {
         StudyCard card = cardPort.findById(cardId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
-        requireActiveMember(card.sessionId(), requesterId);
+        requireMember(card.sessionId(), requesterId);
         return cardPort.save(card.withNote(note));
     }
 
@@ -192,7 +191,7 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireCardCreator(card, command.requesterId());
-        requireActiveMember(card.sessionId(), command.requesterId());
+        requireMember(card.sessionId(), command.requesterId());
         return cardPort.updateContent(
                 command.cardId(),
                 command.phrase(),
@@ -206,8 +205,8 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireCardCreator(card, command.requesterId());
-        StudySession sourceSession = requireActiveMember(card.sessionId(), command.requesterId());
-        StudySession targetSession = requireActiveMember(command.targetSessionId(), command.requesterId());
+        StudySession sourceSession = requireMember(card.sessionId(), command.requesterId());
+        StudySession targetSession = requireMember(command.targetSessionId(), command.requesterId());
         if (!sourceSession.id().equals(targetSession.id()) && hasLearningHistory(card)) {
             throw new ToneBridgeException(ErrorCode.CARD_HAS_HISTORY);
         }
@@ -219,7 +218,7 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(cardId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireCardCreator(card, requesterId);
-        requireActiveMember(card.sessionId(), requesterId);
+        requireMember(card.sessionId(), requesterId);
         cardPort.softDelete(cardId);
     }
 
@@ -230,27 +229,15 @@ public class StudyCardService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
     }
 
-    private void requireMember(UUID sessionId, UUID userId) {
+    private StudySession requireMember(UUID sessionId, UUID userId) {
         StudySession session = requireSession(sessionId);
         requireMemberInSession(session, userId);
-    }
-
-    private StudySession requireActiveMember(UUID sessionId, UUID userId) {
-        StudySession session = requireSession(sessionId);
-        requireMemberInSession(session, userId);
-        requireActive(session);
         return session;
     }
 
     private void requireMemberInSession(StudySession session, UUID userId) {
         if (!session.hasMember(userId)) {
             throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
-        }
-    }
-
-    private void requireActive(StudySession session) {
-        if (!session.isActive()) {
-            throw new ToneBridgeException(ErrorCode.SESSION_ALREADY_ENDED);
         }
     }
 

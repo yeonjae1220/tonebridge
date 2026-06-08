@@ -481,7 +481,7 @@ export default function ResultPage() {
         <SaveCardSheet
           correction={savingCorrection}
           request={request}
-          sessions={sessions.filter((s) => s.status === 'ACTIVE')}
+          sessions={sessions}
           pending={createCardMutation.isPending}
           onClose={() => setSavingCorrection(null)}
           onSubmit={(payload) => createCardMutation.mutate(payload)}
