@@ -23,12 +23,17 @@ import 'package:tonebridge/features/study_session/presentation/study_provider.da
 
 const _kFeedbackGoals = ['발음', '문법', '자연스러움', '억양', '캐주얼', '비즈니스'];
 
-enum _RequestDestination { personal, friend, community }
+enum RequestDestination { personal, friend, community }
 
 class RequestPage extends ConsumerStatefulWidget {
-  const RequestPage({super.key, this.returnRoute = AppRoute.community});
+  const RequestPage({
+    super.key,
+    this.returnRoute = AppRoute.community,
+    this.initialDestination = RequestDestination.personal,
+  });
 
   final String returnRoute;
+  final RequestDestination initialDestination;
 
   @override
   ConsumerState<RequestPage> createState() => _RequestPageState();
@@ -45,7 +50,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   bool _isAudio = false;
   bool _uploading = false;
   bool _submittingStudy = false;
-  _RequestDestination _destination = _RequestDestination.personal;
+  late RequestDestination _destination;
   String _selectedFriendId = '';
 
   late final AudioRecorderService _recorder;
@@ -53,6 +58,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   @override
   void initState() {
     super.initState();
+    _destination = widget.initialDestination;
     _textController.addListener(_onFormChanged);
     _recorder = AudioRecorderService();
     _recorder.addListener(_onRecorderChange);
@@ -158,43 +164,43 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _DestinationButton(
-                      selected: _destination == _RequestDestination.personal,
+                      selected: _destination == RequestDestination.personal,
                       icon: Icons.edit_note_rounded,
                       title: '내 스터디',
                       subtitle: '혼자 쓰는 노트와 연습장에 저장',
                       onTap: isLoading
                           ? null
                           : () => setState(() {
-                              _destination = _RequestDestination.personal;
+                              _destination = RequestDestination.personal;
                               _selectedFriendId = '';
                             }),
                     ),
                     const SizedBox(height: 8),
                     _DestinationButton(
-                      selected: _destination == _RequestDestination.friend,
+                      selected: _destination == RequestDestination.friend,
                       icon: Icons.people_rounded,
                       title: '친구 스터디',
                       subtitle: '친구와 함께 보는 스터디 카드로 저장',
                       onTap: isLoading
                           ? null
                           : () => setState(
-                              () => _destination = _RequestDestination.friend,
+                              () => _destination = RequestDestination.friend,
                             ),
                     ),
                     const SizedBox(height: 8),
                     _DestinationButton(
-                      selected: _destination == _RequestDestination.community,
+                      selected: _destination == RequestDestination.community,
                       icon: Icons.forum_rounded,
                       title: '커뮤니티',
                       subtitle: '공개 게시판에 첨삭 요청으로 올리기',
                       onTap: isLoading
                           ? null
                           : () => setState(() {
-                              _destination = _RequestDestination.community;
+                              _destination = RequestDestination.community;
                               _selectedFriendId = '';
                             }),
                     ),
-                    if (_destination == _RequestDestination.friend) ...[
+                    if (_destination == RequestDestination.friend) ...[
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _selectedFriendId.isEmpty
@@ -240,7 +246,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
               const SizedBox(height: 16),
 
               // ── 언어 선택 ──
-              if (_destination == _RequestDestination.community) ...[
+              if (_destination == RequestDestination.community) ...[
                 _SectionCard(
                   label: strings.correctionLanguage,
                   child: LanguagePicker(
@@ -338,7 +344,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
               // ── 크레딧 비용 ──
               _CreditBanner(
                 isAudio: _isAudio,
-                isCommunity: _destination == _RequestDestination.community,
+                isCommunity: _destination == RequestDestination.community,
               ),
               const SizedBox(height: 20),
 
@@ -359,7 +365,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _destination == _RequestDestination.community
+                        _destination == RequestDestination.community
                             ? strings.submitCorrectionRequest
                             : '스터디에 저장',
                       ),
@@ -373,11 +379,11 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   }
 
   bool get _canSubmit {
-    if (_destination == _RequestDestination.community &&
+    if (_destination == RequestDestination.community &&
         _targetLanguage.isEmpty) {
       return false;
     }
-    if (_destination == _RequestDestination.friend &&
+    if (_destination == RequestDestination.friend &&
         _selectedFriendId.isEmpty) {
       return false;
     }
@@ -387,7 +393,7 @@ class _RequestPageState extends ConsumerState<RequestPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_destination == _RequestDestination.community) {
+    if (_destination == RequestDestination.community) {
       await _submitCommunityRequest();
       return;
     }
@@ -503,8 +509,8 @@ class _RequestPageState extends ConsumerState<RequestPage> {
   }
 
   Future<StudySession> _ensureStudySession(List<StudySession> sessions) async {
-    final active = sessions.where((session) => session.status == 'ACTIVE');
-    if (_destination == _RequestDestination.personal) {
+    final active = sessions;
+    if (_destination == RequestDestination.personal) {
       final existing = active
           .where((session) => session.memberIds.length == 1)
           .firstOrNull;

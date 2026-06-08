@@ -25,6 +25,7 @@ public class LoginRateLimiter {
     private static final String LOGIN_IP_PREFIX = "rl:login:ip:";
     private static final String LOGIN_EMAIL_PREFIX = "rl:login:email:";
     private static final String REGISTER_IP_PREFIX = "rl:register:ip:";
+    private static final String REGISTER_EMAIL_PREFIX = "rl:register:email:";
 
     private static final int LOGIN_MAX_PER_WINDOW = 10;
     private static final int REGISTER_MAX_PER_WINDOW = 5;
@@ -35,12 +36,17 @@ public class LoginRateLimiter {
     /** 로그인 시도 제한: IP 차원 + 이메일 차원 동시 검사. */
     public void checkLogin(String ip, String email) {
         hit(LOGIN_IP_PREFIX + ip, LOGIN_MAX_PER_WINDOW);
-        hit(LOGIN_EMAIL_PREFIX + email.toLowerCase(Locale.ROOT), LOGIN_MAX_PER_WINDOW);
+        hit(LOGIN_EMAIL_PREFIX + normalizeKeyPart(email), LOGIN_MAX_PER_WINDOW);
     }
 
-    /** 회원가입 시도 제한: IP 차원. */
-    public void checkRegister(String ip) {
+    /** 회원가입 시도 제한: IP 차원 + 이메일 차원 동시 검사. */
+    public void checkRegister(String ip, String email) {
         hit(REGISTER_IP_PREFIX + ip, REGISTER_MAX_PER_WINDOW);
+        hit(REGISTER_EMAIL_PREFIX + normalizeKeyPart(email), REGISTER_MAX_PER_WINDOW);
+    }
+
+    private String normalizeKeyPart(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private void hit(String key, int max) {

@@ -99,7 +99,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        loginRateLimiter.checkRegister(extractClientIp(httpRequest));
+        loginRateLimiter.checkRegister(extractClientIp(httpRequest), request.email());
         TokenResponse tokens = registerLocalUserUseCase.register(
                 request.email(), request.username(), request.password());
         setRefreshCookie(response, tokens.refreshToken());
