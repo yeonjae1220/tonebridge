@@ -98,6 +98,7 @@ jobs:
           CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
+          CONSOLE_INTERNAL_TOKEN: ${{ secrets.CONSOLE_INTERNAL_TOKEN }}
           BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
           FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
           GIT_SHA: ${{ github.sha }}
@@ -123,6 +124,7 @@ jobs:
             --from-literal=CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
             --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
             --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
+            --from-literal=CONSOLE_INTERNAL_TOKEN="${CONSOLE_INTERNAL_TOKEN}" \
             -n tonebridge \
             --dry-run=client -o yaml | sudo kubectl apply -f -
 
