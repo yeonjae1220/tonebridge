@@ -2,27 +2,24 @@ spring:
   application:
     name: ToneBridge
 
+  # 로컬 개발 기본 프로파일. 운영은 k8s 가 SPRING_PROFILES_ACTIVE=prod 로 덮어쓴다(env > yaml).
+  profiles:
+    active: local
+
   threads:
     virtual:
       enabled: true
 
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:tonebridge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1}
-    username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
-
+  # datasource / jpa.ddl-auto / dialect / h2.console 는 프로파일별로 분리됨:
+  #   - local  : 아래 on-profile=local 문서 (H2)
+  #   - prod   : 아래 on-profile=prod 문서 (PostgreSQL)
+  #   - test   : src/test/resources/application-test.yml (H2)
+  # 공유(default) 문서에는 DB 접속 정보를 두지 않아 prod 가 H2 를 상속하지 않게 한다.
   jpa:
-    hibernate:
-      # T1 fix: create-drop → validate가 기본값
-      # - 로컬 H2: JPA_DDL_AUTO=create-drop (test application.yml에서 오버라이드)
-      # - 운영(prod profile): none (Flyway가 스키마 관리)
-      ddl-auto: ${JPA_DDL_AUTO:validate}
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
-        dialect: ${JPA_DIALECT:org.hibernate.dialect.H2Dialect}
 
   flyway:
     enabled: ${FLYWAY_ENABLED:false}
@@ -38,11 +35,6 @@ spring:
     multipart:
       max-file-size: ${MAX_FILE_SIZE:100MB}
       max-request-size: ${MAX_REQUEST_SIZE:110MB}
-
-  h2:
-    console:
-      enabled: ${H2_CONSOLE_ENABLED:false}
-      path: /h2-console
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
@@ -153,6 +145,35 @@ logging:
     me.yeonjae.tonebridge: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
+
+# ── local 프로파일 전용: H2 (in-memory, PostgreSQL 호환 모드) ──────────
+# 로컬 개발 / 슬라이스 테스트 기본 DB. 운영은 아래 prod 문서의 PostgreSQL.
+# H2 를 공유 문서가 아닌 이 프로파일 문서에 격리해, prod 와 같은 블록에서
+# 함께 수정되는 사고를 막는다.
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:tonebridge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+
+  jpa:
+    hibernate:
+      # 로컬 H2: JPA_DDL_AUTO=create-drop 로 오버라이드 가능. 운영(prod)은 none(Flyway 관리).
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: ${JPA_DIALECT:org.hibernate.dialect.H2Dialect}
+
+  h2:
+    console:
+      enabled: ${H2_CONSOLE_ENABLED:false}
+      path: /h2-console
 
 ---
 spring:
