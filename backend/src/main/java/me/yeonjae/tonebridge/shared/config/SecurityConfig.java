@@ -27,6 +27,7 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -139,7 +140,9 @@ public class SecurityConfig {
     @Order(0)
     public SecurityFilterChain internalConsoleFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher("/api/internal/**")
+                // PathPatternRequestMatcher 명시 — webmvc 존재 시 securityMatcher(String)이 핸들러
+                // 기반으로 해석돼 핸들러 없는 경로(필터가 처리하는 POST 등)를 놓치는 것을 방지 (GLOBAL-PIT-040)
+                .securityMatcher(PathPatternRequestMatcher.pathPattern("/api/internal/**"))
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -153,7 +156,9 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain adminFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher("/admin/**")
+                // POST /admin/login 은 핸들러 없이 formLogin 필터가 처리하므로 String 매처(핸들러 기반)면
+                // 매칭 실패해 메인 체인으로 흘러 401(CSRF 위장 포함)이 난다 (GLOBAL-PIT-040)
+                .securityMatcher(PathPatternRequestMatcher.pathPattern("/admin/**"))
                 .authenticationManager(adminAuthenticationManager())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/admin/login").permitAll()
