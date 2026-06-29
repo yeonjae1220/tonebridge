@@ -33,6 +33,6 @@ public class AccessLogFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri.startsWith("/actuator");
+        return uri.startsWith("/actuator") || uri.startsWith("/api/internal");
     }
 }
