@@ -35,26 +35,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
-        if (!StringUtils.hasText(token)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         try {
-            JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(token);
-            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-            if (claims.isAdmin()) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            if (StringUtils.hasText(token)) {
+                JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(token);
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                if (claims.isAdmin()) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
+                var auth = new UsernamePasswordAuthenticationToken(claims.userId(), null, authorities);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+                MDC.put("userId", claims.userId().toString());
             }
-            var auth = new UsernamePasswordAuthenticationToken(claims.userId(), null, authorities);
-            SecurityContextHolder.getContext().setAuthentication(auth);
-            MDC.put("userId", claims.userId().toString());
-            try {
-                filterChain.doFilter(request, response);
-            } finally {
-                MDC.remove("userId");
-            }
+            filterChain.doFilter(request, response);
         } catch (ToneBridgeException e) {
             SecurityContextHolder.clearContext();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -62,6 +55,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             objectMapper.writeValue(response.getWriter(),
                     Map.of("code", e.getErrorCode().getCode(),
                            "message", e.getErrorCode().getMessage()));
+        } finally {
+            MDC.remove("userId");
         }
     }
 
