@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import me.yeonjae.tonebridge.shared.util.JwtProvider;
+import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -48,7 +49,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             var auth = new UsernamePasswordAuthenticationToken(claims.userId(), null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
-            filterChain.doFilter(request, response);
+            MDC.put("userId", claims.userId().toString());
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                MDC.remove("userId");
+            }
         } catch (ToneBridgeException e) {
             SecurityContextHolder.clearContext();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
