@@ -35,6 +35,15 @@ spec:
                 name: backend
                 port:
                   number: 8080
+          # Admin SSR 콘솔 (Thymeleaf). /admin/** 은 백엔드 adminFilterChain(formLogin)이 담당.
+          # 누락 시 catch-all /가 frontend로 보내 404가 난다 (GLOBAL-PIT-038).
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
           # MinIO object storage — presigned URLs are scoped to this path so
           # browsers can upload/download audio without crossing origins.
           - path: /tonebridge-audio
