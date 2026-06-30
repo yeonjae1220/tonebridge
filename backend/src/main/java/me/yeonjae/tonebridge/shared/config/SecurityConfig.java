@@ -221,6 +221,7 @@ public class SecurityConfig {
                                     return new org.springframework.security.authorization.AuthorizationDecision(isLocal);
                                 }
                         )
+                        .requestMatchers(HttpMethod.POST, "/api/feedback").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
