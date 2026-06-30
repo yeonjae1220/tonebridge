@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,13 @@ public class FeedbackController {
     private final RestClient restClient;
     private final AtomicInteger requestCount = new AtomicInteger(0);
     private volatile Instant windowStart = Instant.now();
+
+    @PostConstruct
+    public void validateToken() {
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("[Feedback] LAB_FEEDBACK_TOKEN이 설정되지 않았습니다. 피드백 수집을 사용하려면 환경변수를 설정하세요.");
+        }
+    }
 
     public FeedbackController() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();

@@ -49,6 +49,17 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    # lab-dashboard 피드백 수집 (인-클러스터 포워딩)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lab
+          podSelector:
+            matchLabels:
+              app: lab-dashboard
+      ports:
+        - port: 8080
+          protocol: TCP
 ---
 # ingress-nginx → backend (API + health)
 apiVersion: networking.k8s.io/v1

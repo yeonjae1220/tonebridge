@@ -62,6 +62,12 @@ admin:
   password:
     bcrypt: "$2a$10$E17h/tr3kDwmM0oJgz7ufulyuBxAaoMV/aXPqHw2twDi4cS3CL2q6"
 
+lab:
+  feedback:
+    endpoint: http://lab-dashboard.lab.svc.cluster.local/api/internal/feedback
+    token: test-feedback-token-dummy
+    app-name: tonebridge
+
 logging:
   level:
     me.yeonjae.tonebridge: DEBUG
