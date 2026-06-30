@@ -123,6 +123,11 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: CONSOLE_INTERNAL_TOKEN
+            - name: LAB_FEEDBACK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-secret
+                  key: LAB_FEEDBACK_TOKEN
             - name: FRONTEND_URL
               value: https://tonebridge.mungji.com
             - name: GOOGLE_REDIRECT_URI

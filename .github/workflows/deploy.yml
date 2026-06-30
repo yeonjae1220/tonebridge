@@ -99,6 +99,7 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
           CONSOLE_INTERNAL_TOKEN: ${{ secrets.CONSOLE_INTERNAL_TOKEN }}
+          LAB_FEEDBACK_TOKEN: ${{ secrets.LAB_FEEDBACK_TOKEN }}
           BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
           FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
           GIT_SHA: ${{ github.sha }}
@@ -125,6 +126,7 @@ jobs:
             --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
             --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
             --from-literal=CONSOLE_INTERNAL_TOKEN="${CONSOLE_INTERNAL_TOKEN}" \
+            --from-literal=LAB_FEEDBACK_TOKEN="${LAB_FEEDBACK_TOKEN}" \
             -n tonebridge \
             --dry-run=client -o yaml | sudo kubectl apply -f -
 
