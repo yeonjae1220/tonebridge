@@ -67,9 +67,7 @@ ingress-nginx (NodePort 32048)
   └── /               → frontend:80   (Flutter Web, nginx)
 
 k3s 클러스터 노드:
-  - lenovo-server (172.30.1.70) — control-plane
-  - test-server   (172.30.1.9)  — worker
-  - desktop2      (172.30.1.79) — worker
+  - lenovo-server (172.30.1.70) — control-plane (현재 단일 노드)
 
 공유 인프라:
   - cert-manager  (v1.17.1) — Let's Encrypt 인증서 자동 발급/갱신
@@ -163,15 +161,13 @@ kubectl get certificate tonebridge-tls -n tonebridge
 | 푸시 알림 | Firebase Cloud Messaging (FCM) — 웹: VAPID, 네이티브: APNs/FCM |
 | 인프라 | k3s, cert-manager, ingress-nginx, Cloudflare Tunnel |
 
-## 최근 주요 변경 (2026-05)
+## 버전 히스토리
 
-| 변경 | 내용 |
-|------|------|
-| **웹 프론트엔드 전환** | Flutter Web PWA → Next.js 15로 교체. 교정 피드·스터디 상세 페이지 구현 |
-| **다국어(i18n) 지원** | 한국어 / 영어 UI 전환 지원 (`ui_language.dart`) |
-| **교정 플로우 개선** | 첨삭 편집·삭제 기능 추가, 교정 결과 페이지(`result_page`) 신규 구현 |
-| **스터디 흐름 단순화** | 교정 학습 스텝 재구성, Next.js 스터디 상세 페이지 구현 |
-| **MinIO 업로드 URL** | presigned URL 방식으로 오디오 업로드 수정 |
-| **로그아웃 세션 정리** | 로그아웃 시 서버 세션 명시적 삭제 |
-| **AI 외부 호출 기본 비활성** | Claude API 비용 제어를 위해 외부 AI 호출 기본 off |
-| **CI/CD 개선** | CF 캐시 퍼지 스텝 YAML 수정, 배포 후 Cloudflare 캐시 자동 퍼지 |
+버전별 상세 변경 내역은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
+
+| 버전 | 날짜 | 핵심 변경 |
+|------|------|-----------|
+| 0.4.0 | 2026-06-30 | 콘솔 집계 · 구조화 로깅(logstash JSON·access log) · 피드백 수집 |
+| 0.3.0 | 2026-06-08 | SSR 관리자 패널 · SEO · nonce CSP · 테마 · k8s probe |
+| 0.2.0 | 2026-05-29 | 방언 선택 · Flutter Web/PWA · **Firebase 제거** · **Next.js 웹 전환** · i18n |
+| 0.1.0 | 2026-05-21 | 음성 첨삭 루프 · Flutter 앱 · 스터디 세션 · httpOnly 쿠키 · TLS |
