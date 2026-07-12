@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import './globals.css'
 import { Providers } from './providers'
 import { AppShell } from '@/components/AppShell'
+import { normalizeUiLanguage, UI_LANGUAGE_KEY } from '@/i18n/messages'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
@@ -67,27 +68,34 @@ export const viewport: Viewport = {
 const themeInitScript = `
 (() => {
   try {
-    const preference = localStorage.getItem('tonebridge_theme') || 'system';
+    const preference = localStorage.getItem('tonebridge_theme') || 'dark';
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const resolvedTheme = preference === 'dark' || (preference === 'system' && systemDark) ? 'dark' : 'light';
     const root = document.documentElement;
     root.classList.toggle('dark', resolvedTheme === 'dark');
     root.dataset.theme = resolvedTheme;
     root.style.colorScheme = resolvedTheme;
-  } catch (_) {}
+  } catch (_) {
+    const root = document.documentElement;
+    root.classList.add('dark');
+    root.dataset.theme = 'dark';
+    root.style.colorScheme = 'dark';
+  }
 })();
 `
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const nonce = (await headers()).get('x-nonce') ?? ''
+  const [headerList, cookieStore] = await Promise.all([headers(), cookies()])
+  const nonce = headerList.get('x-nonce') ?? ''
+  const initialLanguage = normalizeUiLanguage(cookieStore.get(UI_LANGUAGE_KEY)?.value)
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang={initialLanguage} suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
       <body className={inter.variable} data-nonce={nonce}>
-        <Providers>
+        <Providers initialLanguage={initialLanguage}>
           <AppShell>{children}</AppShell>
         </Providers>
       </body>

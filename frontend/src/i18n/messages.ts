@@ -1812,6 +1812,8 @@ const defaultExtraMessages = {
   'landing.example.ko.after': 'The weather was really nice today, so I went to the park.',
   'landing.example.ko.note': 'Connecting the two sentences with a reason/sequence form sounds more natural.',
   'landing.footer': '© 2026 ToneBridge. All rights reserved.',
+  'landing.skipToContent': 'Skip to content',
+  'landing.navAria': 'Main navigation',
   'admin.only': 'Admin only',
   'admin.dashboard': 'Admin dashboard',
   'admin.users': 'User management',
@@ -2054,6 +2056,8 @@ Object.assign(messages.ko, {
   'landing.example.ko.after': '오늘 날씨가 정말 좋아서 공원에 갔어요.',
   'landing.example.ko.note': "두 문장을 '-아/어서'로 연결하면 더 자연스럽습니다.",
   'landing.footer': '© 2026 ToneBridge. 모든 권리 보유.',
+  'landing.skipToContent': '본문으로 건너뛰기',
+  'landing.navAria': '메인 내비게이션',
   'admin.only': '관리자 전용',
   'admin.dashboard': '관리자 대시보드',
   'admin.users': '사용자 관리',
@@ -3227,6 +3231,8 @@ Object.assign(messages.ja, {
   'landing.example.ko.before': '今日は天気が本当にいいです。私は公園に行きました。',
   'landing.example.ko.after': '今日は天気が本当によかったので、公園に行きました。',
   'landing.footer': '© 2026 ToneBridge. All rights reserved.',
+  'landing.skipToContent': 'コンテンツにスキップ',
+  'landing.navAria': 'メインナビゲーション',
   'admin.only': '管理者専用',
 })
 
@@ -3267,6 +3273,8 @@ Object.assign(messages.zh, {
   'landing.example.ko.before': '今天天气很好。我去了公园。',
   'landing.example.ko.after': '今天天气很好，所以我去了公园。',
   'landing.footer': '© 2026 ToneBridge. 保留所有权利。',
+  'landing.skipToContent': '跳到主要内容',
+  'landing.navAria': '主导航',
   'admin.only': '仅限管理员',
 })
 
@@ -3307,6 +3315,8 @@ Object.assign(messages.es, {
   'landing.example.ko.before': 'Hoy hace muy buen tiempo. Fui al parque.',
   'landing.example.ko.after': 'Hoy hacía muy buen tiempo, así que fui al parque.',
   'landing.footer': '© 2026 ToneBridge. Todos los derechos reservados.',
+  'landing.skipToContent': 'Saltar al contenido',
+  'landing.navAria': 'Navegación principal',
   'admin.only': 'Solo administradores',
 })
 
@@ -3347,6 +3357,8 @@ Object.assign(messages.fr, {
   'landing.example.ko.before': 'Il fait très beau aujourd’hui. Je suis allé au parc.',
   'landing.example.ko.after': 'Il faisait très beau aujourd’hui, alors je suis allé au parc.',
   'landing.footer': '© 2026 ToneBridge. Tous droits réservés.',
+  'landing.skipToContent': 'Aller au contenu',
+  'landing.navAria': 'Navigation principale',
   'admin.only': 'Administrateurs uniquement',
 })
 
@@ -3387,6 +3399,8 @@ Object.assign(messages.de, {
   'landing.example.ko.before': 'Heute ist das Wetter sehr schön. Ich bin in den Park gegangen.',
   'landing.example.ko.after': 'Das Wetter war heute sehr schön, deshalb bin ich in den Park gegangen.',
   'landing.footer': '© 2026 ToneBridge. Alle Rechte vorbehalten.',
+  'landing.skipToContent': 'Zum Inhalt springen',
+  'landing.navAria': 'Hauptnavigation',
   'admin.only': 'Nur Admins',
 })
 
@@ -3427,6 +3441,8 @@ Object.assign(messages.pt, {
   'landing.example.ko.before': 'Hoje o tempo está muito bom. Eu fui ao parque.',
   'landing.example.ko.after': 'Hoje o tempo estava muito bom, então fui ao parque.',
   'landing.footer': '© 2026 ToneBridge. Todos os direitos reservados.',
+  'landing.skipToContent': 'Ir para o conteúdo',
+  'landing.navAria': 'Navegação principal',
   'admin.only': 'Somente admins',
 })
 
@@ -3467,11 +3483,19 @@ Object.assign(messages.ru, {
   'landing.example.ko.before': 'Сегодня очень хорошая погода. Я пошел в парк.',
   'landing.example.ko.after': 'Сегодня была очень хорошая погода, поэтому я пошел в парк.',
   'landing.footer': '© 2026 ToneBridge. Все права защищены.',
+  'landing.skipToContent': 'Перейти к содержимому',
+  'landing.navAria': 'Основная навигация',
   'admin.only': 'Только для администраторов',
 })
 
+export const DEFAULT_UI_LANGUAGE: UiLanguage = 'en'
+
+// localStorage와 쿠키에 공통으로 쓰는 키. 서버(layout)가 SSR에서 <html lang>을
+// 쿠키로 결정하고, 클라이언트가 document.cookie로 읽고 쓴다. (httpOnly 아님)
+export const UI_LANGUAGE_KEY = 'tonebridge_ui_language'
+
 export function normalizeUiLanguage(value: string | null | undefined): UiLanguage {
-  return SUPPORTED_UI_LANGUAGES.includes(value as UiLanguage) ? value as UiLanguage : 'ko'
+  return SUPPORTED_UI_LANGUAGES.includes(value as UiLanguage) ? value as UiLanguage : DEFAULT_UI_LANGUAGE
 }
 
 export function formatMessage(template: string, values: Record<string, string | number>) {
