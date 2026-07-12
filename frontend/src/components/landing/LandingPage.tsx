@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { languageDisplayName } from '@/i18n/messages'
 import { InstallBanner } from '@/components/ui/InstallBanner'
+import { UiLanguageSwitcher } from '@/components/ui/UiLanguageSwitcher'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const STEPS = [
   { num: '01', titleKey: 'landing.step1.title', descKey: 'landing.step1.desc' },
@@ -42,21 +44,35 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-surface font-sans">
-      {/* Navbar */}
-      <nav aria-label="main navigation" className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-          <span className="text-lg font-bold tracking-tight text-gray-900">
-            Tone<span className="text-blue-500">Bridge</span>
-          </span>
-          <Link
-            href="/login"
-            className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
-          >
-            {t('landing.navCta')}
-          </Link>
-        </div>
-      </nav>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-blue-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        {t('landing.skipToContent')}
+      </a>
 
+      {/* Navbar */}
+      <header>
+        <nav aria-label={t('landing.navAria')} className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-gray-100">
+          <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between gap-3">
+            <span className="text-lg font-bold tracking-tight text-gray-900">
+              Tone<span className="text-blue-500">Bridge</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <UiLanguageSwitcher />
+              <ThemeToggle className="hidden sm:inline-flex" />
+              <Link
+                href="/login"
+                className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+              >
+                {t('landing.navCta')}
+              </Link>
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <main id="main-content">
       {/* Hero */}
       <section className="py-24 px-6">
         <div className="max-w-2xl mx-auto text-center">
@@ -175,6 +191,8 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-gray-100">

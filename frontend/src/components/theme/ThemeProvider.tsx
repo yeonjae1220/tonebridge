@@ -15,8 +15,9 @@ const THEME_QUERY = '(prefers-color-scheme: dark)'
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
+// 저장된 선호가 없거나 무효하면 dark 기본. 'system'은 사용자가 명시적으로 고를 때만.
 function normalizeThemePreference(value: string | null): ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
+  return value === 'light' || value === 'dark' || value === 'system' ? value : 'dark'
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -36,9 +37,9 @@ function applyTheme(preference: ThemePreference, systemTheme: 'light' | 'dark' =
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>('system')
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light')
-  const preferenceRef = useRef<ThemePreference>('system')
+  const [preference, setPreferenceState] = useState<ThemePreference>('dark')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
+  const preferenceRef = useRef<ThemePreference>('dark')
 
   useEffect(() => {
     const storedPreference = normalizeThemePreference(window.localStorage.getItem(STORAGE_KEY))
