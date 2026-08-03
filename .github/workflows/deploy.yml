@@ -3,6 +3,13 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
+    # 문서만 바뀐 커밋으로 운영 재배포가 도는 것을 막는다 (GLOBAL-PIT-074)
+    # pull_request 에는 일부러 걸지 않는다 — 필수 체크 미리포트로 머지가 막힌다.
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
   workflow_dispatch:
 
 env:
