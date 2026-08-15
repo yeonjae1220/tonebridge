@@ -98,6 +98,9 @@ public class ClaudeAiAdapter implements AiQualityCheckPort, AiFallbackPort {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null) {
+                // 로그 없이 폴백하면 안 된다 — 결과물은 "[AI 첨삭]" 라벨을 달고 나가는데
+                // 실제로는 원문 그대로다. 키 만료·429 로 통합이 죽어도 흔적이 안 남는다.
+                log.warn("Claude fallback API returned HTTP {}, using heuristic", response.code());
                 return buildHeuristicFallback(originalText);
             }
             return parseFallbackResponse(response.body().string(), originalText);
@@ -155,7 +158,10 @@ public class ClaudeAiAdapter implements AiQualityCheckPort, AiFallbackPort {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) return meetsMinimumCriteria(explanation);
+            if (!response.isSuccessful()) {
+                log.warn("Claude quality check returned HTTP {}, using heuristic", response.code());
+                return meetsMinimumCriteria(explanation);
+            }
             String responseBody = response.body() != null ? response.body().string() : "";
             JsonNode root = objectMapper.readTree(responseBody);
             String text = root.path("content").get(0).path("text").asText("");
