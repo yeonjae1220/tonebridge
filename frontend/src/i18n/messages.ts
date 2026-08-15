@@ -28,6 +28,8 @@ type KnownMessageKey =
   | 'settings.logoutSubtitle'
   | 'settings.deleteAccount'
   | 'settings.deleteAccountSubtitle'
+  | 'error.unexpected'
+  | 'common.retry'
   | 'common.cancel'
   | 'common.save'
   | 'common.edit'
@@ -165,6 +167,8 @@ type Messages = Record<KnownMessageKey, string> & Record<string, string>
 
 export const messages: Record<UiLanguage, Messages> = {
   ko: {
+    'common.retry': '다시 시도',
+    'error.unexpected': '문제가 발생했습니다.',
     'nav.feed': '커뮤니티',
     'nav.study': '스터디',
     'nav.friends': '친구',
@@ -324,6 +328,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': '좋아요',
   },
   en: {
+    'common.retry': 'Try again',
+    'error.unexpected': 'Something went wrong.',
     'nav.feed': 'Community',
     'nav.study': 'Study',
     'nav.friends': 'Friends',
@@ -483,6 +489,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'Like',
   },
   ja: {
+    'common.retry': '再試行',
+    'error.unexpected': '問題が発生しました。',
     'nav.feed': 'コミュニティ',
     'nav.study': '学習',
     'nav.friends': '友達',
@@ -642,6 +650,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'いいね',
   },
   zh: {
+    'common.retry': '重试',
+    'error.unexpected': '出现了问题。',
     'nav.feed': '社区',
     'nav.study': '学习',
     'nav.friends': '好友',
@@ -801,6 +811,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': '点赞',
   },
   es: {
+    'common.retry': 'Reintentar',
+    'error.unexpected': 'Algo salió mal.',
     'nav.feed': 'Comunidad',
     'nav.study': 'Estudio',
     'nav.friends': 'Amigos',
@@ -960,6 +972,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'Me gusta',
   },
   fr: {
+    'common.retry': 'Réessayer',
+    'error.unexpected': 'Une erreur s\'est produite.',
     'nav.feed': 'Communauté',
     'nav.study': 'Étude',
     'nav.friends': 'Amis',
@@ -1119,6 +1133,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'J\'aime',
   },
   de: {
+    'common.retry': 'Erneut versuchen',
+    'error.unexpected': 'Etwas ist schiefgelaufen.',
     'nav.feed': 'Community',
     'nav.study': 'Lernen',
     'nav.friends': 'Freunde',
@@ -1278,6 +1294,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'Gefällt mir',
   },
   pt: {
+    'common.retry': 'Tentar novamente',
+    'error.unexpected': 'Algo deu errado.',
     'nav.feed': 'Comunidade',
     'nav.study': 'Estudo',
     'nav.friends': 'Amigos',
@@ -1437,6 +1455,8 @@ export const messages: Record<UiLanguage, Messages> = {
     'result.like': 'Curtir',
   },
   ru: {
+    'common.retry': 'Повторить',
+    'error.unexpected': 'Что-то пошло не так.',
     'nav.feed': 'Сообщество',
     'nav.study': 'Учеба',
     'nav.friends': 'Друзья',
