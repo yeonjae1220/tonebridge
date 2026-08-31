@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.3'
+    id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -32,9 +32,9 @@ dependencies {
 
     // ── Security + JWT ────────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
-    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.13.0'
+    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.13.0'
 
     // ── JPA + QueryDSL ────────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -57,13 +57,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     // ── Storage (MinIO via AWS SDK S3) ────────────────────────────────────────
-    implementation 'software.amazon.awssdk:s3:2.25.0'
+    implementation 'software.amazon.awssdk:s3:2.54.7'
 
     // ── AI (Claude API HTTP 호출) ──────────────────────────────────────────────
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     // ── Firebase Admin SDK (FCM 푸시 알림) ───────────────────────────────────────
-    implementation 'com.google.firebase:firebase-admin:9.3.0'
+    implementation 'com.google.firebase:firebase-admin:9.10.0'
 
     // ── Monitoring ────────────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -74,7 +74,7 @@ dependencies {
     // ── Dev / Test ────────────────────────────────────────────────────────────
     compileOnly    'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.1'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
