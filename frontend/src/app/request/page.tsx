@@ -111,7 +111,12 @@ export default function RequestPage() {
         try {
           await attachNativeAudio(card.id, payload.audioFile)
         } catch (error) {
-          await api.delete(`/cards/${card.id}`).catch(() => undefined)
+          // 보상 삭제 실패는 원래 예외를 가리면 안 되므로 다시 던지지 않는다.
+          // 다만 삼키면 고아 카드가 생겼다는 사실이 어디에도 안 남는다 — 로그는 반드시 남긴다
+          // (GLOBAL-PIT-108 ①: 실패는 최소한 흔적을 남긴다).
+          await api.delete(`/cards/${card.id}`).catch((cleanupError) => {
+            console.error(`[request] 보상 삭제 실패 — 고아 카드 잔존 가능 (cardId=${card.id})`, cleanupError)
+          })
           throw error
         }
       }

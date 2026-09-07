@@ -18,19 +18,49 @@ import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
   const ref = useRef<HTMLDivElement>(null)
   const [url, setUrl] = useState<string | null>(null)
+  // 🔴 실패를 setUrl(null) 로 치환하면 초기 상태(로딩 중)와 구분되지 않는다 — 재생 버튼이
+  //    영원히 비활성인 채 이유가 화면에도 콘솔에도 남지 않았다. 실패 판정은 별도 boolean 으로
+  //    한다(원인이 falsy 한 실패를 성공으로 취급하지 않기 위해 — GLOBAL-PIT-108).
+  const [failed, setFailed] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const { language, t } = useI18n()
   const ws = useWaveSurfer(ref, url)
 
   useEffect(() => {
+    let alive = true
+    setFailed(false)
     api
       .get<{ downloadUrl: string }>(`/native-audios/${audio.id}/download-url`)
-      .then((r) => setUrl(r.data.downloadUrl))
-      .catch(() => setUrl(null))
-  }, [audio.id])
+      .then((r) => {
+        if (alive) setUrl(r.data.downloadUrl)
+      })
+      .catch((e) => {
+        if (!alive) return
+        console.error(`[NativeAudioPlayer] 다운로드 URL 조회 실패 (audioId=${audio.id})`, e)
+        setUrl(null)
+        setFailed(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [audio.id, reloadKey])
 
   return (
     <div className="rounded-xl border border-gray-100 p-3">
-      <div ref={ref} className="min-h-[48px] bg-gray-50 rounded-lg overflow-hidden" />
+      {failed ? (
+        <div role="alert" className="min-h-[48px] flex items-center justify-between gap-3 px-3 rounded-lg bg-red-50">
+          <span className="text-xs text-red-700">{t('error.unexpected')}</span>
+          <button
+            type="button"
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold"
+          >
+            {t('common.retry')}
+          </button>
+        </div>
+      ) : (
+        <div ref={ref} className="min-h-[48px] bg-gray-50 rounded-lg overflow-hidden" />
+      )}
       <div className="mt-2 flex items-center justify-between">
         <button
           type="button"
