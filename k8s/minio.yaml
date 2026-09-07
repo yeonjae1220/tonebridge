@@ -18,6 +18,11 @@ metadata:
   namespace: tonebridge
 spec:
   replicas: 1
+  # RWO PVC + replicas:1 이라 RollingUpdate 는 maxUnavailable 0 이 되어
+  # 구 파드가 볼륨을 잡은 채 새 파드가 뜬다 → 데이터 디렉터리 배타 락으로
+  # 롤아웃 영구 정체 (GLOBAL-PIT-095)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: minio
