@@ -4,12 +4,15 @@ on:
   push:
     branches: [main]
     # 문서만 바뀐 커밋으로 운영 재배포가 도는 것을 막는다 (GLOBAL-PIT-074)
-    # pull_request 에는 일부러 걸지 않는다 — 필수 체크 미리포트로 머지가 막힌다.
     paths-ignore:
       - 'docs/**'
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
+  # PR 에서는 test 잡만 돈다 — 아래 배포 잡들은 push/workflow_dispatch 로 가드돼 있다.
+  # (Ovlo·TimeManager·SnapGuide 와 동일한 형태)
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -18,7 +21,49 @@ env:
   FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/tonebridge-frontend
 
 jobs:
+  # ─── PR / push 모두 실행 ───────────────────────────────────
+  # 2026-09-08 이전엔 이 레포에 테스트 잡이 아예 없었다 — 테스트 파일 12개(64건)가
+  # 존재하는데 어떤 이벤트에서도 돈 적이 없었다. 배포는 검증 0건으로 나가고 있었다.
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        working-directory: backend
+        run: chmod +x gradlew
+
+      - name: Run backend tests
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: npm run type-check
+
   build-and-push:
+    # PR 에서는 이미지 빌드·푸시를 하지 않는다 (배포는 push 에서만)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -77,6 +122,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: build-and-push
     # self-hosted runner on lenovo — 내부망 직접 실행, SSH/포트포워딩 불필요
     runs-on: [self-hosted, homelab]
