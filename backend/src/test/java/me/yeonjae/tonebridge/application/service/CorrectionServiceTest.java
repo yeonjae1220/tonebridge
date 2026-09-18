@@ -2,10 +2,10 @@ package me.yeonjae.tonebridge.application.service;
 
 import me.yeonjae.tonebridge.application.port.in.AcceptCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.LikeCorrectionUseCase;
-import me.yeonjae.tonebridge.application.port.out.AiQualityCheckPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.RatingPort;
+import me.yeonjae.tonebridge.application.port.in.SubmitCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
 import me.yeonjae.tonebridge.domain.correction.Correction;
 import me.yeonjae.tonebridge.domain.correction.CorrectionRequest;
@@ -18,8 +18,10 @@ import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +51,7 @@ class CorrectionServiceTest {
     private RatingPort ratingPort;
 
     @Mock
-    private AiQualityCheckPort aiQualityCheckPort;
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private ReputationService reputationService;
@@ -64,7 +67,7 @@ class CorrectionServiceTest {
                 correctionRequestPort,
                 correctionPort,
                 ratingPort,
-                aiQualityCheckPort,
+                eventPublisher,
                 new ToneBridgeProperties(),
                 reputationService,
                 creditPort
@@ -228,6 +231,34 @@ class CorrectionServiceTest {
         verify(correctionPort, never()).softDelete(correctionId);
     }
 
+    // ───── Submit 테스트 ─────────────────────────────────────────────────────
+
+    @Test
+    void submitPublishesQualityCheckEventInsteadOfCallingItInsideTheTransaction() {
+        UUID requesterId = UUID.randomUUID();
+        UUID correctorId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+
+        when(correctionRequestPort.findById(requestId))
+                .thenReturn(Optional.of(pendingRequest(requestId, requesterId)));
+        when(correctionPort.save(any())).thenReturn(correction(correctionId, requestId, correctorId));
+
+        correctionService.submit(new SubmitCorrectionUseCase.Command(
+                requestId, correctorId, "corrected", "explanation",
+                List.of(), List.of(), null, null, null, null));
+
+        ArgumentCaptor<CorrectionSubmittedEvent> captor =
+                ArgumentCaptor.forClass(CorrectionSubmittedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+
+        CorrectionSubmittedEvent event = captor.getValue();
+        assertThat(event.correctionId()).isEqualTo(correctionId);
+        assertThat(event.correctorId()).isEqualTo(correctorId);
+        assertThat(event.requesterId()).isEqualTo(requesterId);
+        assertThat(event.isAudio()).isFalse();
+    }
+
     // ───── Accept 테스트 ─────────────────────────────────────────────────────
 
     @Test
@@ -241,11 +272,39 @@ class CorrectionServiceTest {
 
         when(correctionPort.findById(correctionId)).thenReturn(Optional.of(correction));
         when(correctionRequestPort.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+        when(correctionPort.updateStatusIfCurrent(
+                correctionId, CorrectionStatus.SUBMITTED, CorrectionStatus.APPROVED)).thenReturn(true);
 
         correctionService.accept(new AcceptCorrectionUseCase.Command(correctionId, requesterId));
 
-        verify(correctionPort).updateStatus(correctionId, CorrectionStatus.APPROVED);
+        verify(correctionPort).updateStatusIfCurrent(
+                correctionId, CorrectionStatus.SUBMITTED, CorrectionStatus.APPROVED);
         verify(correctionRequestPort).updateAcceptedCorrection(requestId, correctionId);
+    }
+
+    @Test
+    void acceptFailsWhenQualityCheckRejectedTheCorrectionMeanwhile() {
+        UUID requesterId = UUID.randomUUID();
+        UUID correctorId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID correctionId = UUID.randomUUID();
+
+        when(correctionPort.findById(correctionId))
+                .thenReturn(Optional.of(correction(correctionId, requestId, correctorId)));
+        when(correctionRequestPort.findByIdForUpdate(requestId))
+                .thenReturn(Optional.of(pendingRequest(requestId, requesterId)));
+        // 교정을 읽은 뒤 품질 검사가 먼저 REJECTED 로 바꾼 상황 — 조건부 전이가 실패한다.
+        when(correctionPort.updateStatusIfCurrent(
+                correctionId, CorrectionStatus.SUBMITTED, CorrectionStatus.APPROVED)).thenReturn(false);
+
+        assertThatThrownBy(() ->
+                correctionService.accept(new AcceptCorrectionUseCase.Command(correctionId, requesterId)))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CORRECTION_NOT_ACCEPTABLE);
+
+        verify(correctionRequestPort, never()).updateAcceptedCorrection(any(), any());
+        verify(creditPort, never()).adjustCredits(any(), anyInt());
     }
 
     @Test
