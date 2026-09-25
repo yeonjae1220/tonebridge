@@ -64,7 +64,12 @@ public enum ErrorCode {
 
     // General
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_001", "서버 오류가 발생했습니다"),
-    INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_002", "잘못된 입력입니다");
+    INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_002", "잘못된 입력입니다"),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_003", "요청한 경로를 찾을 수 없습니다"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON_004", "지원하지 않는 요청 방식입니다"),
+    CONFLICT(HttpStatus.CONFLICT, "COMMON_005", "요청이 현재 데이터 상태와 충돌합니다"),
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_006", "지원하지 않는 요청 형식입니다"),
+    PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "COMMON_007", "요청 크기가 너무 큽니다");
 
     private final HttpStatus status;
     private final String code;
