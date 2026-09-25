@@ -186,10 +186,12 @@ export default function ResultPage() {
     },
   })
 
+  // 토글(POST) 대신 원하는 상태를 보낸다 — 재시도·더블탭이 상태를 뒤집지 않는다.
   const likeMutation = useMutation({
-    mutationFn: (correctionId: string) => {
+    mutationFn: ({ correctionId, like }: { correctionId: string; like: boolean }) => {
       setLikingId(correctionId)
-      return api.post(`/corrections/${correctionId}/like`)
+      const url = `/corrections/${correctionId}/like`
+      return like ? api.put(url) : api.delete(url)
     },
     onSuccess: () => refetch(),
     onSettled: () => setLikingId(null),
@@ -342,7 +344,8 @@ export default function ResultPage() {
                     )}
                     <div className="ml-auto flex items-center gap-2">
                       <button
-                        onClick={() => likeMutation.mutate(correction.id)}
+                        onClick={() => likeMutation.mutate({ correctionId: correction.id, like: !correction.likedByMe })}
+                        aria-pressed={correction.likedByMe}
                         disabled={likingId === correction.id}
                         className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${correction.likedByMe ? 'bg-pink-50 border-pink-300 text-pink-600' : 'border-gray-200 text-gray-500 hover:bg-pink-50 hover:border-pink-300 hover:text-pink-600'}`}
                       >

@@ -201,13 +201,36 @@ public class CorrectionService implements
     }
 
     @Override
+    public LikeCorrectionUseCase.Result like(LikeCorrectionUseCase.Command command) {
+        requireCorrection(command.correctionId());
+        correctionPort.addLike(command.correctionId(), command.userId());
+        return likeResult(command.correctionId(), true);
+    }
+
+    @Override
+    public LikeCorrectionUseCase.Result unlike(LikeCorrectionUseCase.Command command) {
+        requireCorrection(command.correctionId());
+        correctionPort.removeLike(command.correctionId(), command.userId());
+        return likeResult(command.correctionId(), false);
+    }
+
+    @Override
+    @Deprecated
     public LikeCorrectionUseCase.Result toggleLike(LikeCorrectionUseCase.Command command) {
-        correctionPort.findById(command.correctionId())
+        boolean alreadyLiked = correctionPort
+                .findLikedCorrectionIds(List.of(command.correctionId()), command.userId())
+                .contains(command.correctionId());
+        return alreadyLiked ? unlike(command) : like(command);
+    }
+
+    private void requireCorrection(UUID correctionId) {
+        correctionPort.findById(correctionId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
-        boolean liked = correctionPort.toggleLike(command.correctionId(), command.userId());
-        Map<UUID, Long> counts = correctionPort.findLikeCountsByCorrectionIds(List.of(command.correctionId()));
-        int likeCount = counts.getOrDefault(command.correctionId(), 0L).intValue();
-        return new LikeCorrectionUseCase.Result(liked, likeCount);
+    }
+
+    private LikeCorrectionUseCase.Result likeResult(UUID correctionId, boolean liked) {
+        Map<UUID, Long> counts = correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId));
+        return new LikeCorrectionUseCase.Result(liked, counts.getOrDefault(correctionId, 0L).intValue());
     }
 
     @Override

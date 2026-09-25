@@ -34,7 +34,10 @@ public interface CorrectionPort {
     boolean existsByRequestId(UUID requestId);
 
     // 좋아요
-    boolean toggleLike(UUID correctionId, UUID userId);
+    /** 없으면 추가, 있으면 아무것도 안 한다 — 동시 요청에도 예외 없이 행 하나. */
+    void addLike(UUID correctionId, UUID userId);
+    /** 있으면 삭제, 없으면 아무것도 안 한다. */
+    void removeLike(UUID correctionId, UUID userId);
     Map<UUID, Long> findLikeCountsByCorrectionIds(List<UUID> correctionIds);
     Set<UUID> findLikedCorrectionIds(List<UUID> correctionIds, UUID userId);
 }

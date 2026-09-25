@@ -65,8 +65,24 @@ public class CorrectionController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{correctionId}/like")
+    @PutMapping("/{correctionId}/like")
     public ResponseEntity<LikeCorrectionUseCase.Result> like(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId) {
+        return ResponseEntity.ok(likeUseCase.like(new LikeCorrectionUseCase.Command(correctionId, userId)));
+    }
+
+    @DeleteMapping("/{correctionId}/like")
+    public ResponseEntity<LikeCorrectionUseCase.Result> unlike(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID correctionId) {
+        return ResponseEntity.ok(likeUseCase.unlike(new LikeCorrectionUseCase.Command(correctionId, userId)));
+    }
+
+    /** 옛 토글 API — 캐시된 옛 웹 번들용. 새 코드는 PUT/DELETE 를 쓴다. */
+    @Deprecated
+    @PostMapping("/{correctionId}/like")
+    public ResponseEntity<LikeCorrectionUseCase.Result> toggleLike(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID correctionId) {
         return ResponseEntity.ok(likeUseCase.toggleLike(new LikeCorrectionUseCase.Command(correctionId, userId)));
