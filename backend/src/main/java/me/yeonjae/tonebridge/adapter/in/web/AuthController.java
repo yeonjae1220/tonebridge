@@ -21,6 +21,7 @@ import me.yeonjae.tonebridge.shared.config.JwtProperties;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
+import me.yeonjae.tonebridge.shared.security.ClientIpResolver;
 import me.yeonjae.tonebridge.shared.security.LoginRateLimiter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Optional;
 
 @Slf4j
 @RestController
@@ -56,6 +58,7 @@ public class AuthController {
     private final GoogleOAuthPort googleOAuthPort;
     private final OAuthStatePort oAuthStatePort;
     private final LoginRateLimiter loginRateLimiter;
+    private final ClientIpResolver clientIpResolver;
     private final ToneBridgeProperties properties;
     private final JwtProperties jwtProperties;
 
@@ -99,7 +102,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        loginRateLimiter.checkRegister(extractClientIp(httpRequest), request.email());
+        loginRateLimiter.checkRegister(clientIpResolver.resolve(httpRequest), request.email());
         TokenResponse tokens = registerLocalUserUseCase.register(
                 request.email(), request.username(), request.password());
         setRefreshCookie(response, tokens.refreshToken());
@@ -112,8 +115,18 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        loginRateLimiter.checkLogin(extractClientIp(httpRequest), request.email());
-        TokenResponse tokens = loginLocalUseCase.loginLocal(request.email(), request.password());
+        Optional<String> clientIp = clientIpResolver.resolve(httpRequest);
+        loginRateLimiter.checkLogin(clientIp, request.email());
+
+        TokenResponse tokens;
+        try {
+            tokens = loginLocalUseCase.loginLocal(request.email(), request.password());
+        } catch (ToneBridgeException e) {
+            // 실패만 카운트한다 — 성공까지 세면 정상 사용자가 한도를 소모한다.
+            loginRateLimiter.recordLoginFailure(clientIp, request.email());
+            throw e;
+        }
+
         setRefreshCookie(response, tokens.refreshToken());
         return ResponseEntity.ok(new AccessTokenResponse(tokens.accessToken()));
     }
@@ -180,18 +193,5 @@ public class AuthController {
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElse(null);
-    }
-
-    /**
-     * 레이트 리미트 키 산출용 클라이언트 IP.
-     * nginx/k8s 인그레스가 설정하는 X-Real-IP 를 우선 사용하고, 없으면 소켓 주소로 폴백한다.
-     * 스푸핑 가능성이 있으나 레이트 리미터는 이메일 차원 제한을 병행하므로 허용 가능한 위험.
-     */
-    private String extractClientIp(HttpServletRequest request) {
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
     }
 }
