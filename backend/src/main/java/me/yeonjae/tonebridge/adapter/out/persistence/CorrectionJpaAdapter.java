@@ -52,8 +52,8 @@ public class CorrectionJpaAdapter implements CorrectionPort {
     }
 
     @Override
-    public void updateStatus(UUID id, CorrectionStatus status) {
-        repository.updateStatus(id, status);
+    public boolean updateStatusIfCurrent(UUID id, CorrectionStatus expected, CorrectionStatus next) {
+        return repository.updateStatusIfCurrent(id, expected, next) > 0;
     }
 
     @Override

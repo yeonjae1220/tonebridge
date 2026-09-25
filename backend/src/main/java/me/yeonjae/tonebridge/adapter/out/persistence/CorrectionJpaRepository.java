@@ -20,8 +20,13 @@ public interface CorrectionJpaRepository extends JpaRepository<CorrectionEntity,
     List<CorrectionEntity> findByRequestIdAndDeletedAtIsNullOrderByCreatedAtAsc(UUID requestId);
 
     @Modifying
-    @Query("UPDATE CorrectionEntity c SET c.status = :status WHERE c.id = :id AND c.deletedAt IS NULL")
-    void updateStatus(@Param("id") UUID id, @Param("status") CorrectionStatus status);
+    @Query("""
+            UPDATE CorrectionEntity c SET c.status = :next
+            WHERE c.id = :id AND c.status = :expected AND c.deletedAt IS NULL
+            """)
+    int updateStatusIfCurrent(@Param("id") UUID id,
+                              @Param("expected") CorrectionStatus expected,
+                              @Param("next") CorrectionStatus next);
 
     @Query("""
             SELECT COUNT(c) FROM CorrectionEntity c

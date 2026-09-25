@@ -50,7 +50,14 @@ public class QualityCheckEventHandler {
                         event.correctorId(), e.getMessage(), e);
             }
         } else {
-            correctionPort.updateStatus(event.correctionId(), CorrectionStatus.REJECTED);
+            // 품질 검사가 끝나기 전에도 채택할 수 있는 정책이므로, 이미 채택된(APPROVED) 교정은
+            // 뒤늦은 불합격 결과로 뒤집지 않는다. 조건부 전이라 SUBMITTED 일 때만 거절된다.
+            boolean rejected = correctionPort.updateStatusIfCurrent(
+                    event.correctionId(), CorrectionStatus.SUBMITTED, CorrectionStatus.REJECTED);
+            if (!rejected) {
+                log.info("품질 검사 불합격이지만 이미 상태가 바뀐 교정이라 거절하지 않음: correctionId={}",
+                        event.correctionId());
+            }
         }
     }
 }

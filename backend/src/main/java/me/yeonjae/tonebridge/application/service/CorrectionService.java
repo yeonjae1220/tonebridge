@@ -8,7 +8,6 @@ import me.yeonjae.tonebridge.application.port.in.RateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionUseCase;
-import me.yeonjae.tonebridge.application.port.out.AiQualityCheckPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.application.port.out.CreditPort;
@@ -19,6 +18,7 @@ import me.yeonjae.tonebridge.domain.credit.TransactionType;
 import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +42,7 @@ public class CorrectionService implements
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
     private final RatingPort ratingPort;
-    private final AiQualityCheckPort aiQualityCheckPort;
+    private final ApplicationEventPublisher eventPublisher;
     private final ToneBridgeProperties properties;
     private final ReputationService reputationService;
     private final CreditPort creditPort;
@@ -78,10 +78,13 @@ public class CorrectionService implements
 
         String originalText = isAudio ? "(audio)" : request.contentText();
         String correctedText = isAudio ? command.explanation() : command.correctedText();
-        aiQualityCheckPort.checkQualityAsync(
+        // 품질 검사는 이 트랜잭션이 커밋된 뒤에 시작해야 한다({@link CorrectionQualityCheckListener}).
+        // 직접 호출하면 검사가 커밋 전에 끝날 수 있고, 그때 기록되는 REJECTED 는 아직 보이지 않는
+        // 행을 노려 0건만 갱신하고 조용히 사라진다 — 교정이 영영 "검사 대기"로 남는다.
+        eventPublisher.publishEvent(new CorrectionSubmittedEvent(
                 correction.id(), command.correctorId(), request.requesterId(),
                 originalText, correctedText, command.explanation(), reward, isAudio
-        );
+        ));
 
         return correction;
     }
@@ -179,7 +182,12 @@ public class CorrectionService implements
             throw new ToneBridgeException(ErrorCode.CORRECTION_NOT_ACCEPTABLE);
         }
 
-        correctionPort.updateStatus(command.correctionId(), CorrectionStatus.APPROVED);
+        // 위 status 검사는 읽은 시점의 스냅샷이라, 그 사이 품질 검사가 REJECTED 로 바꿨을 수 있다.
+        // 조건부 전이로 한 번 더 막는다 — SUBMITTED 가 아니면 채택은 실패한다.
+        if (!correctionPort.updateStatusIfCurrent(
+                command.correctionId(), CorrectionStatus.SUBMITTED, CorrectionStatus.APPROVED)) {
+            throw new ToneBridgeException(ErrorCode.CORRECTION_NOT_ACCEPTABLE);
+        }
         correctionRequestPort.updateAcceptedCorrection(correction.requestId(), command.correctionId());
 
         int bonus = properties.getCredit().getAcceptBonus();
