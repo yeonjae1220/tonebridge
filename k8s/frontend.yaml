@@ -43,9 +43,14 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
+          # readiness 도 liveness 와 같은 /health/live 다 — /health/ready(백엔드까지 확인)가 아니다.
+          # /health/ready 는 백엔드 /actuator/health/readiness 를 부르고 그 그룹이 readinessState·db·redis
+          # 라서, 여기에 걸면 DB·Redis 순단 하나가 약 15초(5s × 3) 뒤 frontend 까지 서비스에서 빼 버린다.
+          # 레플리카가 1개라 로그인 화면까지 사이트 전체가 503 이 된다.
+          # 백엔드 연결 상태는 라우팅이 아니라 모니터링이 /health/ready 로 볼 일이다.
           readinessProbe:
             httpGet:
-              path: /health/ready
+              path: /health/live
               port: 3000
             initialDelaySeconds: 3
             periodSeconds: 5
