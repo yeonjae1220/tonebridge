@@ -11,6 +11,7 @@ import { CorrectionRequest, TimestampComment } from '@/types'
 type TimestampCommentWithId = TimestampComment & { id: string }
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
+import { RecorderErrorMessage } from '@/components/recorder/RecorderModal'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMessage } from '@/i18n/messages'
@@ -282,10 +283,11 @@ export default function CorrectPage() {
               <span className="text-xs text-green-600 font-medium">{t('correct.extraCredits')}</span>
             </div>
             <p className="text-xs text-gray-400">{t('correct.referenceHelp')}</p>
+            <RecorderErrorMessage error={refRecorder.error} />
             <div className="flex items-center gap-3">
               {refRecorder.state === 'idle' && (
                 <button
-                  onClick={refRecorder.start}
+                  onClick={() => void refRecorder.start()}
                   className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
                 >
                   🎙 {t('correct.startRecording')}
