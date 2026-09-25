@@ -75,8 +75,11 @@ CSP는 middleware에서 생성, 나머지는 next.config에서 정적 설정:
 X-Frame-Options: DENY
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=()
+Permissions-Policy: camera=(), microphone=(self), geolocation=()
 ```
+
+`microphone` 은 `(self)` 여야 한다 — 녹음(`getUserMedia`)을 쓰고, 빈 allowlist `()` 는 자기 출처까지 막아
+권한 창 없이 `NotAllowedError` 가 난다(2026-05-30~09-25 크로미움 계열에서 웹 녹음 전체 불가).
 
 ---
 

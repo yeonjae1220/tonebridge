@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { useAudioRecorder } from '@/hooks/useAudioRecorder'
+import { useAudioRecorder, type RecorderError } from '@/hooks/useAudioRecorder'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useI18n } from '@/i18n/I18nProvider'
 
@@ -53,6 +53,25 @@ export function RecordedAudioPreview({
   )
 }
 
+const RECORDER_ERROR_KEYS = {
+  permissionDenied: 'recorder.error.permissionDenied',
+  blocked: 'recorder.error.blocked',
+  noDevice: 'recorder.error.noDevice',
+  busy: 'recorder.error.busy',
+  unsupported: 'recorder.error.unsupported',
+  unknown: 'recorder.error.unknown',
+} as const satisfies Record<RecorderError, string>
+
+export function RecorderErrorMessage({ error }: { error: RecorderError | null }) {
+  const { t } = useI18n()
+  if (!error) return null
+  return (
+    <p role="alert" className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700">
+      {t(RECORDER_ERROR_KEYS[error])}
+    </p>
+  )
+}
+
 interface RecorderModalProps {
   recorder: ReturnType<typeof useAudioRecorder>
   onClose: () => void
@@ -85,10 +104,12 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
           )}
         </div>
 
+        <RecorderErrorMessage error={recorder.error} />
+
         {recorder.state === 'idle' && (
           <button
             type="button"
-            onClick={recorder.start}
+            onClick={() => void recorder.start()}
             className="mx-auto w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
             aria-label={t('request.startRecording')}
           >
