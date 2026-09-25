@@ -1,6 +1,7 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
 import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
 import me.yeonjae.tonebridge.domain.correction.CorrectionRequest;
 import me.yeonjae.tonebridge.domain.correction.RequestStatus;
@@ -39,11 +40,15 @@ public class CorrectionRequestJpaAdapter implements CorrectionRequestPort {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CorrectionRequest> findFeed(UUID correctorId, List<String> fluentLanguages, int limit) {
-        return repository.findFeed(correctorId, fluentLanguages, PageRequest.of(0, limit))
-                .stream()
-                .map(CorrectionRequestEntity::toDomain)
-                .toList();
+    public List<CorrectionRequest> findFeedPage(UUID correctorId, List<String> baseLanguages,
+                                                List<String> preferredVariants,
+                                                GetCorrectionFeedUseCase.FeedCursor after, int limit) {
+        PageRequest page = PageRequest.of(0, limit);
+        List<CorrectionRequestEntity> rows = after == null
+                ? repository.findFeedFirstPage(correctorId, baseLanguages, preferredVariants, page)
+                : repository.findFeedPageAfter(correctorId, baseLanguages, preferredVariants,
+                        after.preferred() ? 1 : 0, after.createdAt(), after.id(), page);
+        return rows.stream().map(CorrectionRequestEntity::toDomain).toList();
     }
 
     @Override

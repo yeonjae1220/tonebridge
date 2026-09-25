@@ -144,7 +144,8 @@ class _FeedTab extends ConsumerWidget {
         message: e.toString(),
         onRetry: () => ref.read(feedStateProvider.notifier).refresh(),
       ),
-      data: (items) {
+      data: (feed) {
+        final items = feed.items;
         if (items.isEmpty) {
           return _EmptyView(
             icon: Icons.inbox_rounded,
@@ -155,8 +156,16 @@ class _FeedTab extends ConsumerWidget {
           onRefresh: () => ref.read(feedStateProvider.notifier).refresh(),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: items.length,
+            itemCount: items.length + (feed.hasMore ? 1 : 0),
             itemBuilder: (context, index) {
+              if (index == items.length) {
+                return _LoadMoreFooter(
+                  isLoading: feed.isLoadingMore,
+                  failed: feed.loadMoreError != null,
+                  onLoadMore: () =>
+                      ref.read(feedStateProvider.notifier).loadMore(),
+                );
+              }
               final item = items[index];
               final isMatch =
                   item.targetVariant != null &&
@@ -170,6 +179,55 @@ class _FeedTab extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// 피드 끝의 "더 보기". 스크롤로 자동 로드하지 않고 버튼으로 둬서 실패 시 재시도가 분명하다.
+class _LoadMoreFooter extends ConsumerWidget {
+  const _LoadMoreFooter({
+    required this.isLoading,
+    required this.failed,
+    required this.onLoadMore,
+  });
+
+  final bool isLoading;
+  final bool failed;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (failed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                strings.loadMoreFailed,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
+              ),
+            ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: isLoading ? null : onLoadMore,
+              child: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(failed ? strings.retry : strings.loadMore),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

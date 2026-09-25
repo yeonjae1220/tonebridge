@@ -2,6 +2,7 @@ package me.yeonjae.tonebridge.application.service;
 
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.GetCorrectionFeedUseCase;
+import me.yeonjae.tonebridge.application.port.in.GetCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.GetMyCorrectionRequestsUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitAudioCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.SubmitTextCorrectionRequestUseCase;
@@ -26,11 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import me.yeonjae.tonebridge.shared.util.LanguageCodeUtils;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -40,6 +38,7 @@ public class CorrectionRequestService implements
         SubmitTextCorrectionRequestUseCase,
         SubmitAudioCorrectionRequestUseCase,
         GetCorrectionFeedUseCase,
+        GetCorrectionRequestUseCase,
         GetMyCorrectionRequestsUseCase,
         UpdateCorrectionRequestUseCase,
         DeleteCorrectionRequestUseCase {
@@ -99,31 +98,43 @@ public class CorrectionRequestService implements
 
     @Override
     @Transactional(readOnly = true)
-    public List<CorrectionRequest> getFeed(UUID correctorId, int limit) {
+    public FeedPage getFeedPage(UUID correctorId, FeedCursor after, int limit) {
         User corrector = userPort.findById(correctorId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 
         List<String> correctorVariants = Stream.concat(
                 corrector.fluentLanguages().stream(),
                 Stream.of(corrector.nativeLanguage())
-        ).filter(s -> s != null && !s.isBlank()).toList();
+        ).filter(s -> s != null && !s.isBlank()).distinct().toList();
+        if (correctorVariants.isEmpty()) {
+            return new FeedPage(List.of(), null);
+        }
 
         List<String> baseLanguages = correctorVariants.stream()
                 .map(LanguageCodeUtils::baseCode)
                 .distinct()
                 .toList();
 
-        Set<String> variantSet = correctorVariants.stream()
-                .collect(Collectors.toUnmodifiableSet());
+        // 한 건 더 읽어 다음 페이지가 있는지 본다.
+        List<CorrectionRequest> rows = correctionRequestPort.findFeedPage(
+                correctorId, baseLanguages, correctorVariants, after, limit + 1);
+        if (rows.size() <= limit) {
+            return new FeedPage(rows, null);
+        }
+        List<CorrectionRequest> items = rows.subList(0, limit);
+        CorrectionRequest last = items.get(limit - 1);
+        // SQL 의 CASE WHEN target_variant IN (:variants) 와 같은 판정이어야 커서가 정렬 키와 맞는다.
+        boolean lastPreferred = last.targetVariant() != null && correctorVariants.contains(last.targetVariant());
+        String nextCursor = new FeedCursor(lastPreferred, last.createdAt(), last.id()).encode();
+        return new FeedPage(List.copyOf(items), nextCursor);
+    }
 
-        List<CorrectionRequest> feed = correctionRequestPort.findFeed(correctorId, baseLanguages, limit * 3);
-
-        return feed.stream()
-                .sorted(Comparator.comparingInt((CorrectionRequest r) ->
-                        r.targetVariant() != null && variantSet.contains(r.targetVariant()) ? 0 : 1)
-                        .thenComparing(CorrectionRequest::createdAt, Comparator.reverseOrder()))
-                .limit(limit)
-                .toList();
+    @Override
+    @Transactional(readOnly = true)
+    public CorrectionRequest get(UUID requestId, UUID viewerId) {
+        return correctionRequestPort.findById(requestId)
+                .filter(r -> r.isOwnedBy(viewerId) || r.isPending())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
     }
 
     @Override

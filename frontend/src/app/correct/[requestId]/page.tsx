@@ -97,13 +97,14 @@ export default function CorrectPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: requests } = useQuery<CorrectionRequest[]>({
-    queryKey: ['correction-feed'],
-    queryFn: () => api.get('/correction-requests/feed?limit=50').then((r) => r.data),
+  // 단건 조회 — 예전엔 피드 최신 50건에서 id 로 찾아서, 그보다 오래된 요청은 '...' 로만 남았다.
+  const requestQuery = useQuery<CorrectionRequest>({
+    queryKey: ['correction-request', requestId],
+    queryFn: () => api.get<CorrectionRequest>(`/correction-requests/${requestId}`).then((r) => r.data),
     enabled: !!accessToken,
   })
 
-  const request = requests?.find((r) => r.id === requestId)
+  const request = requestQuery.data
 
   useEffect(() => {
     if (request?.type === 'AUDIO' && request.audioUrl) {
@@ -175,6 +176,19 @@ export default function CorrectPage() {
             <p className="text-xs text-gray-400 mt-0.5">{formatMessage(t('correct.reward'), { count: reward })}</p>
           </div>
         </div>
+
+        {requestQuery.isError && (
+          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 p-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-red-700">{t('correct.requestLoadFailed')}</p>
+            <button
+              type="button"
+              onClick={() => void requestQuery.refetch()}
+              className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+            >
+              {t('common.retry')}
+            </button>
+          </div>
+        )}
 
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">

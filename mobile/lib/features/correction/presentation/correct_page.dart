@@ -79,15 +79,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
 
   void _tryLoadAudio() {
     if (!mounted || _originalPlayer != null) return;
-    final feedItems = ref.read(feedStateProvider).asData?.value ?? [];
-    final myItems = ref.read(myRequestsStateProvider).asData?.value ?? [];
     final request =
-        feedItems
-            .where((CorrectionRequestItem i) => i.id == widget.requestId)
-            .firstOrNull ??
-        myItems
-            .where((CorrectionRequestItem i) => i.id == widget.requestId)
-            .firstOrNull;
+        ref.read(correctionRequestProvider(widget.requestId)).asData?.value;
     if (request?.type == 'AUDIO' && request?.audioUrl != null) {
       _loadAudio(request!.audioUrl!);
     }
@@ -133,22 +126,16 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
     final submitAsync = ref.watch(submitCorrectionStateProvider);
     final isLoading = submitAsync.isLoading || _uploading;
 
-    // Fetch the request from the feed cache
-    final feedAsync = ref.watch(feedStateProvider);
-    final myAsync = ref.watch(myRequestsStateProvider);
-
-    CorrectionRequestItem? request;
-    feedAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
-    });
-    myAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
-    });
+    // 요청 단건 조회 — 피드 목록에 없는(다음 페이지의) 요청도 연다.
+    final CorrectionRequestItem? request =
+        ref.watch(correctionRequestProvider(widget.requestId)).asData?.value;
 
     final isAudio = request?.type == 'AUDIO';
 
-    ref.listen(feedStateProvider, (_, __) => _tryLoadAudio());
-    ref.listen(myRequestsStateProvider, (_, __) => _tryLoadAudio());
+    ref.listen(
+      correctionRequestProvider(widget.requestId),
+      (_, _) => _tryLoadAudio(),
+    );
 
     ref.listen(submitCorrectionStateProvider, (previous, next) {
       if (next.hasError && !(previous?.hasError ?? false) && mounted) {

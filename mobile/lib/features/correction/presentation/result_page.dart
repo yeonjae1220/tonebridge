@@ -93,16 +93,9 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     final sessionsAsync = ref.watch(studySessionListStateProvider);
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
-    // Resolve the original request from feed/my-requests
-    final feedAsync = ref.watch(feedStateProvider);
-    final myAsync = ref.watch(myRequestsStateProvider);
-    CorrectionRequestItem? request;
-    feedAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
-    });
-    myAsync.whenData((List<CorrectionRequestItem> items) {
-      request ??= items.where((i) => i.id == widget.requestId).firstOrNull;
-    });
+    // 원 요청 단건 조회 (예전엔 피드·내 요청 목록에서 id 로 찾았다)
+    final CorrectionRequestItem? request =
+        ref.watch(correctionRequestProvider(widget.requestId)).asData?.value;
 
     final isAudio = request?.type == 'AUDIO';
     if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
@@ -180,7 +173,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                         ? () => _showSaveCardSheet(
                             context,
                             c,
-                            request!,
+                            request,
                             sessionsAsync.whenOrNull(data: (items) => items) ??
                                 const [],
                           )
