@@ -1,6 +1,7 @@
 package me.yeonjae.tonebridge.shared.config;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -205,6 +206,9 @@ public class SecurityConfig {
                                 .includeSubDomains(true))
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // 컨트롤러 밖에서 새어 나간 예외는 /error 로 ERROR 디스패치된다. 이걸 막으면 원래 상태코드(400 등)가
+                        // anyRequest().authenticated() 에 걸려 401 로 위장된다(GLOBAL-PIT-156).
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/languages/variants").permitAll()
                         // T2 fix: Swagger는 prod 프로파일에서 차단
