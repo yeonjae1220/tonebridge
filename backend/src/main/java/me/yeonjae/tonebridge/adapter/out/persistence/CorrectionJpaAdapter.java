@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.domain.correction.Correction;
 import me.yeonjae.tonebridge.domain.correction.CorrectionStatus;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -100,26 +99,13 @@ public class CorrectionJpaAdapter implements CorrectionPort {
     }
 
     @Override
-    public boolean toggleLike(UUID correctionId, UUID userId) {
-        boolean alreadyLiked = likeRepository.existsByCorrectionIdAndUserId(correctionId, userId);
-        if (alreadyLiked) {
-            try {
-                likeRepository.deleteByCorrectionIdAndUserId(correctionId, userId);
-            } catch (Exception e) {
-                // 동시 unlike 요청이 먼저 삭제한 경우 — 멱등 처리
-            }
-            return false;
-        }
-        try {
-            likeRepository.save(CorrectionLikeJpaEntity.builder()
-                    .correctionId(correctionId)
-                    .userId(userId)
-                    .build());
-            return true;
-        } catch (DataIntegrityViolationException e) {
-            // 동시 like 요청이 먼저 삽입한 경우 — 멱등 처리
-            return true;
-        }
+    public void addLike(UUID correctionId, UUID userId) {
+        likeRepository.insertIfAbsent(UUID.randomUUID(), correctionId, userId);
+    }
+
+    @Override
+    public void removeLike(UUID correctionId, UUID userId) {
+        likeRepository.deleteLike(correctionId, userId);
     }
 
     @Override

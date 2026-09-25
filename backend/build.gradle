@@ -78,6 +78,8 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    // 실DB(PostgreSQL) 동작 검증용 — ON CONFLICT·FK 같은 건 H2 로는 안 잡힌다
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
     runtimeOnly 'com.h2database:h2'
 }
 

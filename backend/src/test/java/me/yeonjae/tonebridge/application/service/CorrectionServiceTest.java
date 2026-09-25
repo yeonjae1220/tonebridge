@@ -388,53 +388,73 @@ class CorrectionServiceTest {
     // ───── Like 테스트 ────────────────────────────────────────────────────────
 
     @Test
-    void toggleLikeReturnsTrueWhenLiked() {
+    void likeAddsAndReturnsCount() {
         UUID correctionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
         when(correctionPort.findById(correctionId))
                 .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
-        when(correctionPort.toggleLike(correctionId, userId)).thenReturn(true);
         when(correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId)))
                 .thenReturn(Map.of(correctionId, 1L));
 
         LikeCorrectionUseCase.Result result =
-                correctionService.toggleLike(new LikeCorrectionUseCase.Command(correctionId, userId));
+                correctionService.like(new LikeCorrectionUseCase.Command(correctionId, userId));
 
+        verify(correctionPort).addLike(correctionId, userId);
+        verify(correctionPort, never()).removeLike(any(), any());
         assertThat(result.liked()).isTrue();
         assertThat(result.likeCount()).isEqualTo(1);
     }
 
     @Test
-    void toggleLikeReturnsFalseWhenUnliked() {
+    void unlikeRemovesAndReturnsCount() {
         UUID correctionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
         when(correctionPort.findById(correctionId))
                 .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
-        when(correctionPort.toggleLike(correctionId, userId)).thenReturn(false);
         when(correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId)))
                 .thenReturn(Map.of());
 
         LikeCorrectionUseCase.Result result =
-                correctionService.toggleLike(new LikeCorrectionUseCase.Command(correctionId, userId));
+                correctionService.unlike(new LikeCorrectionUseCase.Command(correctionId, userId));
 
+        verify(correctionPort).removeLike(correctionId, userId);
+        verify(correctionPort, never()).addLike(any(), any());
         assertThat(result.liked()).isFalse();
         assertThat(result.likeCount()).isEqualTo(0);
     }
 
     @Test
-    void toggleLikeThrowsWhenCorrectionNotFound() {
+    @SuppressWarnings("deprecation")
+    void legacyToggleUnlikesWhenAlreadyLiked() {
+        UUID correctionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(correctionPort.findById(correctionId))
+                .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
+        when(correctionPort.findLikedCorrectionIds(List.of(correctionId), userId)).thenReturn(Set.of(correctionId));
+        when(correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId))).thenReturn(Map.of());
+
+        LikeCorrectionUseCase.Result result =
+                correctionService.toggleLike(new LikeCorrectionUseCase.Command(correctionId, userId));
+
+        verify(correctionPort).removeLike(correctionId, userId);
+        assertThat(result.liked()).isFalse();
+    }
+
+    @Test
+    void likeThrowsWhenCorrectionNotFound() {
         UUID correctionId = UUID.randomUUID();
 
         when(correctionPort.findById(correctionId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-                correctionService.toggleLike(new LikeCorrectionUseCase.Command(correctionId, UUID.randomUUID())))
+                correctionService.like(new LikeCorrectionUseCase.Command(correctionId, UUID.randomUUID())))
                 .isInstanceOf(ToneBridgeException.class)
                 .extracting(e -> ((ToneBridgeException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CORRECTION_NOT_FOUND);
-        verify(correctionPort, never()).toggleLike(any(), any());
+        verify(correctionPort, never()).addLike(any(), any());
     }
 
     // ───── 헬퍼 ──────────────────────────────────────────────────────────────
