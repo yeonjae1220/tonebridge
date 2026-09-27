@@ -47,6 +47,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   bool _originalPlaying = false;
   Duration _originalPosition = Duration.zero;
   Duration _originalDuration = Duration.zero;
+  // await 전에 세우는 동기 플래그 — 첫 프레임 콜백과 요청 provider 통지가 둘 다 로드를 시작할 수 있다.
+  bool _originalLoading = false;
 
   // Reference re-recording by native speaker
   late final AudioRecorderService _refRecorder;
@@ -78,7 +80,7 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   }
 
   void _tryLoadAudio() {
-    if (!mounted || _originalPlayer != null) return;
+    if (!mounted || _originalPlayer != null || _originalLoading) return;
     final request =
         ref.read(correctionRequestProvider(widget.requestId)).asData?.value;
     if (request?.type == 'AUDIO' && request?.audioUrl != null) {
@@ -87,7 +89,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
   }
 
   Future<void> _loadAudio(String audioKey) async {
-    if (_originalPlayer != null) return;
+    if (_originalPlayer != null || _originalLoading) return;
+    _originalLoading = true;
     try {
       final res = await ref
           .read(dioProvider)
@@ -117,6 +120,8 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
           context,
         ).showSnackBar(const SnackBar(content: Text('원본 음성을 불러올 수 없어요.')));
       }
+    } finally {
+      _originalLoading = false;
     }
   }
 
