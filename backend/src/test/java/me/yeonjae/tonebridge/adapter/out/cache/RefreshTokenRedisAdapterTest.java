@@ -53,7 +53,8 @@ class RefreshTokenRedisAdapterTest {
 
         verify(valueOperations).set(eq("refresh:" + TOKEN_HASH), eq(userId.toString()), eq(Duration.ofSeconds(3600L)));
         verify(setOperations).add("user_tokens:" + userId, TOKEN_HASH);
-        verify(valueOperations, never()).set(argThat(key -> key.contains(RAW_TOKEN)), anyString(), any());
+        // 세 번째 인자 타입을 명시한다 — Spring Data Redis 가 set(K, V, ?) 오버로드를 늘리면 any() 는 모호해진다.
+        verify(valueOperations, never()).set(argThat(key -> key.contains(RAW_TOKEN)), anyString(), any(Duration.class));
     }
 
     @Test
