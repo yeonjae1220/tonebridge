@@ -142,4 +142,16 @@ export async function logout(): Promise<void> {
     // 쿠키 삭제 실패해도 로컬 상태는 지움
   }
   useAuthStore.getState().logout()
+  await clearOfflineCaches()
+}
+
+/** 서비스워커 캐시 비우기 — 옛 SW(v1)가 캐싱해 둔 API 응답이 다음 사용자에게 남지 않게. */
+async function clearOfflineCaches(): Promise<void> {
+  if (typeof caches === 'undefined') return
+  try {
+    const keys = await caches.keys()
+    await Promise.all(keys.filter((key) => key.startsWith('tonebridge-')).map((key) => caches.delete(key)))
+  } catch (e) {
+    console.error('[logout] 오프라인 캐시 삭제 실패', e)
+  }
 }
