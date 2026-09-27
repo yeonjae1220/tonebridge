@@ -472,6 +472,30 @@ class ToneBridgeStrings {
     'ru': 'Пока нет запросов для проверки.\nЗагляните позже.',
   });
 
+  String get loadMore => _pick({
+    'ko': '더 보기',
+    'en': 'Load more',
+    'ja': 'もっと見る',
+    'zh': '加载更多',
+    'es': 'Cargar más',
+    'fr': 'Voir plus',
+    'de': 'Mehr laden',
+    'pt': 'Carregar mais',
+    'ru': 'Показать ещё',
+  });
+
+  String get loadMoreFailed => _pick({
+    'ko': '요청을 더 불러오지 못했습니다.',
+    'en': "Couldn't load more requests.",
+    'ja': '依頼をこれ以上読み込めませんでした。',
+    'zh': '无法加载更多请求。',
+    'es': 'No se pudieron cargar más solicitudes.',
+    'fr': 'Impossible de charger plus de demandes.',
+    'de': 'Weitere Anfragen konnten nicht geladen werden.',
+    'pt': 'Não foi possível carregar mais solicitações.',
+    'ru': 'Не удалось загрузить больше запросов.',
+  });
+
   String get noMyRequests => _pick({
     'ko': '아직 교정 요청이 없습니다.\n새 요청을 작성해보세요.',
     'en': 'No correction requests yet.\nCreate a new request.',

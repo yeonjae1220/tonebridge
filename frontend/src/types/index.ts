@@ -190,3 +190,9 @@ export interface NativeAudioEntry {
   createdAt: string
   note: string | null
 }
+
+/** GET /correction-requests/feed/page — nextCursor 가 null 이면 마지막 페이지 */
+export interface CorrectionFeedPage {
+  items: CorrectionRequest[]
+  nextCursor: string | null
+}

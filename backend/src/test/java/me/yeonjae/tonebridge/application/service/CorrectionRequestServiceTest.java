@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -118,6 +119,39 @@ class CorrectionRequestServiceTest {
                 .extracting(e -> ((ToneBridgeException) e).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
         verify(correctionRequestPort, never()).softDelete(requestId);
+    }
+
+    // ───── 단건 조회 ─────────────────────────────────────────────────────────
+
+    @Test
+    void anyoneCanViewPendingRequest() {
+        UUID requestId = UUID.randomUUID();
+        CorrectionRequest pending = request(requestId, UUID.randomUUID(), RequestStatus.PENDING);
+        when(correctionRequestPort.findById(requestId)).thenReturn(Optional.of(pending));
+
+        assertThat(service.get(requestId, UUID.randomUUID())).isEqualTo(pending);
+    }
+
+    @Test
+    void requesterCanViewOwnCompletedRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID requesterId = UUID.randomUUID();
+        CorrectionRequest completed = request(requestId, requesterId, RequestStatus.COMPLETED);
+        when(correctionRequestPort.findById(requestId)).thenReturn(Optional.of(completed));
+
+        assertThat(service.get(requestId, requesterId)).isEqualTo(completed);
+    }
+
+    @Test
+    void othersCannotViewCompletedRequest() {
+        UUID requestId = UUID.randomUUID();
+        when(correctionRequestPort.findById(requestId))
+                .thenReturn(Optional.of(request(requestId, UUID.randomUUID(), RequestStatus.COMPLETED)));
+
+        assertThatThrownBy(() -> service.get(requestId, UUID.randomUUID()))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.REQUEST_NOT_FOUND);
     }
 
     private CorrectionRequest request(UUID requestId, UUID requesterId, RequestStatus status) {

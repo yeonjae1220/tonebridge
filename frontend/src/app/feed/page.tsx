@@ -2,10 +2,10 @@
 
 import { FormEvent, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import { CorrectionRequest, LanguageVariant } from '@/types'
+import { CorrectionFeedPage, CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -13,6 +13,8 @@ import { localizedLabel } from '@/lib/localizedLabels'
 
 type TFunction = ReturnType<typeof useI18n>['t']
 type FeedTab = 'help' | 'mine' | 'done'
+
+const FEED_PAGE_SIZE = 20
 
 function formatMessage(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce(
@@ -84,11 +86,20 @@ export default function FeedPage() {
   const variantLabel = (code: string) =>
     variantLabels[code] ?? ALL_LANG_LABELS[code] ?? code
 
-  const feedQuery = useQuery<CorrectionRequest[]>({
-    queryKey: ['correction-feed'],
-    queryFn: () => api.get('/correction-requests/feed?limit=20').then((r) => r.data),
+  // 커서 페이지네이션 — 예전 /feed 는 최신 몇 건만 줘서 그보다 오래된 요청은 아무에게도 안 보였다.
+  const feedQuery = useInfiniteQuery({
+    queryKey: ['correction-feed-page'],
+    queryFn: ({ pageParam }) =>
+      api
+        .get<CorrectionFeedPage>('/correction-requests/feed/page', {
+          params: { limit: FEED_PAGE_SIZE, before: pageParam ?? undefined },
+        })
+        .then((r) => r.data),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !isGuest,
   })
+  const feedItems = useMemo(() => feedQuery.data?.pages.flatMap((page) => page.items), [feedQuery.data])
 
   const myRequestsQuery = useQuery<CorrectionRequest[]>({
     queryKey: ['my-requests'],
@@ -169,7 +180,10 @@ export default function FeedPage() {
         {!isGuest && (
           <section className="mb-4 rounded-2xl border border-gray-100 bg-surface p-4">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <CommunityMetric label={t('feed.helpRequests')} value={feedQuery.data?.length ?? 0} />
+              <CommunityMetric
+                label={t('feed.helpRequests')}
+                value={`${feedItems?.length ?? 0}${feedQuery.hasNextPage ? '+' : ''}`}
+              />
               <CommunityMetric label={t('feed.myRequests')} value={pendingMine.length} />
               <CommunityMetric label={t('feed.doneRequests')} value={completedMine.length} />
             </div>
@@ -198,14 +212,23 @@ export default function FeedPage() {
         )}
 
         {tab === 'help' ? (
-          <RequestList
-            requests={feedQuery.data}
-            isLoading={!isGuest && feedQuery.isLoading}
-            emptyMessage={t('feed.empty')}
-            correctorVariants={correctorVariants}
-            variantLabel={variantLabel}
-            onCardClick={(req) => router.push(isGuest ? `/login?redirect=/correct/${req.id}` : `/correct/${req.id}`)}
-          />
+          <>
+            <RequestList
+              requests={feedItems}
+              isLoading={!isGuest && feedQuery.isLoading}
+              emptyMessage={t('feed.empty')}
+              correctorVariants={correctorVariants}
+              variantLabel={variantLabel}
+              onCardClick={(req) => router.push(isGuest ? `/login?redirect=/correct/${req.id}` : `/correct/${req.id}`)}
+            />
+            <FeedLoadMore
+              hasNextPage={feedQuery.hasNextPage}
+              isFetching={feedQuery.isFetchingNextPage}
+              failed={feedQuery.isFetchNextPageError}
+              onLoadMore={() => void feedQuery.fetchNextPage()}
+              t={t}
+            />
+          </>
         ) : tab === 'mine' ? (
           <RequestList
             requests={pendingMine}
@@ -247,7 +270,40 @@ export default function FeedPage() {
   )
 }
 
-function CommunityMetric({ label, value }: { label: string; value: number }) {
+function FeedLoadMore({
+  hasNextPage,
+  isFetching,
+  failed,
+  onLoadMore,
+  t,
+}: {
+  hasNextPage: boolean
+  isFetching: boolean
+  failed: boolean
+  onLoadMore: () => void
+  t: TFunction
+}) {
+  if (!hasNextPage) return null
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      {failed && (
+        <p role="alert" className="text-xs text-red-600">
+          {t('feed.loadMoreFailed')}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={onLoadMore}
+        disabled={isFetching}
+        className="w-full rounded-xl border border-gray-200 bg-surface py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+      >
+        {isFetching ? t('feed.loadingMore') : failed ? t('common.retry') : t('feed.loadMore')}
+      </button>
+    </div>
+  )
+}
+
+function CommunityMetric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl bg-gray-50 px-3 py-2">
       <p className="text-lg font-black text-gray-900">{value}</p>
