@@ -33,7 +33,8 @@ void main() {
       expect(result.first.username, 'alice');
     });
 
-    test('returns empty list when server returns null body', () async {
+    // 빈 본문을 빈 목록으로 바꾸면 '조회 실패'가 '친구 없음'으로 보인다 — 실패로 올려야 한다.
+    test('throws when server returns null body', () async {
       when(() => mockDio.get<List<dynamic>>('/api/friends')).thenAnswer(
         (_) async => Response<List<dynamic>>(
           requestOptions: opts('/api/friends'),
@@ -42,8 +43,7 @@ void main() {
         ),
       );
 
-      final result = await repo.getFriends();
-      expect(result, isEmpty);
+      await expectLater(repo.getFriends(), throwsStateError);
     });
 
     test('returns empty list when server returns empty array', () async {
@@ -61,7 +61,7 @@ void main() {
   });
 
   group('getPendingRequests', () {
-    test('returns empty list when server returns null body', () async {
+    test('throws when server returns null body', () async {
       when(() => mockDio.get<List<dynamic>>('/api/friends/pending')).thenAnswer(
         (_) async => Response<List<dynamic>>(
           requestOptions: opts('/api/friends/pending'),
@@ -70,8 +70,7 @@ void main() {
         ),
       );
 
-      final result = await repo.getPendingRequests();
-      expect(result, isEmpty);
+      await expectLater(repo.getPendingRequests(), throwsStateError);
     });
 
     test('parses pending requests from response', () async {
