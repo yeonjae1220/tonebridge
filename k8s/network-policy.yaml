@@ -41,10 +41,29 @@ spec:
               app: minio
       ports:
         - port: 9000
-    # 외부 API (Google OAuth, Claude, OpenAI) + DNS
-    - ports:
+    # 외부 API (Google OAuth, Claude, OpenAI)
+    # 공인 IP 로만 — 사설·CGNAT·링크로컬을 빼서 노드 nginx(lab·uptime·grafana)나 LAN 장비로 새지 않게 한다
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8      # 파드·서비스·홈 VLAN
+              - 172.16.0.0/12   # SERVER LAN(172.30.1.0/24) — 노드 nginx 443
+              - 192.168.0.0/16
+              - 100.64.0.0/10   # Tailscale(CGNAT)
+              - 169.254.0.0/16  # 링크로컬
+      ports:
         - port: 443
           protocol: TCP
+    # DNS — CoreDNS(kube-system/kube-dns) 로만. to: 가 없으면 53 으로 어디든 나간다(GLOBAL-PIT-090)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
@@ -114,8 +133,15 @@ spec:
               app: backend
       ports:
         - port: 8080
-    # DNS
-    - ports:
+    # DNS — CoreDNS(kube-system/kube-dns) 로만. to: 가 없으면 53 으로 어디든 나간다(GLOBAL-PIT-090)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
@@ -186,9 +212,28 @@ spec:
       ports:
         - port: 8089
   egress:
-    - ports:
+    # 공인 IP 로만 — 사설·CGNAT·링크로컬을 빼서 노드 nginx(lab·uptime·grafana)나 LAN 장비로 새지 않게 한다
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8      # 파드·서비스·홈 VLAN
+              - 172.16.0.0/12   # SERVER LAN(172.30.1.0/24) — 노드 nginx 443
+              - 192.168.0.0/16
+              - 100.64.0.0/10   # Tailscale(CGNAT)
+              - 169.254.0.0/16  # 링크로컬
+      ports:
         - port: 443
           protocol: TCP
+    # DNS — CoreDNS(kube-system/kube-dns) 로만. to: 가 없으면 53 으로 어디든 나간다(GLOBAL-PIT-090)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
@@ -213,8 +258,15 @@ spec:
               app: minio
       ports:
         - port: 9000
-    # DNS
-    - ports:
+    # DNS — CoreDNS(kube-system/kube-dns) 로만. to: 가 없으면 53 으로 어디든 나간다(GLOBAL-PIT-090)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
         - port: 53
           protocol: UDP
         - port: 53
