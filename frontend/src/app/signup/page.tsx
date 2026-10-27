@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { registerWithPassword } from '@/lib/api'
 import { resolvePostAuthPath } from '@/lib/authNavigate'
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -27,10 +28,10 @@ export default function SignupPage() {
       const path = await resolvePostAuthPath()
       router.replace(path)
     } catch (err) {
-      const res = (err as { response?: { status?: number; data?: { message?: string } } })?.response
       // 409(이메일/닉네임 중복)는 서버가 제공하는 사유 메시지를 그대로 노출, 그 외는 일반 메시지
-      const serverMessage = res?.status === 409 ? res?.data?.message : undefined
-      setError(serverMessage ?? t('signup.error'))
+      const status = getApiErrorStatus(err)
+      if (status !== 409) console.error('[signup] 가입 실패', err)
+      setError(status === 409 ? getApiErrorMessage(err, t('signup.error')) : t('signup.error'))
       setSubmitting(false)
     }
   }

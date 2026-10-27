@@ -9,6 +9,8 @@ import { Correction, CorrectionRequest, StudySession } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
+import { usePresignedDownloadUrl } from '@/hooks/usePresignedDownloadUrl'
 import { localizedLabel } from '@/lib/localizedLabels'
 
 const STATUS_MAP: Record<string, { key: 'result.waiting' | 'result.approved' | 'result.rejected'; cls: string }> = {
@@ -25,20 +27,14 @@ function formatTime(seconds: number) {
 
 function RefAudioPlayer({ audioKey }: { audioKey: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [url, setUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    api
-      .get<{ downloadUrl: string }>(`/storage/presigned-download?key=${encodeURIComponent(audioKey)}`)
-      .then((r) => setUrl(r.data.downloadUrl))
-  }, [audioKey])
-
+  const { url, failed, retry } = usePresignedDownloadUrl(audioKey)
   const ws = useWaveSurfer(containerRef, url)
   const { t } = useI18n()
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold text-indigo-600">{t('common.audio')}</p>
+      <AudioLoadFailed failed={failed} onRetry={retry} />
       <div ref={containerRef} className="w-full min-h-[48px] bg-indigo-50 rounded-xl overflow-hidden" />
       <div className="flex items-center justify-between">
         <button
@@ -121,13 +117,11 @@ export default function ResultPage() {
   const { data: currentUser } = useCurrentUser()
   const { t } = useI18n()
   const sseRef = useRef<EventSource | null>(null)
-  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null)
   const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
   const [editingCorrection, setEditingCorrection] = useState<Correction | null>(null)
   const [savingCorrection, setSavingCorrection] = useState<Correction | null>(null)
   const [likingId, setLikingId] = useState<string | null>(null)
   const waveContainerRef = useRef<HTMLDivElement>(null)
-  const ws = useWaveSurfer(waveContainerRef, originalAudioUrl)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -147,13 +141,8 @@ export default function ResultPage() {
     enabled: !!accessToken,
   })
 
-  useEffect(() => {
-    if (request?.type === 'AUDIO' && request.audioUrl) {
-      api
-        .get<{ downloadUrl: string }>(`/storage/presigned-download?key=${encodeURIComponent(request.audioUrl)}`)
-        .then((r) => setOriginalAudioUrl(r.data.downloadUrl))
-    }
-  }, [request])
+  const originalAudio = usePresignedDownloadUrl(request?.type === 'AUDIO' ? request.audioUrl : null)
+  const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
   const { data: corrections, refetch } = useQuery<Correction[]>({
     queryKey: ['corrections', requestId],
@@ -294,6 +283,7 @@ export default function ResultPage() {
           </div>
           {isAudio ? (
             <div>
+              <AudioLoadFailed failed={originalAudio.failed} onRetry={originalAudio.retry} />
               <div ref={waveContainerRef} className="w-full min-h-[64px] bg-amber-100 rounded-xl overflow-hidden" />
               <div className="flex items-center justify-between mt-3">
                 <button

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { useI18n } from '@/i18n/I18nProvider'
+import { getApiErrorStatus } from '@/lib/apiError'
 
 type Step = 'nickname' | 'native' | 'fluent' | 'learning'
 
@@ -58,7 +59,8 @@ export default function OnboardingPage() {
       })
       router.replace('/study')
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status
+      const status = getApiErrorStatus(err)
+      if (status !== 409) console.error('[onboarding] 프로필 저장 실패', err)
       if (status === 409) {
         setError(t('profile.nicknameTaken'))
       } else {

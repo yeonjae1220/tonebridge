@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { loginWithPassword } from '@/lib/api'
 import { isSafeRedirect, resolvePostAuthPath } from '@/lib/authNavigate'
+import { getApiErrorStatus } from '@/lib/apiError'
 
 function LoginInner() {
   const router = useRouter()
@@ -41,7 +42,8 @@ function LoginInner() {
       router.replace(path)
     } catch (err) {
       // 401(자격증명 오류)과 그 외를 구분해 메시지 노출 (서버는 사유를 통일된 401로 응답)
-      const status = (err as { response?: { status?: number } })?.response?.status
+      const status = getApiErrorStatus(err)
+      if (status !== 401) console.error('[login] 로그인 실패', err)
       setError(status === 401 ? t('login.failed') : t('login.error'))
       setSubmitting(false)
     }

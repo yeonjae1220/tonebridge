@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
@@ -12,6 +11,7 @@ import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { Friend, StudyCard, StudySession } from '@/types'
+import { getApiErrorMessage } from '@/lib/apiError'
 
 const FEEDBACK_GOALS = [
   { key: 'goal.pronunciation', value: '발음' },
@@ -133,7 +133,7 @@ export default function RequestPage() {
       router.push(`/study/${result.sessionId}/cards/${result.cardId}`)
     },
     onError: (e: unknown) => {
-      setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('request.failed'))
+      setError(getApiErrorMessage(e, t('request.failed')))
     },
   })
 

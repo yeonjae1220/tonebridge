@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { CorrectionRequest, TimestampComment } from '@/types'
@@ -13,9 +12,12 @@ import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { RecorderErrorMessage } from '@/components/recorder/RecorderModal'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { usePresignedDownloadUrl } from '@/hooks/usePresignedDownloadUrl'
 import { useI18n } from '@/i18n/I18nProvider'
+import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
 import { formatMessage } from '@/i18n/messages'
 import { localizedLabel } from '@/lib/localizedLabels'
+import { getApiErrorMessage } from '@/lib/apiError'
 
 const COMMON_TAGS = [
   { key: 'goal.grammar', value: '문법' },
@@ -85,10 +87,8 @@ export default function CorrectPage() {
   const [pronunciationScore, setPronunciationScore] = useState(5)
   const [intonationScore, setIntonationScore] = useState(5)
   const [fluencyScore, setFluencyScore] = useState(5)
-  const [audioDownloadUrl, setAudioDownloadUrl] = useState<string | null>(null)
 
   const waveContainerRef = useRef<HTMLDivElement>(null)
-  const ws = useWaveSurfer(waveContainerRef, audioDownloadUrl)
 
   const refRecorder = useAudioRecorder()
   const { upload: uploadRef, uploading: uploadingRef } = usePresignedUpload()
@@ -106,13 +106,8 @@ export default function CorrectPage() {
 
   const request = requestQuery.data
 
-  useEffect(() => {
-    if (request?.type === 'AUDIO' && request.audioUrl) {
-      api
-        .get<{ downloadUrl: string }>(`/storage/presigned-download?key=${encodeURIComponent(request.audioUrl)}`)
-        .then((r) => setAudioDownloadUrl(r.data.downloadUrl))
-    }
-  }, [request])
+  const originalAudio = usePresignedDownloadUrl(request?.type === 'AUDIO' ? request.audioUrl : null)
+  const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -137,7 +132,7 @@ export default function CorrectPage() {
       })
     },
     onSuccess: () => router.push('/community'),
-    onError: (e: unknown) => setError((e as AxiosError<{ message: string }>).response?.data?.message ?? t('correct.submitFailed')),
+    onError: (e: unknown) => setError(getApiErrorMessage(e, t('correct.submitFailed'))),
   })
 
   const toggleTag = (tag: string) => {
@@ -200,6 +195,7 @@ export default function CorrectPage() {
           </div>
           {isAudio ? (
             <div>
+              <AudioLoadFailed failed={originalAudio.failed} onRetry={originalAudio.retry} />
               <div ref={waveContainerRef} className="w-full min-h-[64px] bg-amber-100 rounded-xl overflow-hidden" />
               <div className="flex items-center justify-between mt-3">
                 <button
