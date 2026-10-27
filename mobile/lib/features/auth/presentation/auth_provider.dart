@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/features/auth/data/auth_repository_impl.dart';
@@ -43,9 +44,12 @@ class AuthState extends _$AuthState {
         return null;
       }
       rethrow;
-    } catch (_) {
-      await storage.clearAll();
-      return null;
+    } catch (e, st) {
+      // 응답 파싱 실패 같은 비-Dio 예외는 "자격이 없다"는 증거가 아니다 — 토큰을 지우면 앱 버그 하나가
+      // 전 사용자 강제 로그아웃이 된다. 토큰은 401 에서만 지우고, 그 밖은 AsyncError 로 드러낸다
+      // (타임아웃·5xx 가 위에서 rethrow 되는 것과 같은 처리, GLOBAL-PIT-012).
+      debugPrint('[AuthState] 세션 검증 실패(토큰 유지): $e\n$st');
+      rethrow;
     }
   }
 

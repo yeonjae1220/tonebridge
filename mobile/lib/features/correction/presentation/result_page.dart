@@ -35,11 +35,28 @@ class _ResultPageState extends ConsumerState<ResultPage> {
   bool _originalPlaying = false;
   Duration _originalPosition = Duration.zero;
   Duration _originalDuration = Duration.zero;
+  // await 전에 세우는 동기 플래그 — _originalPlayer 는 URL 조회 뒤에야 생겨서, 그것만 보면
+  // 조회 도중의 재빌드·재통지마다 로드가 다시 시작되고 먼저 만든 플레이어가 새어 나갔다.
+  bool _originalLoading = false;
+  bool _originalFailed = false;
 
   @override
   void initState() {
     super.initState();
     _connectSse();
+    // 오디오 로드는 build() 가 아니라 요청 데이터가 도착했을 때 한 번 시작한다.
+    ref.listenManual(
+      correctionRequestProvider(widget.requestId),
+      (_, next) => _maybeLoadOriginalAudio(next.asData?.value),
+      fireImmediately: true,
+    );
+  }
+
+  void _maybeLoadOriginalAudio(CorrectionRequestItem? request) {
+    final key = request?.audioUrl;
+    if (request?.type != 'AUDIO' || key == null) return;
+    if (_originalPlayer != null || _originalLoading) return;
+    _loadOriginalAudio(key);
   }
 
   void _connectSse() {
@@ -54,7 +71,9 @@ class _ResultPageState extends ConsumerState<ResultPage> {
   }
 
   Future<void> _loadOriginalAudio(String audioKey) async {
-    if (_originalPlayer != null) return;
+    _originalLoading = true;
+    if (_originalFailed) setState(() => _originalFailed = false);
+    final player = AudioPlayer();
     try {
       final res = await ref
           .read(dioProvider)
@@ -62,9 +81,16 @@ class _ResultPageState extends ConsumerState<ResultPage> {
             '/api/storage/presigned-download',
             queryParameters: {'key': audioKey},
           );
-      final url = res.data!['downloadUrl'] as String;
-      _originalPlayer = AudioPlayer();
-      await _originalPlayer!.setUrl(url);
+      final url = res.data?['downloadUrl'];
+      if (url is! String) {
+        throw StateError('presigned-download 응답에 downloadUrl 이 없다');
+      }
+      await player.setUrl(url);
+      if (!mounted) {
+        await player.dispose();
+        return;
+      }
+      _originalPlayer = player;
       _originalPlayer!.durationStream.listen((d) {
         if (mounted && d != null) setState(() => _originalDuration = d);
       });
@@ -74,8 +100,14 @@ class _ResultPageState extends ConsumerState<ResultPage> {
       _originalPlayer!.playingStream.listen((playing) {
         if (mounted) setState(() => _originalPlaying = playing);
       });
-      if (mounted) setState(() => _originalReady = true);
-    } catch (_) {}
+      setState(() => _originalReady = true);
+    } catch (e, st) {
+      debugPrint('[ResultPage] 원본 음성 로드 실패 (key=$audioKey): $e\n$st');
+      await player.dispose();
+      if (mounted) setState(() => _originalFailed = true);
+    } finally {
+      _originalLoading = false;
+    }
   }
 
   @override
@@ -94,13 +126,12 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
     // 원 요청 단건 조회 (예전엔 피드·내 요청 목록에서 id 로 찾았다)
-    final CorrectionRequestItem? request =
-        ref.watch(correctionRequestProvider(widget.requestId)).asData?.value;
+    final CorrectionRequestItem? request = ref
+        .watch(correctionRequestProvider(widget.requestId))
+        .asData
+        ?.value;
 
     final isAudio = request?.type == 'AUDIO';
-    if (isAudio && request?.audioUrl != null && _originalPlayer == null) {
-      _loadOriginalAudio(request!.audioUrl!);
-    }
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.resultTitle)),
@@ -140,6 +171,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
               playing: _originalPlaying,
               position: _originalPosition,
               duration: _originalDuration,
+              failed: _originalFailed,
+              onRetry: () => _maybeLoadOriginalAudio(request),
               onToggle: () {
                 if (_originalPlaying) {
                   _originalPlayer?.pause();
@@ -361,6 +394,8 @@ class _OriginalCard extends StatelessWidget {
     required this.playing,
     required this.position,
     required this.duration,
+    required this.failed,
+    required this.onRetry,
     required this.onToggle,
   });
 
@@ -370,6 +405,8 @@ class _OriginalCard extends StatelessWidget {
   final bool playing;
   final Duration position;
   final Duration duration;
+  final bool failed;
+  final VoidCallback onRetry;
   final VoidCallback onToggle;
 
   String _fmt(Duration d) {
@@ -425,7 +462,8 @@ class _OriginalCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          if (isAudio) ...[
+          if (isAudio && failed) _AudioLoadFailed(onRetry: onRetry),
+          if (isAudio && !failed) ...[
             Row(
               children: [
                 FilledButton.tonal(
@@ -524,6 +562,21 @@ class _CorrectionCardState extends State<_CorrectionCard> {
   AudioPlayer? _refPlayer;
   bool _refReady = false;
   bool _refPlaying = false;
+  bool _refLoading = false;
+  bool _refFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // build() 에서 시작하면 재빌드마다 로드가 겹친다 — 첫 프레임 뒤 한 번만.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadRefAudio());
+  }
+
+  void _maybeLoadRefAudio() {
+    final key = widget.correction.referenceAudioUrl;
+    if (!mounted || key == null || _refPlayer != null || _refLoading) return;
+    _loadRefAudio(context, key);
+  }
 
   @override
   void dispose() {
@@ -532,21 +585,36 @@ class _CorrectionCardState extends State<_CorrectionCard> {
   }
 
   Future<void> _loadRefAudio(BuildContext context, String key) async {
-    if (_refPlayer != null) return;
+    _refLoading = true;
+    if (_refFailed) setState(() => _refFailed = false);
+    final dio = ProviderScope.containerOf(context).read(dioProvider);
+    final player = AudioPlayer();
     try {
-      final dio = ProviderScope.containerOf(context).read(dioProvider);
       final res = await dio.get<Map<String, dynamic>>(
         '/api/storage/presigned-download',
         queryParameters: {'key': key},
       );
-      final url = res.data!['downloadUrl'] as String;
-      _refPlayer = AudioPlayer();
-      await _refPlayer!.setUrl(url);
+      final url = res.data?['downloadUrl'];
+      if (url is! String) {
+        throw StateError('presigned-download 응답에 downloadUrl 이 없다');
+      }
+      await player.setUrl(url);
+      if (!mounted) {
+        await player.dispose();
+        return;
+      }
+      _refPlayer = player;
       _refPlayer!.playingStream.listen((p) {
         if (mounted) setState(() => _refPlaying = p);
       });
-      if (mounted) setState(() => _refReady = true);
-    } catch (_) {}
+      setState(() => _refReady = true);
+    } catch (e, st) {
+      debugPrint('[ResultPage] 참고 음성 로드 실패 (key=$key): $e\n$st');
+      await player.dispose();
+      if (mounted) setState(() => _refFailed = true);
+    } finally {
+      _refLoading = false;
+    }
   }
 
   @override
@@ -554,10 +622,6 @@ class _CorrectionCardState extends State<_CorrectionCard> {
     final theme = Theme.of(context);
     final strings = ProviderScope.containerOf(context).read(tProvider);
     final c = widget.correction;
-
-    if (c.referenceAudioUrl != null && _refPlayer == null) {
-      _loadRefAudio(context, c.referenceAudioUrl!);
-    }
 
     final (statusLabel, statusColor) = switch (c.status) {
       'APPROVED' => (strings.approved, theme.colorScheme.primary),
@@ -664,29 +728,31 @@ class _CorrectionCardState extends State<_CorrectionCard> {
                 ),
               ),
               const SizedBox(height: 6),
-              FilledButton.tonal(
-                onPressed: _refReady
-                    ? () {
-                        if (_refPlaying) {
-                          _refPlayer?.pause();
-                        } else {
-                          _refPlayer?.play();
+              if (_refFailed) _AudioLoadFailed(onRetry: _maybeLoadRefAudio),
+              if (!_refFailed)
+                FilledButton.tonal(
+                  onPressed: _refReady
+                      ? () {
+                          if (_refPlaying) {
+                            _refPlayer?.pause();
+                          } else {
+                            _refPlayer?.play();
+                          }
                         }
-                      }
-                    : null,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _refPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(_refPlaying ? strings.pause : strings.play),
-                  ],
+                      : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _refPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(_refPlaying ? strings.pause : strings.play),
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 12),
             ],
 
@@ -1111,4 +1177,30 @@ class _ScoreChip extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// 오디오 URL·재생 준비 실패 안내. 실패를 삼키면 재생 버튼이 이유 없이 영원히 비활성으로 보인다.
+class _AudioLoadFailed extends ConsumerWidget {
+  const _AudioLoadFailed({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            strings.errorOccurred,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+        TextButton(onPressed: onRetry, child: Text(strings.retry)),
+      ],
+    );
+  }
 }

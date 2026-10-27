@@ -23,7 +23,8 @@ class FriendRepositoryImpl implements FriendRepository {
     final data = response.data;
     if (data == null) {
       dev.log('Unexpected null body from GET /api/friends', name: 'FriendRepository');
-      return [];
+      // 빈 본문을 [] 로 바꾸면 '조회 실패'가 '친구 없음'으로 보인다 — 실패로 올린다(GLOBAL-PIT-108).
+      throw StateError('Unexpected null body from GET /api/friends');
     }
     return data.map((e) => Friend.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -34,7 +35,8 @@ class FriendRepositoryImpl implements FriendRepository {
     final data = response.data;
     if (data == null) {
       dev.log('Unexpected null body from GET /api/friends/pending', name: 'FriendRepository');
-      return [];
+      // 빈 본문을 [] 로 바꾸면 '조회 실패'가 '친구 없음'으로 보인다 — 실패로 올린다(GLOBAL-PIT-108).
+      throw StateError('Unexpected null body from GET /api/friends/pending');
     }
     return data
         .map((e) => FriendRequestItem.fromJson(e as Map<String, dynamic>))
@@ -50,7 +52,8 @@ class FriendRepositoryImpl implements FriendRepository {
     final data = response.data;
     if (data == null) {
       dev.log('Unexpected null body from GET /api/users/search', name: 'FriendRepository');
-      return [];
+      // 빈 본문을 [] 로 바꾸면 '조회 실패'가 '친구 없음'으로 보인다 — 실패로 올린다(GLOBAL-PIT-108).
+      throw StateError('Unexpected null body from GET /api/users/search');
     }
     return data
         .map((e) => UserSearchResult.fromJson(e as Map<String, dynamic>))
