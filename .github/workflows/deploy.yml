@@ -15,6 +15,19 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 배포하는 run 을 트리거된 순서대로 한 줄로 세운다.
+# run 시작부터 deploy 시작까지 걸리는 시간이 매번 달라서(2026-09-27 기준 최근 6회 7m19s~9m46s)
+# 연달아 머지하면 뒤 커밋이 deploy 에 먼저 도착할 수 있다. self-hosted 러너는 deploy 잡을 도착
+# 순서대로만 처리하므로 그러면 앞 커밋의 deploy 가 마지막에 돌아 옛 매니페스트·옛 이미지가 최종
+# 상태가 된다 — 에러 없이, 다음 배포 때까지. 잡 단위 concurrency 는 여전히 도착 순서라 이걸 못 막는다.
+# run 전체를 묶어야 빌드부터 순서대로 돈다.
+# 기다리던 run 은 더 새 run 이 오면 취소되는데, main 은 선형이라 최신 run 이 그 변경을 모두 담는다.
+# 운영은 하나이므로 push·dispatch 는 브랜치와 무관하게 한 그룹이다. PR run 은 배포하지 않으므로
+# run 마다 고유 그룹을 줘 아무것도 기다리지 않게 한다(기존 동작 그대로).
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.run_id) || 'deploy-production' }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/tonebridge-backend
