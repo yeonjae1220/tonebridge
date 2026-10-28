@@ -12,7 +12,9 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https: blob:",
     "font-src 'self'",
-    "connect-src 'self' https://tonebridge.mungji.com wss://tonebridge.mungji.com",
+    // WaveSurfer fetches local recording blobs before they have been uploaded.
+    "connect-src 'self' blob: https://tonebridge.mungji.com wss://tonebridge.mungji.com",
+    "media-src 'self' blob:",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",

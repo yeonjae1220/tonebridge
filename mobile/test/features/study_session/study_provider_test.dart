@@ -31,8 +31,7 @@ void main() {
       when(() => mockRepo.getSessions()).thenAnswer((_) async => sessions);
 
       final container = makeContainer();
-      final result =
-          await container.read(studySessionListStateProvider.future);
+      final result = await container.read(studySessionListStateProvider.future);
 
       expect(result, equals(sessions));
       verify(() => mockRepo.getSessions()).called(1);
@@ -45,19 +44,20 @@ void main() {
       await container
           .read(studySessionListStateProvider.future)
           .then((_) => null)
-          .onError((_, __) => null);
+          .onError((_, _) => null);
 
-      expect(
-          container.read(studySessionListStateProvider).hasError, isTrue);
+      expect(container.read(studySessionListStateProvider).hasError, isTrue);
     });
 
     test('createSession() creates session and refreshes list', () async {
-      final newSession =
-          makeStudySession(id: 'session-new', title: 'My Session');
-      when(() => mockRepo.getSessions())
-          .thenAnswer((_) async => [newSession]);
-      when(() => mockRepo.createSession(any(), title: any(named: 'title')))
-          .thenAnswer((_) async => newSession);
+      final newSession = makeStudySession(
+        id: 'session-new',
+        title: 'My Session',
+      );
+      when(() => mockRepo.getSessions()).thenAnswer((_) async => [newSession]);
+      when(
+        () => mockRepo.createSession(any(), title: any(named: 'title')),
+      ).thenAnswer((_) async => newSession);
 
       final container = makeContainer();
       await container.read(studySessionListStateProvider.future);
@@ -67,18 +67,19 @@ void main() {
           .createSession('friend-1', title: 'My Session');
 
       expect(created.id, equals('session-new'));
-      verify(() => mockRepo.createSession('friend-1', title: 'My Session'))
-          .called(1);
+      verify(
+        () => mockRepo.createSession('friend-1', title: 'My Session'),
+      ).called(1);
       // getSessions called on build + after createSession
       verify(() => mockRepo.getSessions()).called(2);
     });
 
     test('createSession() with no title passes null', () async {
       final newSession = makeStudySession(id: 'session-2');
-      when(() => mockRepo.getSessions())
-          .thenAnswer((_) async => [newSession]);
-      when(() => mockRepo.createSession(any(), title: any(named: 'title')))
-          .thenAnswer((_) async => newSession);
+      when(() => mockRepo.getSessions()).thenAnswer((_) async => [newSession]);
+      when(
+        () => mockRepo.createSession(any(), title: any(named: 'title')),
+      ).thenAnswer((_) async => newSession);
 
       final container = makeContainer();
       await container.read(studySessionListStateProvider.future);
@@ -87,7 +88,7 @@ void main() {
           .read(studySessionListStateProvider.notifier)
           .createSession('friend-1');
 
-      verify(() => mockRepo.createSession('friend-1', title: null)).called(1);
+      verify(() => mockRepo.createSession('friend-1')).called(1);
     });
   });
 
@@ -102,8 +103,9 @@ void main() {
 
     test('submit() transitions to data on success', () async {
       final attempt = makeLearnerAttempt();
-      when(() => mockRepo.submitAttempt(any(), any()))
-          .thenAnswer((_) async => attempt);
+      when(
+        () => mockRepo.submitAttempt(any(), any()),
+      ).thenAnswer((_) async => attempt);
 
       final container = makeContainer();
       await container
@@ -116,25 +118,60 @@ void main() {
       verify(() => mockRepo.submitAttempt('card-1', 'audio/key.aac')).called(1);
     });
 
-    test('submit() exposes error state when repository throws', () async {
-      when(() => mockRepo.submitAttempt(any(), any()))
-          .thenThrow(Exception('upload failed'));
+    test(
+      'submit() exposes error and throws so the page retains its recording',
+      () async {
+        when(
+          () => mockRepo.submitAttempt(any(), any()),
+        ).thenThrow(Exception('upload failed'));
 
-      final container = makeContainer();
-      await container
-          .read(cardAttemptStateProvider.notifier)
-          .submit('card-1', 'audio/key.aac');
+        final container = makeContainer();
+        await expectLater(
+          container
+              .read(cardAttemptStateProvider.notifier)
+              .submit('card-1', 'audio/key.aac'),
+          throwsA(isA<Exception>()),
+        );
 
-      expect(container.read(cardAttemptStateProvider).hasError, isTrue);
-    });
+        expect(container.read(cardAttemptStateProvider).hasError, isTrue);
+      },
+    );
+
+    test(
+      'addNote() throws on failure and permits retry without a default score',
+      () async {
+        final container = makeContainer();
+        when(
+          () => mockRepo.addCorrectionNote(any(), any(), any()),
+        ).thenThrow(Exception('save failed'));
+
+        await expectLater(
+          container
+              .read(cardAttemptStateProvider.notifier)
+              .addNote('attempt-1', '다시 연습', null),
+          throwsA(isA<Exception>()),
+        );
+        expect(container.read(cardAttemptStateProvider).hasError, isTrue);
+
+        when(
+          () => mockRepo.addCorrectionNote(any(), any(), any()),
+        ).thenAnswer((_) async => makeLearnerAttempt(correctionNote: '다시 연습'));
+        await container
+            .read(cardAttemptStateProvider.notifier)
+            .addNote('attempt-1', '다시 연습', null);
+        expect(container.read(cardAttemptStateProvider).hasError, isFalse);
+        expect(container.read(cardAttemptStateProvider).value?.score, isNull);
+      },
+    );
 
     test('addNote() updates attempt with correction', () async {
       final corrected = makeLearnerAttempt(
         correctionNote: 'Good try!',
         score: 4,
       );
-      when(() => mockRepo.addCorrectionNote(any(), any(), any()))
-          .thenAnswer((_) async => corrected);
+      when(
+        () => mockRepo.addCorrectionNote(any(), any(), any()),
+      ).thenAnswer((_) async => corrected);
 
       final container = makeContainer();
       await container
@@ -144,28 +181,32 @@ void main() {
       final state = container.read(cardAttemptStateProvider);
       expect(state.value?.correctionNote, equals('Good try!'));
       expect(state.value?.score, equals(4));
-      verify(() => mockRepo.addCorrectionNote('attempt-1', 'Good try!', 4))
-          .called(1);
+      verify(
+        () => mockRepo.addCorrectionNote('attempt-1', 'Good try!', 4),
+      ).called(1);
     });
 
     test('addNote() with null score passes null to repository', () async {
       final corrected = makeLearnerAttempt(correctionNote: 'Nice!');
-      when(() => mockRepo.addCorrectionNote(any(), any(), any()))
-          .thenAnswer((_) async => corrected);
+      when(
+        () => mockRepo.addCorrectionNote(any(), any(), any()),
+      ).thenAnswer((_) async => corrected);
 
       final container = makeContainer();
       await container
           .read(cardAttemptStateProvider.notifier)
           .addNote('attempt-1', 'Nice!', null);
 
-      verify(() => mockRepo.addCorrectionNote('attempt-1', 'Nice!', null))
-          .called(1);
+      verify(
+        () => mockRepo.addCorrectionNote('attempt-1', 'Nice!', null),
+      ).called(1);
     });
 
     test('reset() returns state to AsyncData(null)', () async {
       final attempt = makeLearnerAttempt();
-      when(() => mockRepo.submitAttempt(any(), any()))
-          .thenAnswer((_) async => attempt);
+      when(
+        () => mockRepo.submitAttempt(any(), any()),
+      ).thenAnswer((_) async => attempt);
 
       final container = makeContainer();
       await container

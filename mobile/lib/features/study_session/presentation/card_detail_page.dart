@@ -20,11 +20,13 @@ import 'package:tonebridge/features/study_session/presentation/native_audios_sec
 import 'package:tonebridge/features/study_session/presentation/note_sheet.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
+enum _RecordingPurpose { practice, example }
+
 class CardDetailPage extends ConsumerStatefulWidget {
   const CardDetailPage({
-    super.key,
     required this.cardId,
     required this.sessionId,
+    super.key,
     this.initialCard,
   });
 
@@ -45,6 +47,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
   AudioPlayer? _nativePlayer;
   bool _isFlipped = false;
   bool _uploading = false;
+  bool _startingRecording = false;
+  _RecordingPurpose _recordingPurpose = _RecordingPurpose.practice;
   // After a successful native-audio upload, switch from the stale initialCard
   // to the live provider so the card reflects the updated nativeAudioUrl.
   bool _usedInitialCard = true;
@@ -65,6 +69,18 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
   }
 
   void _onRecorderChange() => setState(() {});
+
+  Future<void> _startRecording() async {
+    if (_startingRecording || _uploading) return;
+    setState(() => _startingRecording = true);
+    try {
+      await _recorder.start();
+    } on RecorderPermissionException catch (e) {
+      if (mounted) showMicPermissionError(context, e);
+    } finally {
+      if (mounted) setState(() => _startingRecording = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -192,7 +208,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
         setState(() => _usedInitialCard = false);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('원어민 발음을 등록했어요!')));
+        ).showSnackBar(const SnackBar(content: Text('예시 발음을 등록했어요!')));
         _recorder.reset();
       }
     } on Exception catch (e) {
@@ -211,7 +227,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
 
   String _errorMessage(Exception e) {
     final msg = e.toString();
-    if (msg.contains('CARD_004')) return '자신이 만든 카드에는 발음을 제출할 수 없어요.';
+    if (msg.contains('CARD_004')) return '서버 업데이트 후 내 카드 연습을 이용할 수 있어요.';
     if (msg.contains('SESSION_002')) return '세션 멤버만 이용할 수 있어요.';
     if (msg.contains('401') || msg.contains('403')) return '권한이 없어요.';
     return '오류가 발생했어요. 다시 시도해 주세요.';
@@ -345,6 +361,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
         ? AsyncValue.data(widget.initialCard!)
         : ref.watch(cardDetailProvider(widget.cardId));
     final attemptsAsync = ref.watch(cardAttemptsProvider(widget.cardId));
+    final savingAttempt = ref.watch(cardAttemptStateProvider).isLoading;
     final currentUserId = ref.watch(authStateProvider).value?.user.id;
 
     return PopScope<void>(
@@ -404,7 +421,6 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
             ),
           ),
           data: (card) {
-            final isCardCreator = currentUserId == card.createdByUserId;
             return SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -419,24 +435,53 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                       onPlayNative: () => _playNativeAudio(card),
                     ),
                     const SizedBox(height: 24),
-                    if (isCardCreator) ...[
-                      NativeAudiosSection(
-                        cardId: widget.cardId,
-                        sessionId: widget.sessionId,
-                        recorder: _recorder,
-                        uploading: _uploading,
-                        onSubmit: () => _submitNativeAudio(card),
-                      ),
-                      const SizedBox(height: 24),
-                    ] else if (!isCardCreator) ...[
+                    SegmentedButton<_RecordingPurpose>(
+                      segments: const [
+                        ButtonSegment(
+                          value: _RecordingPurpose.practice,
+                          label: Text('내 발음 연습'),
+                        ),
+                        ButtonSegment(
+                          value: _RecordingPurpose.example,
+                          label: Text('예시 발음 추가'),
+                        ),
+                      ],
+                      selected: {_recordingPurpose},
+                      onSelectionChanged:
+                          currentUserId == null ||
+                              _uploading ||
+                              savingAttempt ||
+                              _startingRecording ||
+                              _recorder.state != RecorderState.idle
+                          ? null
+                          : (selection) => setState(
+                              () => _recordingPurpose = selection.single,
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_recordingPurpose == _RecordingPurpose.practice &&
+                        currentUserId != null) ...[
                       _RecordingSection(
                         recorder: _recorder,
-                        uploading: _uploading,
-                        hasNativeAudio: card.nativeAudioUrl != null,
+                        uploading: _uploading || savingAttempt,
+                        onStart: _startingRecording ? null : _startRecording,
                         onSubmit: _submitAttempt,
                       ),
                       const SizedBox(height: 24),
                     ],
+                    NativeAudiosSection(
+                      cardId: widget.cardId,
+                      sessionId: widget.sessionId,
+                      recorder: _recorder,
+                      uploading: _uploading,
+                      showRecorder:
+                          currentUserId != null &&
+                          _recordingPurpose == _RecordingPurpose.example,
+                      canManageAudio: currentUserId == card.createdByUserId,
+                      onStart: _startingRecording ? null : _startRecording,
+                      onSubmit: () => _submitNativeAudio(card),
+                    ),
+                    const SizedBox(height: 24),
                     CardNoteSection(
                       card: card,
                       onSaved: () {
@@ -449,7 +494,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                       attemptsAsync: attemptsAsync,
                       cardId: widget.cardId,
                       currentUserId: currentUserId,
-                      cardCreatorId: card.createdByUserId,
+                      sessionId: widget.sessionId,
                     ),
                   ],
                 ),
@@ -485,7 +530,7 @@ class _FlashCard extends StatelessWidget {
       onTap: onFlip,
       child: AnimatedBuilder(
         animation: flipAnimation,
-        builder: (_, __) {
+        builder: (_, _) {
           final angle = flipAnimation.value * pi;
           final showBack = flipAnimation.value > 0.5;
 
@@ -495,7 +540,7 @@ class _FlashCard extends StatelessWidget {
               ..setEntry(3, 2, 0.001)
               ..rotateY(angle),
             child: Container(
-              height: 220,
+              constraints: const BoxConstraints(minHeight: 220),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: showBack
@@ -599,7 +644,7 @@ class _CardBack extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onPlayNative,
             icon: const Icon(Icons.volume_up_rounded),
-            label: const Text('원어민 발음 듣기'),
+            label: const Text('예시 발음 듣기'),
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.colorScheme.secondary,
               foregroundColor: theme.colorScheme.onSecondary,
@@ -610,7 +655,7 @@ class _CardBack extends StatelessWidget {
           )
         else
           Text(
-            '원어민 발음이 아직 없어요',
+            '예시 발음은 아래 녹음 목록에서 확인하세요',
             style: TextStyle(color: theme.colorScheme.outline),
           ),
         if (card.explanation != null) ...[
@@ -649,13 +694,13 @@ class _RecordingSection extends StatelessWidget {
   const _RecordingSection({
     required this.recorder,
     required this.uploading,
-    required this.hasNativeAudio,
+    required this.onStart,
     required this.onSubmit,
   });
 
   final AudioRecorderService recorder;
   final bool uploading;
-  final bool hasNativeAudio;
+  final VoidCallback? onStart;
   final VoidCallback onSubmit;
 
   @override
@@ -675,9 +720,11 @@ class _RecordingSection extends StatelessWidget {
             children: [
               Icon(Icons.mic_rounded, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
-              const Text(
-                '내 발음 녹음',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              const Expanded(
+                child: Text(
+                  '내 발음 녹음',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
@@ -687,13 +734,7 @@ class _RecordingSection extends StatelessWidget {
             children: [
               if (recorder.state == RecorderState.idle)
                 FilledButton.icon(
-                  onPressed: () async {
-                    try {
-                      await recorder.start();
-                    } on RecorderPermissionException catch (e) {
-                      if (context.mounted) showMicPermissionError(context, e);
-                    }
-                  },
+                  onPressed: onStart,
                   icon: const Icon(Icons.fiber_manual_record_rounded),
                   label: const Text('녹음 시작'),
                   style: FilledButton.styleFrom(
@@ -721,7 +762,7 @@ class _RecordingSection extends StatelessWidget {
                 )
               else ...[
                 IconButton.filled(
-                  onPressed: recorder.reset,
+                  onPressed: uploading ? null : recorder.reset,
                   icon: const Icon(Icons.refresh_rounded),
                   tooltip: '다시 녹음',
                 ),
@@ -748,22 +789,22 @@ class _AttemptsSection extends ConsumerWidget {
     required this.attemptsAsync,
     required this.cardId,
     required this.currentUserId,
-    required this.cardCreatorId,
+    required this.sessionId,
   });
 
   final AsyncValue<List<LearnerAttempt>> attemptsAsync;
   final String cardId;
   final String? currentUserId;
-  final String cardCreatorId;
+  final String sessionId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Only the card creator (native speaker) can add correction notes
-    final canAddNote = currentUserId == cardCreatorId;
+    // Session members can exchange feedback regardless of card ownership.
+    final canAddNote = currentUserId != null;
 
     return attemptsAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => Padding(
+      error: (_, _) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
@@ -797,7 +838,11 @@ class _AttemptsSection extends ConsumerWidget {
                 attempt: a,
                 cardId: cardId,
                 canAddNote: canAddNote,
-                onNoteAdded: () => ref.invalidate(cardAttemptsProvider(cardId)),
+                isOwnAttempt: a.learnerId == currentUserId,
+                onNoteAdded: () {
+                  ref.invalidate(cardAttemptsProvider(cardId));
+                  ref.invalidate(sessionCardsProvider(sessionId));
+                },
               ),
             ),
           ],
@@ -812,12 +857,14 @@ class _AttemptItem extends ConsumerStatefulWidget {
     required this.attempt,
     required this.cardId,
     required this.canAddNote,
+    required this.isOwnAttempt,
     required this.onNoteAdded,
   });
 
   final LearnerAttempt attempt;
   final String cardId;
   final bool canAddNote;
+  final bool isOwnAttempt;
   final VoidCallback onNoteAdded;
 
   @override
@@ -854,14 +901,15 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
                   color: theme.colorScheme.outline,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  _formatDate(attempt.attemptedAt),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.outline,
+                Expanded(
+                  child: Text(
+                    '${widget.isOwnAttempt ? '내 연습' : '참여자의 연습'} · ${_formatDate(attempt.attemptedAt)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.play_circle_rounded),
                   onPressed: () async {
@@ -877,16 +925,20 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
               const Divider(height: 16),
               if (attempt.score != null)
                 Row(
-                  children: List.generate(
-                    5,
-                    (i) => Icon(
-                      i < attempt.score!
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      color: const Color(0xFFFFC107),
-                      size: 20,
+                  children: [
+                    Text('${attempt.score}/5'),
+                    const SizedBox(width: 8),
+                    ...List.generate(
+                      5,
+                      (i) => Icon(
+                        i < attempt.score!
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        color: const Color(0xFFFFC107),
+                        size: 20,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               if (attempt.correctionNote != null) ...[
                 const SizedBox(height: 8),

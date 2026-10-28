@@ -4,9 +4,9 @@ import 'package:tonebridge/features/study_session/presentation/study_provider.da
 
 class NoteSheet extends ConsumerStatefulWidget {
   const NoteSheet({
-    super.key,
     required this.attemptId,
     required this.onNoteAdded,
+    super.key,
   });
   final String attemptId;
   final VoidCallback onNoteAdded;
@@ -53,6 +53,7 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final savingNote = ref.watch(cardAttemptStateProvider).isLoading;
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -104,7 +105,7 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _submitting ? null : _submit,
+                onPressed: _submitting || savingNote ? null : _submit,
                 child: _submitting
                     ? const SizedBox(
                         width: 20,

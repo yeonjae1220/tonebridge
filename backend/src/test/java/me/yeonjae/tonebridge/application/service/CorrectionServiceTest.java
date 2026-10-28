@@ -75,6 +75,23 @@ class CorrectionServiceTest {
     }
 
     @Test
+    void personalPracticeDoesNotAllowRewardedSelfCorrectionInCommunity() {
+        UUID requesterId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        when(correctionRequestPort.findById(requestId))
+                .thenReturn(Optional.of(pendingRequest(requestId, requesterId)));
+
+        assertThatThrownBy(() -> correctionService.submit(new SubmitCorrectionUseCase.Command(
+                requestId, requesterId, "corrected", "explanation",
+                List.of(), List.of(), null, null, null, null)))
+                .isInstanceOf(ToneBridgeException.class)
+                .extracting(e -> ((ToneBridgeException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CANNOT_CORRECT_OWN_REQUEST);
+        verify(correctionPort, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(creditPort, reputationService, eventPublisher);
+    }
+
+    @Test
     void requesterCanReadAllCorrectionsForOwnRequest() {
         UUID requesterId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();
