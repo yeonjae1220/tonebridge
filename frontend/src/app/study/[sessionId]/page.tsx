@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 import { localizedLabel } from '@/lib/localizedLabels'
+import { StudyScore } from '@/components/study/StudyScore'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -195,11 +196,7 @@ export default function StudySessionPage() {
                     <div className="border-t border-gray-50 pt-3 mt-2">
                       <p className="text-xs font-semibold text-gray-500 mb-1">{t('study.cards.latestAttempt')}</p>
                       <div className="flex items-center gap-3">
-                        {card.latestAttempt.score !== null && (
-                          <span className={`text-sm font-bold ${card.latestAttempt.score >= 80 ? 'text-green-600' : card.latestAttempt.score >= 60 ? 'text-yellow-600' : 'text-red-500'}`}>
-                            {card.latestAttempt.score}{t('study.cards.score')}
-                          </span>
-                        )}
+                        <StudyScore score={card.latestAttempt.score} />
                         {card.latestAttempt.correctionNote && (
                           <p className="text-xs text-gray-600">{card.latestAttempt.correctionNote}</p>
                         )}

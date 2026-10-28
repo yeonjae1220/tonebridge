@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/dateUtils'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { useI18n } from '@/i18n/I18nProvider'
 import { RecorderModal } from '@/components/recorder/RecorderModal'
+import { StudyScore } from '@/components/study/StudyScore'
 import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
 
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
@@ -88,7 +89,7 @@ function AttemptNoteForm({
 }) {
   const { t } = useI18n()
   const [note, setNote] = useState(attempt.correctionNote ?? '')
-  const [score, setScore] = useState<number>(attempt.score ?? 3)
+  const [score, setScore] = useState<number | null>(attempt.score ?? null)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -107,12 +108,14 @@ function AttemptNoteForm({
       />
       <div className="flex gap-2">
         <select
-          value={score}
-          onChange={(event) => setScore(Number(event.target.value))}
+          aria-label={t('study.cardDetail.scoreLabel')}
+          value={score ?? ''}
+          onChange={(event) => setScore(event.target.value === '' ? null : Number(event.target.value))}
           className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
         >
+          <option value="">{t('study.cardDetail.noScore')}</option>
           {[1, 2, 3, 4, 5].map((value) => (
-            <option key={value} value={value}>{value}</option>
+            <option key={value} value={value}>{value}/5</option>
           ))}
         </select>
         <button
@@ -141,6 +144,7 @@ export default function StudyCardDetailPage() {
   const [actionError, setActionError] = useState('')
   const [nativeModalOpen, setNativeModalOpen] = useState(false)
   const [attemptModalOpen, setAttemptModalOpen] = useState(false)
+  const [recordingPurpose, setRecordingPurpose] = useState<'practice' | 'example'>('practice')
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -226,14 +230,20 @@ export default function StudyCardDetailPage() {
         score: payload.score,
       })
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+    },
     onError: () => setActionError(t('study.cardDetail.feedbackSaveFailed')),
   })
 
   if (!accessToken) return null
 
-  const canManageCard = !!card && currentUser?.id === card.createdByUserId
   const permissionReady = !!card && !currentUserLoading && !!currentUser
+  const recordingBusy = nativeModalOpen || attemptModalOpen || uploading
+    || nativeRecorder.starting || attemptRecorder.starting
+    || nativeRecorder.state === 'recording' || attemptRecorder.state === 'recording'
+    || submitAttemptMutation.isPending || submitNativeAudioMutation.isPending
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
@@ -286,9 +296,25 @@ export default function StudyCardDetailPage() {
               </div>
             )}
 
+            {permissionReady && (
+              <div className="flex gap-2" role="group" aria-label={t('study.cardDetail.recordingPurpose')}>
+                {(['practice', 'example'] as const).map((purpose) => (
+                  <button
+                    key={purpose}
+                    type="button"
+                    aria-pressed={recordingPurpose === purpose}
+                    disabled={recordingBusy}
+                    onClick={() => setRecordingPurpose(purpose)}
+                    className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold disabled:opacity-40 ${recordingPurpose === purpose ? 'bg-blue-500 text-white' : 'bg-surface border border-gray-200 text-gray-700'}`}
+                  >
+                    {t(purpose === 'practice' ? 'study.cardDetail.practiceRecording' : 'study.cardDetail.nativeAudio')}
+                  </button>
+                ))}
+              </div>
+            )}
             {!permissionReady ? (
               <section className="h-32 rounded-2xl bg-gray-200 animate-pulse" />
-            ) : canManageCard ? (
+            ) : recordingPurpose === 'example' ? (
               <section id="recording-panel" className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.nativeAudioHelp')}</p>
@@ -297,7 +323,7 @@ export default function StudyCardDetailPage() {
                     <button
                       type="button"
                       onClick={() => setNativeModalOpen(true)}
-                      disabled={submitNativeAudioMutation.isPending}
+                      disabled={recordingBusy}
                       className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
                     >
                       {t('study.cardDetail.startRecording')}
@@ -307,6 +333,7 @@ export default function StudyCardDetailPage() {
                     <button
                       type="button"
                       onClick={() => setNativeModalOpen(true)}
+                      disabled={recordingBusy}
                       className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                     >
                       {t('request.recordAgain')}
@@ -335,7 +362,7 @@ export default function StudyCardDetailPage() {
                     <button
                       type="button"
                       onClick={() => setAttemptModalOpen(true)}
-                      disabled={submitAttemptMutation.isPending || uploading}
+                      disabled={recordingBusy}
                       className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
                     >
                       {t('study.cardDetail.startRecording')}
@@ -345,6 +372,7 @@ export default function StudyCardDetailPage() {
                     <button
                       type="button"
                       onClick={() => setAttemptModalOpen(true)}
+                      disabled={recordingBusy}
                       className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                     >
                       {t('request.recordAgain')}
@@ -386,10 +414,13 @@ export default function StudyCardDetailPage() {
                   <div key={attempt.id} className="rounded-xl border border-gray-100 p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">{formatDate(attempt.attemptedAt, language)}</span>
-                      {attempt.score != null && <span className="text-sm font-bold text-blue-600">{attempt.score}/5</span>}
+                      <StudyScore score={attempt.score} />
                     </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t(attempt.learnerId === currentUser?.id ? 'study.cardDetail.myAttempt' : 'study.cardDetail.partnerAttempt')}
+                    </p>
                     {attempt.correctionNote && <p className="mt-2 text-sm text-gray-700">{attempt.correctionNote}</p>}
-                    {canManageCard && (
+                    {permissionReady && (
                       <AttemptNoteForm
                         attempt={attempt}
                         disabled={addAttemptNoteMutation.isPending}
@@ -424,10 +455,11 @@ export default function StudyCardDetailPage() {
               type="button"
               onClick={() => {
                 document.getElementById('recording-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (permissionReady && canManageCard) setNativeModalOpen(true)
-                if (permissionReady && !canManageCard) setAttemptModalOpen(true)
+                if (recordingPurpose === 'example') setNativeModalOpen(true)
+                else setAttemptModalOpen(true)
               }}
-              className="flex-1 rounded-xl bg-red-500 py-2.5 text-xs font-bold text-white"
+              disabled={!permissionReady || recordingBusy}
+              className="flex-1 rounded-xl bg-red-500 py-2.5 text-xs font-bold text-white disabled:opacity-40"
             >
               {t('study.recordVoice')}
             </button>

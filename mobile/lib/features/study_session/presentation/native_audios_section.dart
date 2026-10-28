@@ -4,25 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
-import 'package:tonebridge/core/utils/permission_dialogs.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class NativeAudiosSection extends ConsumerStatefulWidget {
   const NativeAudiosSection({
-    super.key,
     required this.cardId,
     required this.sessionId,
     required this.recorder,
     required this.uploading,
+    required this.showRecorder,
+    required this.canManageAudio,
+    required this.onStart,
     required this.onSubmit,
+    super.key,
   });
 
   final String cardId;
   final String sessionId;
   final AudioRecorderService recorder;
   final bool uploading;
+  final bool showRecorder;
+  final bool canManageAudio;
+  final VoidCallback? onStart;
   final VoidCallback onSubmit;
 
   @override
@@ -52,9 +57,9 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
       await player.play();
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('재생 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('재생 실패: $e')));
       }
     }
   }
@@ -88,9 +93,9 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
       ref.invalidate(cardNativeAudiosProvider(widget.cardId));
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제 실패: 다시 시도해 주세요. ($e)')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('삭제 실패: 다시 시도해 주세요. ($e)')));
       }
     }
   }
@@ -111,11 +116,13 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
         children: [
           Row(
             children: [
-              Icon(Icons.record_voice_over_rounded,
-                  color: theme.colorScheme.onSecondaryContainer),
+              Icon(
+                Icons.record_voice_over_rounded,
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
               const SizedBox(width: 8),
               Text(
-                '원어민 발음 녹음',
+                '예시 발음',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -129,89 +136,94 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
             '녹음을 추가하면 상대방이 듣고 따라할 수 있어요.',
             style: TextStyle(
               fontSize: 12,
-              color: theme.colorScheme.onSecondaryContainer
-                  .withValues(alpha: 0.7),
+              color: theme.colorScheme.onSecondaryContainer.withValues(
+                alpha: 0.7,
+              ),
             ),
           ),
           const SizedBox(height: 16),
           audiosAsync.when(
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => TextButton.icon(
+              onPressed: () =>
+                  ref.invalidate(cardNativeAudiosProvider(widget.cardId)),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('예시 발음을 불러오지 못했어요. 재시도'),
+            ),
             data: (audios) {
-              if (audios.isEmpty) return const SizedBox.shrink();
+              if (audios.isEmpty) return const Text('아직 예시 발음이 없어요.');
               return Column(
                 children: [
-                  ...audios.map((a) => _AudioEntryTile(
-                        entry: a,
-                        cardId: widget.cardId,
-                        onPlay: () => _playAudio(a),
-                        onDelete: () => _deleteAudio(a),
-                      )),
+                  ...audios.map(
+                    (a) => _AudioEntryTile(
+                      entry: a,
+                      cardId: widget.cardId,
+                      onPlay: () => _playAudio(a),
+                      onDelete: widget.canManageAudio
+                          ? () => _deleteAudio(a)
+                          : null,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ],
               );
             },
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.recorder.state == RecorderState.idle)
-                FilledButton.icon(
-                  onPressed: () async {
-                    try {
-                      await widget.recorder.start();
-                    } on RecorderPermissionException catch (e) {
-                      if (context.mounted) showMicPermissionError(context, e);
-                    }
-                  },
-                  icon: const Icon(Icons.mic_rounded),
-                  label: const Text('녹음 추가'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: theme.colorScheme.secondary,
-                    foregroundColor: theme.colorScheme.onSecondary,
-                  ),
-                )
-              else if (widget.recorder.state == RecorderState.recording)
-                Column(
-                  children: [
-                    Text(
-                      widget.recorder.formattedDuration,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: widget.recorder.stop,
-                      icon: const Icon(Icons.stop_rounded),
-                      label: const Text('녹음 중지'),
-                    ),
-                  ],
-                )
-              else ...[
-                IconButton.filled(
-                  onPressed: widget.recorder.reset,
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: '다시 녹음',
-                ),
-                const SizedBox(width: 12),
-                if (widget.uploading)
-                  const CircularProgressIndicator()
-                else
+          if (widget.showRecorder)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.recorder.state == RecorderState.idle)
                   FilledButton.icon(
-                    onPressed: widget.onSubmit,
-                    icon: const Icon(Icons.upload_rounded),
-                    label: const Text('발음 등록'),
+                    onPressed: widget.onStart,
+                    icon: const Icon(Icons.mic_rounded),
+                    label: const Text('녹음 추가'),
                     style: FilledButton.styleFrom(
                       backgroundColor: theme.colorScheme.secondary,
                       foregroundColor: theme.colorScheme.onSecondary,
                     ),
+                  )
+                else if (widget.recorder.state == RecorderState.recording)
+                  Column(
+                    children: [
+                      Text(
+                        widget.recorder.formattedDuration,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: widget.recorder.stop,
+                        icon: const Icon(Icons.stop_rounded),
+                        label: const Text('녹음 중지'),
+                      ),
+                    ],
+                  )
+                else ...[
+                  IconButton.filled(
+                    onPressed: widget.uploading ? null : widget.recorder.reset,
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: '다시 녹음',
                   ),
+                  const SizedBox(width: 12),
+                  if (widget.uploading)
+                    const CircularProgressIndicator()
+                  else
+                    FilledButton.icon(
+                      onPressed: widget.onSubmit,
+                      icon: const Icon(Icons.upload_rounded),
+                      label: const Text('발음 등록'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.secondary,
+                        foregroundColor: theme.colorScheme.onSecondary,
+                      ),
+                    ),
+                ],
               ],
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -229,7 +241,7 @@ class _AudioEntryTile extends ConsumerStatefulWidget {
   final NativeAudioEntry entry;
   final String cardId;
   final VoidCallback onPlay;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
 
   @override
   ConsumerState<_AudioEntryTile> createState() => _AudioEntryTileState();
@@ -239,8 +251,7 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
   bool _savingNote = false;
 
   Future<void> _editNote() async {
-    final controller =
-        TextEditingController(text: widget.entry.note ?? '');
+    final controller = TextEditingController(text: widget.entry.note ?? '');
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -252,13 +263,16 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
     try {
       await ref
           .read(studySessionRepositoryProvider)
-          .updateNativeAudioNote(widget.entry.id, result.isEmpty ? null : result);
+          .updateNativeAudioNote(
+            widget.entry.id,
+            result.isEmpty ? null : result,
+          );
       if (mounted) ref.invalidate(cardNativeAudiosProvider(widget.cardId));
     } on Exception catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('메모 저장에 실패했어요.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('메모 저장에 실패했어요.')));
       }
     } finally {
       if (mounted) setState(() => _savingNote = false);
@@ -271,14 +285,12 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
     final dt = widget.entry.createdAt;
     final label =
         '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    final hasNote =
-        widget.entry.note != null && widget.entry.note!.isNotEmpty;
+    final hasNote = widget.entry.note != null && widget.entry.note!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color:
-            theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.08),
+        color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -287,8 +299,10 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
           Row(
             children: [
               IconButton(
-                icon: Icon(Icons.play_circle_rounded,
-                    color: theme.colorScheme.secondary),
+                icon: Icon(
+                  Icons.play_circle_rounded,
+                  color: theme.colorScheme.secondary,
+                ),
                 onPressed: widget.onPlay,
                 tooltip: '재생',
               ),
@@ -313,22 +327,25 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
               else
                 IconButton(
                   icon: Icon(
-                    hasNote
-                        ? Icons.edit_note_rounded
-                        : Icons.note_add_outlined,
+                    hasNote ? Icons.edit_note_rounded : Icons.note_add_outlined,
                     size: 20,
-                    color: theme.colorScheme.onSecondaryContainer
-                        .withValues(alpha: 0.6),
+                    color: theme.colorScheme.onSecondaryContainer.withValues(
+                      alpha: 0.6,
+                    ),
                   ),
                   onPressed: _editNote,
                   tooltip: hasNote ? '메모 수정' : '메모 추가',
                 ),
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded,
-                    color: theme.colorScheme.error, size: 20),
-                onPressed: widget.onDelete,
-                tooltip: '삭제',
-              ),
+              if (widget.onDelete != null)
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    color: theme.colorScheme.error,
+                    size: 20,
+                  ),
+                  onPressed: widget.onDelete,
+                  tooltip: '삭제',
+                ),
             ],
           ),
           if (hasNote)
@@ -338,8 +355,9 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
                 widget.entry.note!,
                 style: TextStyle(
                   fontSize: 12,
-                  color: theme.colorScheme.onSecondaryContainer
-                      .withValues(alpha: 0.75),
+                  color: theme.colorScheme.onSecondaryContainer.withValues(
+                    alpha: 0.75,
+                  ),
                 ),
               ),
             ),
@@ -366,8 +384,10 @@ class _RecordingNoteSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('녹음 메모',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const Text(
+            '녹음 메모',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: controller,

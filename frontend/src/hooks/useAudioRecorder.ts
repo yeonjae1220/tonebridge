@@ -40,6 +40,7 @@ export function classifyRecorderError(e: unknown): RecorderError {
 
 export function useAudioRecorder() {
   const [state, setState] = useState<RecorderState>('idle')
+  const [starting, setStarting] = useState(false)
   const [error, setError] = useState<RecorderError | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export function useAudioRecorder() {
   const start = useCallback(async () => {
     if (startingRef.current) return
     startingRef.current = true
+    setStarting(true)
     setError(null)
 
     let stream: MediaStream | null = null
@@ -98,6 +100,7 @@ export function useAudioRecorder() {
       setError(classifyRecorderError(e))
     } finally {
       startingRef.current = false
+      setStarting(false)
     }
   }, [])
 
@@ -129,5 +132,5 @@ export function useAudioRecorder() {
     [audioBlob]
   )
 
-  return { state, error, audioBlob, audioUrl, duration, start, stop, reset, getFile }
+  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, getFile }
 }

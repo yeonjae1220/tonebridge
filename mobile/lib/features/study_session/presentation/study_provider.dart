@@ -53,8 +53,7 @@ class CardAttemptState extends _$CardAttemptState {
   AsyncValue<LearnerAttempt?> build() => const AsyncData(null);
 
   Future<void> submit(String cardId, String audioKey) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    await _save(
       () => ref
           .read(studySessionRepositoryProvider)
           .submitAttempt(cardId, audioKey),
@@ -62,12 +61,26 @@ class CardAttemptState extends _$CardAttemptState {
   }
 
   Future<void> addNote(String attemptId, String note, int? score) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    await _save(
       () => ref
           .read(studySessionRepositoryProvider)
           .addCorrectionNote(attemptId, note, score),
     );
+  }
+
+  Future<void> _save(Future<LearnerAttempt> Function() action) async {
+    // Finish in-flight writes even if the recording page or note sheet closes.
+    final keepAlive = ref.keepAlive();
+    state = const AsyncLoading();
+    try {
+      final result = await AsyncValue.guard(action);
+      if (ref.mounted) state = result;
+      if (result.hasError) {
+        Error.throwWithStackTrace(result.error!, result.stackTrace!);
+      }
+    } finally {
+      keepAlive.close();
+    }
   }
 
   void reset() => state = const AsyncData(null);

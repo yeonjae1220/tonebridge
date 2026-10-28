@@ -86,13 +86,13 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
     <div
       className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4 pb-[env(safe-area-inset-bottom)]"
       onClick={(e) => {
-        if (e.target === e.currentTarget && recorder.state !== 'recording') onClose()
+        if (e.target === e.currentTarget && recorder.state !== 'recording' && !recorder.starting) onClose()
       }}
     >
       <div className="w-full max-w-sm bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{heading}</h2>
-          {recorder.state !== 'recording' && (
+          {recorder.state !== 'recording' && !recorder.starting && (
             <button
               type="button"
               onClick={onClose}
@@ -110,6 +110,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
           <button
             type="button"
             onClick={() => void recorder.start()}
+            disabled={recorder.starting}
             className="mx-auto w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
             aria-label={t('request.startRecording')}
           >

@@ -143,10 +143,7 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
 
-        if (card.createdByUserId().equals(command.learnerId())) {
-            throw new ToneBridgeException(ErrorCode.CANNOT_ATTEMPT_OWN_CARD);
-        }
-
+        // Card ownership controls editing, not who can practise the expression.
         requireMember(card.sessionId(), command.learnerId());
 
         LearnerAttempt attempt = new LearnerAttempt(
