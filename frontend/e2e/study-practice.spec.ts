@@ -122,7 +122,7 @@ test('microphone permission wait locks the recorder and its purpose', async ({ p
   await mockStudy(page)
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => new Promise((_resolve, reject) => {
-      ;(window as Window & { denyMicrophone: () => void }).denyMicrophone = () => reject(new DOMException('Denied', 'NotAllowedError'))
+      window.addEventListener('test:deny-microphone', () => reject(new DOMException('Denied', 'NotAllowedError')), { once: true })
     })
   })
   await page.goto('/study/session-1/cards/card-1')
@@ -130,7 +130,7 @@ test('microphone permission wait locks the recorder and its purpose', async ({ p
   await page.getByRole('button', { name: '녹음 시작', exact: true }).last().click()
   await expect(page.getByRole('button', { name: '닫기', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toBeDisabled()
-  await page.evaluate(() => (window as Window & { denyMicrophone: () => void }).denyMicrophone())
+  await page.evaluate(() => window.dispatchEvent(new Event('test:deny-microphone')))
   await page.getByRole('button', { name: '닫기', exact: true }).click()
   await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toBeEnabled()
 })
