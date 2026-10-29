@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { uploadRecording, captureAccountGuard } from '@/lib/validationDiagnostics'
 import { useAuthStore } from '@/stores/authStore'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
@@ -137,8 +138,8 @@ export default function StudyCardDetailPage() {
   const { data: currentUser, isLoading: currentUserLoading } = useCurrentUser()
   const queryClient = useQueryClient()
   const { language, t } = useI18n()
-  const attemptRecorder = useAudioRecorder()
-  const nativeRecorder = useAudioRecorder()
+  const attemptRecorder = useAudioRecorder(cardId)
+  const nativeRecorder = useAudioRecorder(cardId)
   const { upload, uploading } = usePresignedUpload()
   const [noteDraft, setNoteDraft] = useState('')
   const [actionError, setActionError] = useState('')
@@ -191,18 +192,16 @@ export default function StudyCardDetailPage() {
   const submitNativeAudioMutation = useMutation({
     mutationFn: async () => {
       setActionError('')
+      const requireSameAccount = captureAccountGuard()
       const file = nativeRecorder.getFile(`native_${Date.now()}.webm`)
       if (!file) throw new Error('NO_AUDIO')
       const { data } = await api.post<{ uploadUrl: string; audioKey: string }>(
         `/cards/${cardId}/native-audios/upload-url`,
         { fileName: file.name },
       )
-      const putRes = await fetch(data.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      })
-      if (!putRes.ok) throw new Error(`File upload failed: ${putRes.status}`)
+      requireSameAccount()
+      await uploadRecording(data.uploadUrl, file)
+      requireSameAccount()
       return api.post(`/cards/${cardId}/native-audios`, { audioKey: data.audioKey })
     },
     onSuccess: () => {

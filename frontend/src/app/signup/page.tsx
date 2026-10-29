@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { registerWithPassword } from '@/lib/api'
 import { resolvePostAuthPath } from '@/lib/authNavigate'
+import axios from 'axios'
+import { useAuthStore } from '@/stores/authStore'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 
 export default function SignupPage() {
@@ -17,17 +19,25 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const pendingAuth = useRef<AbortController | null>(null)
+  useEffect(() => () => pendingAuth.current?.abort(), [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting) return
     setError(null)
     setSubmitting(true)
+    const controller = new AbortController()
+    pendingAuth.current = controller
     try {
-      await registerWithPassword(email.trim(), username.trim(), password)
+      await registerWithPassword(email.trim(), username.trim(), password, controller.signal)
+      const generation = useAuthStore.getState().sessionGeneration
+      if (controller.signal.aborted) return
       const path = await resolvePostAuthPath()
+      if (controller.signal.aborted || generation !== useAuthStore.getState().sessionGeneration) return
       router.replace(path)
     } catch (err) {
+      if (controller.signal.aborted || axios.isCancel(err)) return
       // 409(이메일/닉네임 중복)는 서버가 제공하는 사유 메시지를 그대로 노출, 그 외는 일반 메시지
       const status = getApiErrorStatus(err)
       if (status !== 409) console.error('[signup] 가입 실패', err)

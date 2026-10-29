@@ -15,6 +15,8 @@ import me.yeonjae.tonebridge.domain.studycard.StudyCard;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import me.yeonjae.tonebridge.shared.event.LearningActivity;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -34,6 +36,7 @@ public class CardNativeAudioService implements
     private final StudyCardPort cardPort;
     private final StudySessionPort sessionPort;
     private final StoragePort storagePort;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ─── AddCardNativeAudioUseCase ────────────────────────────────────────
 
@@ -54,7 +57,10 @@ public class CardNativeAudioService implements
         StudyCard card = requireCard(command.cardId());
         requireMember(card.sessionId(), command.uploaderId());
         CardNativeAudio audio = new CardNativeAudio(null, command.cardId(), command.audioKey(), null, null);
-        return nativeAudioPort.save(audio);
+        CardNativeAudio saved = nativeAudioPort.save(audio);
+        eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.EXAMPLE_SAVED,
+                command.uploaderId(), null, card.sessionId(), card.id(), null));
+        return saved;
     }
 
     // ─── GetCardNativeAudiosUseCase ───────────────────────────────────────

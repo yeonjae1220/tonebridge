@@ -1547,15 +1547,15 @@ class ToneBridgeStrings {
 
   String removeFriendConfirm(String name) => _format(
     _pick({
-      'ko': '{name} 님을 친구 목록에서 삭제할까요?',
-      'en': 'Remove {name} from your friends?',
-      'ja': '{name}さんを友達から削除しますか？',
-      'zh': '要从好友列表中删除 {name} 吗？',
-      'es': '¿Eliminar a {name} de tus amigos?',
-      'fr': 'Retirer {name} de vos amis ?',
-      'de': '{name} aus deinen Freunden entfernen?',
-      'pt': 'Remover {name} dos amigos?',
-      'ru': 'Удалить {name} из друзей?',
+      'ko': '{name} 님을 친구 목록에서 삭제할까요?\n\n친구를 삭제해도 기존 공유 연습장과 기록의 접근 권한은 유지됩니다. 접근 중단은 이용 안내와 문의에서 요청해 주세요. https://tonebridge.mungji.com/help',
+      'en': 'Remove {name} from your friends?\n\nExisting shared notebooks remain accessible after removing a friend. Request access withdrawal through Help and contact. https://tonebridge.mungji.com/help',
+      'ja': '{name}さんを友達から削除しますか？\n\n友達を削除しても既存の共有ノートにはアクセスできます。アクセス停止はお問い合わせから依頼してください。 https://tonebridge.mungji.com/help',
+      'zh': '要从好友列表中删除 {name} 吗？\n\n删除好友后仍可访问已有共享笔记。需要停止访问时，请通过使用说明与联系提出请求。 https://tonebridge.mungji.com/help',
+      'es': '¿Eliminar a {name} de tus amigos?\n\nEliminar a un amigo mantiene el acceso a los cuadernos compartidos. Solicita retirar el acceso en Ayuda y contacto. https://tonebridge.mungji.com/help',
+      'fr': 'Retirer {name} de vos amis ?\n\nSupprimer un ami conserve l’accès aux carnets partagés existants. Demandez le retrait de cet accès via Aide et contact. https://tonebridge.mungji.com/help',
+      'de': '{name} aus deinen Freunden entfernen?\n\nGeteilte Hefte bleiben nach dem Entfernen eines Freundes zugänglich. Beantrage den Entzug des Zugriffs über Hilfe und Kontakt. https://tonebridge.mungji.com/help',
+      'pt': 'Remover {name} dos amigos?\n\nRemover um amigo mantém o acesso aos cadernos compartilhados. Solicite a retirada do acesso em Ajuda e contato. https://tonebridge.mungji.com/help',
+      'ru': 'Удалить {name} из друзей?\n\nПосле удаления друга общие тетради остаются доступны. Запросите прекращение доступа через раздел помощи. https://tonebridge.mungji.com/help',
     }),
     {'name': name},
   );

@@ -51,8 +51,18 @@ public class StudySessionService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 
         // Ensure the two users are actually friends before creating a shared session
-        friendPort.findAcceptedBetween(command.creatorId(), command.friendId())
+        friendPort.lockAcceptedBetween(command.creatorId(), command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.NOT_FRIENDS));
+
+        // The unnamed "continue with friend" action must converge across devices.
+        // Explicitly titled notebooks can still be created separately.
+        // Reuse the first entry in the same newest-first list served to web/mobile.
+        if (command.title() == null || command.title().isBlank()) {
+            var existing = sessionPort.findByMemberId(command.creatorId()).stream()
+                    .filter(session -> session.memberIds().size() == 2 && session.hasMember(command.friendId()))
+                    .findFirst();
+            if (existing.isPresent()) return existing.get();
+        }
 
         StudySession newSession = new StudySession(
                 null,

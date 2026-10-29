@@ -1,11 +1,13 @@
 'use client'
 
-import { Suspense, useState, type FormEvent } from 'react'
+import { Suspense, useState, useEffect, useRef, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { loginWithPassword } from '@/lib/api'
 import { isSafeRedirect, resolvePostAuthPath } from '@/lib/authNavigate'
+import axios from 'axios'
+import { useAuthStore } from '@/stores/authStore'
 import { getApiErrorStatus } from '@/lib/apiError'
 
 function LoginInner() {
@@ -17,6 +19,8 @@ function LoginInner() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const pendingAuth = useRef<AbortController | null>(null)
+  useEffect(() => () => pendingAuth.current?.abort(), [])
 
   const stashRedirect = () => {
     const redirect = searchParams.get('redirect')
@@ -26,6 +30,7 @@ function LoginInner() {
   }
 
   const handleGoogleLogin = () => {
+    pendingAuth.current?.abort()
     stashRedirect()
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/auth/google`
   }
@@ -35,12 +40,18 @@ function LoginInner() {
     if (submitting) return
     setError(null)
     setSubmitting(true)
+    const controller = new AbortController()
+    pendingAuth.current = controller
     stashRedirect()
     try {
-      await loginWithPassword(email.trim(), password)
+      await loginWithPassword(email.trim(), password, controller.signal)
+      const generation = useAuthStore.getState().sessionGeneration
+      if (controller.signal.aborted) return
       const path = await resolvePostAuthPath()
+      if (controller.signal.aborted || generation !== useAuthStore.getState().sessionGeneration) return
       router.replace(path)
     } catch (err) {
+      if (controller.signal.aborted || axios.isCancel(err)) return
       // 401(자격증명 오류)과 그 외를 구분해 메시지 노출 (서버는 사유를 통일된 401로 응답)
       const status = getApiErrorStatus(err)
       if (status !== 401) console.error('[login] 로그인 실패', err)

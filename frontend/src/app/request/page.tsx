@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostics'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
@@ -25,6 +26,7 @@ const FEEDBACK_GOALS = [
 type RequestKind = 'TEXT' | 'AUDIO'
 type Destination = 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
 type SubmitPayload = {
+  sessionGeneration: number
   kind: RequestKind
   destination: Destination
   selectedFriendId: string
@@ -36,6 +38,11 @@ type SubmitPayload = {
   selectedGoals: string[]
   audioFile?: File
 }
+function belongsToCurrentAccount(payload: SubmitPayload) {
+  const current = useAuthStore.getState()
+  return !!current.accessToken && current.sessionGeneration === payload.sessionGeneration
+}
+
 type SubmitResult =
   | { type: 'community' }
   | { type: 'study'; sessionId: string; cardId: string }
@@ -85,6 +92,9 @@ export default function RequestPage() {
 
   const submitMutation = useMutation<SubmitResult, unknown, SubmitPayload>({
     mutationFn: async (payload) => {
+      const requireSameAccount = captureAccountGuard()
+      if (!belongsToCurrentAccount(payload)) throw new Error('Account changed')
+      requireSameAccount()
       setError('')
       if (payload.destination === 'COMMUNITY') {
         if (payload.kind === 'TEXT') {
@@ -99,6 +109,7 @@ export default function RequestPage() {
         }
         if (!payload.audioFile) throw new Error(t('request.noAudioFile'))
         const audioKey = await upload(payload.audioFile)
+        requireSameAccount()
         await api.post('/correction-requests/audio', {
           targetLanguage: payload.targetLanguage,
           targetVariant: payload.targetVariant ?? undefined,
@@ -110,12 +121,16 @@ export default function RequestPage() {
       }
 
       const session = await ensureStudySession(payload)
+      requireSameAccount()
       const card = await createStudyCard(session.id, payload)
+      requireSameAccount()
 
       if (payload.kind === 'AUDIO') {
         try {
-          await attachNativeAudio(card.id, payload.audioFile)
+          await attachNativeAudio(card.id, payload.audioFile, requireSameAccount)
         } catch (error) {
+          // Cleanup is a write too: never send it using a replacement account.
+          requireSameAccount()
           // 보상 삭제 실패는 원래 예외를 가리면 안 되므로 다시 던지지 않는다.
           // 다만 삼키면 고아 카드가 생겼다는 사실이 어디에도 안 남는다 — 로그는 반드시 남긴다
           // (GLOBAL-PIT-108 ①: 실패는 최소한 흔적을 남긴다).
@@ -128,7 +143,8 @@ export default function RequestPage() {
 
       return { type: 'study', sessionId: session.id, cardId: card.id }
     },
-    onSuccess: (result) => {
+    onSuccess: (result, payload) => {
+      if (!belongsToCurrentAccount(payload)) return
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
@@ -137,7 +153,8 @@ export default function RequestPage() {
       queryClient.invalidateQueries({ queryKey: ['cards', result.sessionId] })
       router.push(`/study/${result.sessionId}/cards/${result.cardId}`)
     },
-    onError: (e: unknown) => {
+    onError: (e: unknown, payload) => {
+      if (!belongsToCurrentAccount(payload)) return
       setError(getApiErrorMessage(e, t('request.failed')))
     },
   })
@@ -175,18 +192,16 @@ export default function RequestPage() {
     return data
   }
 
-  const attachNativeAudio = async (cardId: string, file?: File) => {
+  const attachNativeAudio = async (cardId: string, file: File | undefined, requireSameAccount: () => void) => {
     if (!file) throw new Error(t('request.noAudioFile'))
+    requireSameAccount()
     const { data } = await api.post<{ uploadUrl: string; audioKey: string }>(
       `/cards/${cardId}/native-audios/upload-url`,
       { fileName: file.name },
     )
-    const putRes = await fetch(data.uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type },
-    })
-    if (!putRes.ok) throw new Error(`File upload failed: ${putRes.status}`)
+    requireSameAccount()
+    await uploadRecording(data.uploadUrl, file)
+    requireSameAccount()
     await api.post(`/cards/${cardId}/native-audios`, { audioKey: data.audioKey })
   }
 
@@ -199,6 +214,7 @@ export default function RequestPage() {
   const handleSubmit = () => {
     const audioFile = kind === 'AUDIO' ? recorder.getFile(`audio_${Date.now()}.webm`) ?? undefined : undefined
     submitMutation.mutate({
+      sessionGeneration: useAuthStore.getState().sessionGeneration,
       kind,
       destination,
       selectedFriendId,

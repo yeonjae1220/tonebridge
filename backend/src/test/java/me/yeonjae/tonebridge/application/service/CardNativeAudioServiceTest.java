@@ -42,7 +42,8 @@ class CardNativeAudioServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CardNativeAudioService(nativeAudioPort, cardPort, sessionPort, storagePort);
+        service = new CardNativeAudioService(nativeAudioPort, cardPort, sessionPort, storagePort,
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
     @Test

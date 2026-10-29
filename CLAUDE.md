@@ -8,8 +8,8 @@
 
 ## 기술 스택
 
-### 프론트엔드 (Next.js 14)
-- Next.js 14 App Router, TypeScript, Tailwind CSS
+### 프론트엔드 (Next.js 15)
+- Next.js 15 App Router, TypeScript, Tailwind CSS
 - Zustand (authStore), TanStack Query
 - 다국어: 커스텀 i18n (ko/en/ja 등)
 

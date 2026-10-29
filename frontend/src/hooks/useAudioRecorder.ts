@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuthStore } from '@/stores/authStore'
+import { reportDiagnostic } from '@/lib/validationDiagnostics'
 
 type RecorderState = 'idle' | 'recording' | 'stopped'
-
-const MIME_TYPE = 'audio/webm;codecs=opus'
+const AUDIO_FORMATS = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']
 
 /**
  * 녹음 시작 실패 원인. 화면에 사용자가 할 수 있는 조치를 안내하려고 나눈다 —
@@ -38,99 +39,143 @@ export function classifyRecorderError(e: unknown): RecorderError {
   }
 }
 
-export function useAudioRecorder() {
+export function useAudioRecorder(scope = '') {
+  const sessionGeneration = useAuthStore((s) => s.sessionGeneration)
   const [state, setState] = useState<RecorderState>('idle')
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<RecorderError | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<BlobPart[]>([])
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // 권한 창이 떠 있는 동안 state 는 아직 idle 이라 버튼을 다시 누를 수 있다 — 스트림이 중복으로 열리지 않게 막는다.
+  const urlRef = useRef<string | null>(null)
   const startingRef = useRef(false)
+  const generation = useRef(0)
 
-  const start = useCallback(async () => {
-    if (startingRef.current) return
-    startingRef.current = true
-    setStarting(true)
-    setError(null)
-
-    let stream: MediaStream | null = null
-    try {
-      // 비보안 출처나 미지원 브라우저에서는 mediaDevices·MediaRecorder 자체가 없다.
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError(window.isSecureContext ? 'unsupported' : 'blocked')
-        return
-      }
-      if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported(MIME_TYPE)) {
-        setError('unsupported')
-        return
-      }
-
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType: MIME_TYPE })
-      const activeStream = stream
-      chunksRef.current = []
-      setDuration(0)
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: MIME_TYPE })
-        setAudioBlob(blob)
-        setAudioUrl(URL.createObjectURL(blob))
-        activeStream.getTracks().forEach((t) => t.stop())
-        if (timerRef.current) clearInterval(timerRef.current)
-      }
-
-      recorder.start(100)
-      mediaRecorderRef.current = recorder
-      setState('recording')
-
-      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
-    } catch (e) {
-      console.error('[useAudioRecorder] 녹음 시작 실패', e)
-      // getUserMedia 는 성공했는데 MediaRecorder 생성·시작이 실패하면 마이크가 켜진 채 남는다.
-      stream?.getTracks().forEach((t) => t.stop())
-      setError(classifyRecorderError(e))
-    } finally {
-      startingRef.current = false
-      setStarting(false)
+  const release = useCallback(() => {
+    generation.current++
+    startingRef.current = false
+    const recorder = recorderRef.current
+    recorderRef.current = null
+    if (recorder) {
+      recorder.onstop = null
+      recorder.ondataavailable = null
+      recorder.onerror = null
+      if (recorder.state !== 'inactive') recorder.stop()
     }
-  }, [])
-
-  const stop = useCallback(() => {
-    mediaRecorderRef.current?.stop()
-    setState('stopped')
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = null
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+    urlRef.current = null
   }, [])
 
   const reset = useCallback(() => {
-    if (audioUrl) URL.revokeObjectURL(audioUrl)
+    release()
     setAudioBlob(null)
     setAudioUrl(null)
     setDuration(0)
     setError(null)
+    setStarting(false)
     setState('idle')
-  }, [audioUrl])
+  }, [release])
 
   useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-    }
-  }, [audioUrl])
+    reset()
+    return release
+  }, [sessionGeneration, scope, release, reset])
 
-  const getFile = useCallback(
-    (fileName = 'recording.webm'): File | null => {
-      if (!audioBlob) return null
-      return new File([audioBlob], fileName, { type: audioBlob.type })
-    },
-    [audioBlob]
-  )
+  const start = useCallback(async () => {
+    if (startingRef.current || recorderRef.current?.state === 'recording') return
+    reset()
+    const run = generation.current
+    startingRef.current = true
+    setStarting(true)
+    reportDiagnostic('RECORDING_ATTEMPT')
+    let stream: MediaStream | null = null
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new DOMException('Unavailable', window.isSecureContext ? 'NotSupportedError' : 'SecurityError')
+      }
+      const mimeType = typeof MediaRecorder === 'undefined' ? undefined
+        : AUDIO_FORMATS.find((type) => MediaRecorder.isTypeSupported(type))
+      if (!mimeType) throw new DOMException('Unsupported format', 'NotSupportedError')
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Permission may resolve after navigation, logout, or an account switch.
+      if (run !== generation.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      streamRef.current = stream
+      const recorder = new MediaRecorder(stream, { mimeType })
+      recorderRef.current = recorder
+      const chunks: BlobPart[] = []
+      recorder.ondataavailable = (event) => {
+        if (run === generation.current && event.data.size > 0) chunks.push(event.data)
+      }
+      recorder.onerror = () => {
+        if (run !== generation.current) return
+        release()
+        setState('idle')
+        setError('unknown')
+        reportDiagnostic('RECORDING_FAILED')
+      }
+      recorder.onstop = () => {
+        if (run !== generation.current) return
+        stream?.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
+        recorderRef.current = null
+        if (timerRef.current) clearInterval(timerRef.current)
+        timerRef.current = null
+        // Keep the container type consistent with the upload signature and extension.
+        const contentType = (recorder.mimeType || mimeType).split(';')[0].trim()
+        const blob = new Blob(chunks, { type: contentType })
+        if (!blob.size) {
+          setState('idle')
+          setError('unknown')
+          reportDiagnostic('RECORDING_FAILED')
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        urlRef.current = url
+        setAudioBlob(blob)
+        setAudioUrl(url)
+        setState('stopped')
+        reportDiagnostic('RECORDING_SUCCEEDED')
+      }
+      recorder.start(100)
+      setState('recording')
+      timerRef.current = setInterval(() => setDuration((value) => value + 1), 1000)
+    } catch (cause) {
+      stream?.getTracks().forEach((track) => track.stop())
+      if (run !== generation.current) return
+      release()
+      setState('idle')
+      setStarting(false)
+      const failure = classifyRecorderError(cause)
+      setError(failure)
+      reportDiagnostic(failure === 'permissionDenied' ? 'MICROPHONE_DENIED' : 'RECORDING_FAILED')
+    } finally {
+      if (run === generation.current) {
+        startingRef.current = false
+        setStarting(false)
+      }
+    }
+  }, [release, reset])
+
+  const stop = useCallback(() => {
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
+  }, [])
+
+  const getFile = useCallback((fileName = 'recording'): File | null => {
+    if (!audioBlob) return null
+    const extension = audioBlob.type === 'audio/mp4' ? 'm4a' : audioBlob.type === 'audio/ogg' ? 'ogg' : 'webm'
+    const stem = fileName.replace(/\.[^.]+$/, '')
+    return new File([audioBlob], `${stem}.${extension}`, { type: audioBlob.type })
+  }, [audioBlob])
 
   return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, getFile }
 }

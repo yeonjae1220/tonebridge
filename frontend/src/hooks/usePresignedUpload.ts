@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '@/lib/api'
+import { uploadRecording, captureAccountGuard } from '@/lib/validationDiagnostics'
 
 interface PresignedUploadResult {
   uploadUrl: string
@@ -11,6 +12,7 @@ export function usePresignedUpload() {
   const [error, setError] = useState<string | null>(null)
 
   const upload = async (file: File): Promise<string> => {
+    const requireSameAccount = captureAccountGuard()
     setUploading(true)
     setError(null)
     try {
@@ -19,16 +21,10 @@ export function usePresignedUpload() {
         contentType: file.type,
       })
 
-      const putRes = await fetch(data.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      })
+      requireSameAccount()
+      await uploadRecording(data.uploadUrl, file)
 
-      if (!putRes.ok) {
-        throw new Error(`File upload failed: ${putRes.status} ${putRes.statusText}`)
-      }
-
+      requireSameAccount()
       return data.audioKey
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Upload failed'

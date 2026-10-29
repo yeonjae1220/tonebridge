@@ -75,6 +75,8 @@ google:
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
 
 tonebridge:
+  validation:
+    enabled: ${TONEBRIDGE_VALIDATION_ENABLED:false}
   storage:
     # Blank = AWS S3 (SDK resolves endpoint automatically).
     # Non-blank = S3-compatible (MinIO / local): uses forcePathStyle + endpointOverride.

@@ -17,7 +17,7 @@ public interface StudySessionJpaRepository extends JpaRepository<StudySessionEnt
                 SELECT sm.sessionId FROM SessionMemberEntity sm
                 WHERE sm.userId = :userId
             )
-            ORDER BY s.createdAt DESC
+            ORDER BY s.createdAt DESC, s.id DESC
             """)
     List<StudySessionEntity> findByMemberUserId(UUID userId);
 

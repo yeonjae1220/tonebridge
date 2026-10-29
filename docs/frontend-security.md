@@ -1,103 +1,67 @@
-# ToneBridge Frontend — 보안 아키텍처
+# ToneBridge Frontend — 보안 경계
 
-> 마지막 업데이트: 2026-05-31
-> 대상: `frontend/` (Next.js 15, App Router)
+기준: 2026-10-29 · Next.js 15.5.28 / React 19.3.1.
+현재 코드 기준이며 실제 운영 반영 여부는 [검증 준비](product/validation-readiness.md)를 따른다.
 
----
+## 인증과 계정 전환
 
-## 1. 토큰 저장 전략
+- accessToken은 Zustand 메모리에 보관한다. 브라우저 영속 저장소에 토큰을 두지 않는 것이며 XSS 자체를 막는 것은 아니다.
+- 웹 refresh token은 서버가 설정하는 HttpOnly 쿠키다. Secure/SameSite/Path는 AuthController와 운영 설정을 따른다.
+- providers.tsx가 tryRestoreSession → POST /api/auth/refresh를 기다린 뒤 화면을 렌더한다.
+- lib/api.ts는 같은 세션의 동시 401/초기 복원에 하나의 refresh Promise를 공유한다. 로그인/가입은 별도 요청이다.
+- 일반 API 요청·성공 응답·401 재전송에 sessionGeneration을 검사한다. 이전 계정 응답을 새 계정에 적용하지 않는다.
+- 계정 전환 시 진행 중 refresh를 취소하고, 늦은 성공/실패가 새 토큰을 덮거나 새 세션을 로그아웃하지 못하게 한다.
+- 로그아웃은 로컬 상태를 즉시 무효화한다. 새 비밀번호 로그인/가입은 로그아웃 쿠키 정리가 끝난 뒤 시작한다.
+- 로그인/가입은 공통 취소 가능한 요청으로 관리한다. 화면 이탈·새 인증 시도·세션 변경 시 이전 HTTP 요청을 취소해 늦은 Set-Cookie 반영을 막는다.
+  메모리 토큰 검사만으로 쿠키를 보호한다고 가정하지 않는다. 새 인증 시 기존 refresh도 취소하되 취소를 갱신 실패 로그아웃으로 처리하지 않는다.
+- 로그인/로그아웃에는 sessionGeneration을 바꿔 React Query 캐시를 비운다. 토큰 갱신은 같은 세션을 유지한다.
+- 녹음 권한을 기다리다 계정·페이지가 바뀌면 뒤늦게 열린 마이크를 종료한다.
+  카드 상세와 /request 모두 파일 업로드 전후에 세션 세대를 검사한다. /request의 연속 생성·실패 시 삭제·완료 후 이동도 시작 계정에 묶는다.
+  계정이 바뀐 업로드의 완료 진단도 새 계정으로 보내지 않는다.
+- 이전 일반 API 응답은 클라이언트에서 거부한다. 이미 서버에 도착한 쓰기나 저장소 PUT 자체를 되돌리는 기능은 아니다.
 
-| 토큰 | 저장 위치 | 이유 |
-|------|-----------|------|
-| `accessToken` | **메모리** (Zustand store) | localStorage 저장 시 XSS로 탈취 가능 |
-| `refreshToken` | **httpOnly 쿠키** (서버 관리) | JavaScript 접근 불가, CSRF는 SameSite=Lax로 완화 |
+## 경로와 서버 권한
 
-```
-페이지 리로드 시 복원 흐름:
-  (protected)/layout.tsx
-      → refreshAuth() [싱글톤]
-      → POST /api/v1/auth/refresh (쿠키 자동 전송)
-      → setAccessToken(newToken)
-```
+middleware는 CSP와 로그인 유도를 담당한다. session 쿠키 존재는 서버의 인증/권한 검사를 대체하지 않는다.
+보호 경로에는 request/correct/wallet/profile/admin/onboarding/study/friends가 포함된다.
+API는 서버의 JWT, 관리자 전용 체인, 연습장 참여자/카드 작성자 검사를 따른다.
 
-**`refreshAuth.ts` 싱글톤 패턴**: layout과 axios interceptor가 동시에 refresh를 호출해도 단 하나의 Promise만 실행됩니다. refresh token rotation 환경에서의 이중 소비를 방지합니다.
+lib/authNavigate.ts는 인증 후 목적지를 디코딩하고 로컬 경로인지 확인한다.
+프로토콜 상대 경로, 역슬래시, 제어 문자/공백을 거절한다. 로그인·가입·온보딩 사이에 초대 목적지를 보존한다.
+초대는 닉네임 검색을 준비할 뿐 친구 요청·수락이나 학습 기록 접근을 자동으로 수행하지 않는다.
 
----
+Google OAuth state는 백엔드가 생성·검증·소비한다. 브라우저에서 state 쿠키를 만드는 구조가 아니다.
+콜백 화면은 URL fragment의 토큰 형식을 확인한 뒤 메모리에 설정하고 서버 API로 온보딩 상태를 조회한다.
+Redis refresh token 키는 현재 RefreshTokenRedisAdapter에서 SHA-256으로 해시한다.
 
-## 2. CSP (Content Security Policy)
+## CSP, 녹음, 업로드
 
-**구현 방식**: `src/middleware.ts` — 요청마다 nonce 생성, 응답 헤더에 적용
+middleware가 요청마다 nonce를 만들고 layout에 전달한다. CSP에는 strict-dynamic,
+frame-src none, object-src none, base-uri self 및 녹음 blob을 위한 connect/media-src가 포함된다.
+정적 헤더의 microphone=(self)는 유지한다. 빈 allowlist는 앱 자체의 녹음도 막는다.
 
-```
-script-src 'nonce-{random}' 'strict-dynamic' 'unsafe-inline'
-```
+useAudioRecorder는 브라우저가 지원하는 WebM/MP4/Ogg를 선택한다. 파일의 확장자·MIME·PUT 헤더를 맞춘다.
+서명 발급과 파일 업로드는 다른 단계다. 클라이언트 형식 선택이 파일 내용 검증을 대체하지 않는다.
+GET 음성 URL 발급은 서버가 접근 권한을 검사하며, 이미 발급된 URL의 만료와 내려받은 사본은 별도다.
 
-| 지시어 | 역할 |
-|--------|------|
-| `'nonce-{random}'` | 요청마다 고유 nonce — 인라인 스크립트 허용 조건 |
-| `'strict-dynamic'` | nonce된 스크립트가 로드하는 하위 스크립트 허용 (Next.js chunk loading) |
-| `'unsafe-inline'` | CSP Level 1 구형 브라우저 폴백 (모던 브라우저는 nonce 있으면 이 값 무시) |
-| `base-uri 'self'` | `<base>` 태그 인젝션으로 인한 open redirect 방지 |
+## 검증 계측과 문의
 
----
+- 새 /api/validation/diagnostics는 인증 필수, 고정 enum, 인스턴스 전체 분당 600회 한도다.
+- 활동 수집은 기본 비활성화다. 활성화하면 서버 성공 활동의 UUID·시각만 저장하고 학습 내용은 복사하지 않는다.
+- 원시 활동을 읽는 공개 API를 추가하지 않는다. 기간/계정 범위를 정한 운영자 SQL은 집계 숫자만 반환한다.
+- /help는 기존 /api/feedback으로 명시적으로 제출한 문의만 전송한다. 문의 접수가 권한 변경 승인은 아니다.
+  요청자의 이메일을 신원 증거로 신뢰하지 않고 운영자가 별도로 확인한다.
 
-## 3. 인증 미들웨어
+## 이번 확인과 한계
 
-`src/middleware.ts`는 CSP 생성과 보호 경로 인증 리다이렉트를 함께 처리합니다.
+- 실제 PostgreSQL 및 Spring Security를 사용하는 권한/무료 학습/계측 롤백/계정 삭제 회귀 테스트.
+- 브라우저 로그인·초대 복귀, 업로드 재시도, 권한 지연, 계정 전환 회귀 테스트.
+- 로그인/가입 교차 요청의 실제 브라우저 HttpOnly 쿠키와 새로고침 복원 검사. 서버 응답·마이크·저장소 PUT는 모의 처리한다.
+- 웹 의존성 보안 업데이트 후 npm audit 0건(2026-10-29, 개발 의존성 포함).
+- 실기기 마이크/잠금, 문의 운영 수신, Java/Flutter 전체 공급망 검사는 별도다.
+- presigned PUT 원본 크기/내용의 서버 확인, 사용자별 저장량 상한과 미참조 파일 정리는 모집 확대 전 보완 대상이다.
 
-```typescript
-// 보호 경로 목록
-const PROTECTED = ['/request', '/correct', '/wallet', '/profile', '/admin', '/onboarding']
-```
+## 서비스 확인
 
-open redirect 방지: `login?redirect=` 파라미터는 `/`로 시작하되 `//`로 시작하지 않는 경로만 허용합니다.
-
----
-
-## 4. OAuth state CSRF 방어
-
-Google 로그인 시 `crypto.randomUUID()`로 생성한 state를 **쿠키**에 저장합니다 (sessionStorage 대신).
-
-```typescript
-// LoginPage.tsx → saveOauthState(state) → SameSite=Lax 쿠키
-// OAuthCallbackPage → consumeOauthState() → state 검증 후 쿠키 삭제
-```
-
-sessionStorage 대신 쿠키를 사용하는 이유: iOS Safari 인앱 브라우저 등 일부 환경에서 OAuth 왕복 중 sessionStorage가 초기화될 수 있습니다.
-
----
-
-## 5. 보안 헤더 (next.config.mjs)
-
-CSP는 middleware에서 생성, 나머지는 next.config에서 정적 설정:
-
-```
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(self), geolocation=()
-```
-
-`microphone` 은 `(self)` 여야 한다 — 녹음(`getUserMedia`)을 쓰고, 빈 allowlist `()` 는 자기 출처까지 막아
-권한 창 없이 `NotAllowedError` 가 난다(2026-05-30~09-25 크로미움 계열에서 웹 녹음 전체 불가).
-
----
-
-## 6. 알려진 개선 필요 사항
-
-| 항목 | 위치 | 설명 |
-|------|------|------|
-| Redis key 해시화 | `RefreshTokenRedisAdapter.java:22` | refresh token 원문을 HMAC-SHA256 해시로 교체 권장 |
-
----
-
-## k8s Health Probe (2026-05-31)
-
-liveness/readiness probe를 분리하여 의존성 장애 시 트래픽 차단.
-
-| 경로 | 목적 | 응답 |
-|------|------|------|
-| `GET /health/live` | 프로세스 생사 확인 | 항상 200 |
-| `GET /health/ready` | 백엔드 연결 확인 | 성공 200, 실패 503 |
-
-`/api/*` rewrites 충돌을 피해 `/health/*` 경로 사용. `force-dynamic`으로 캐싱 방지.
+/health/live는 웹 프로세스, /health/ready는 백엔드 연결을 확인한다.
+health 성공은 학습 저장·음성 재생 성공의 증거가 아니므로 전용 계정 리허설을 함께 실행한다.

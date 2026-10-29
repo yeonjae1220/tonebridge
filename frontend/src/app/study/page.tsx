@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -116,6 +117,7 @@ export default function StudyPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
+        <p className="mb-4 text-sm"><Link href="/help" className="text-blue-600">{t('validation.help')}</Link></p>
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('study.title')}</h1>

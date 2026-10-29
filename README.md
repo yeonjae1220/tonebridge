@@ -2,7 +2,7 @@
 
 ToneBridge helps friends learn each other’s languages through shared phrases, example recordings, practice attempts, and feedback. Personal practice and community feedback remain available. The MVP has no credit balance requirement, request charges, or contribution rewards.
 
-Product decisions: [MVP policy](docs/product/mvp-policy.md) · [User flows](docs/product/user-flows.md) · [Delivery and validation](docs/product/delivery-plan.md)
+Product decisions: [MVP policy](docs/product/mvp-policy.md) · [User flows](docs/product/user-flows.md) · [Delivery and validation](docs/product/delivery-plan.md) · [Pilot readiness](docs/product/validation-readiness.md)
 
 ## What the project demonstrates
 
