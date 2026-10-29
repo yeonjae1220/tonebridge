@@ -33,11 +33,6 @@ function timeAgo(iso: string, t: TFunction) {
   return formatMessage(t('feed.time.daysAgo'), { count: Math.floor(h / 24) })
 }
 
-function rewardLabel(req: CorrectionRequest) {
-  if (req.type === 'AUDIO') return '+8~12'
-  return '+4'
-}
-
 function GuestBanner() {
   const router = useRouter()
   const { t } = useI18n()
@@ -133,7 +128,7 @@ export default function FeedPage() {
       router.push('/login?redirect=/request')
       return
     }
-    router.push('/request')
+    router.push('/request?destination=COMMUNITY')
   }
 
   const handleDelete = (requestId: string) => {
@@ -438,7 +433,6 @@ function RequestCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!mine && <span className="text-sm font-bold text-green-600">{rewardLabel(request)} {t('feed.credits')}</span>}
           <span className="text-xs text-gray-400">{timeAgo(request.createdAt, t)}</span>
         </div>
       </div>

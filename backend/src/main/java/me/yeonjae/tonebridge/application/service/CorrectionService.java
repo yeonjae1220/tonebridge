@@ -10,12 +10,8 @@ import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionUseCase;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
-import me.yeonjae.tonebridge.application.port.out.CreditPort;
 import me.yeonjae.tonebridge.application.port.out.RatingPort;
 import me.yeonjae.tonebridge.domain.correction.*;
-import me.yeonjae.tonebridge.domain.credit.CreditTransaction;
-import me.yeonjae.tonebridge.domain.credit.TransactionType;
-import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,9 +39,7 @@ public class CorrectionService implements
     private final CorrectionPort correctionPort;
     private final RatingPort ratingPort;
     private final ApplicationEventPublisher eventPublisher;
-    private final ToneBridgeProperties properties;
     private final ReputationService reputationService;
-    private final CreditPort creditPort;
 
     @Override
     public Correction submit(SubmitCorrectionUseCase.Command command) {
@@ -60,11 +54,7 @@ public class CorrectionService implements
         }
 
         boolean isAudio = request.type() == CorrectionType.AUDIO;
-        int reward = isAudio
-                ? (command.referenceAudioUrl() != null
-                        ? properties.getCredit().getAudioWithRecordingReward()
-                        : properties.getCredit().getAudioCorrectionReward())
-                : properties.getCredit().getTextCorrectionReward();
+        int reward = 0; // Compatibility field: mutual learning has no currency reward.
 
         Correction correction = correctionPort.save(new Correction(
                 null, command.requestId(), command.correctorId(), false,
@@ -189,15 +179,6 @@ public class CorrectionService implements
             throw new ToneBridgeException(ErrorCode.CORRECTION_NOT_ACCEPTABLE);
         }
         correctionRequestPort.updateAcceptedCorrection(correction.requestId(), command.correctionId());
-
-        int bonus = properties.getCredit().getAcceptBonus();
-        if (bonus > 0 && correction.correctorId() != null) {
-            creditPort.adjustCredits(correction.correctorId(), bonus);
-            creditPort.save(new CreditTransaction(
-                    null, correction.correctorId(), bonus, TransactionType.BONUS,
-                    command.correctionId(), "채택 보너스", null
-            ));
-        }
     }
 
     @Override

@@ -164,25 +164,10 @@ class _CorrectPageState extends ConsumerState<CorrectPage> {
 
     final explanationLen = _explanationController.text.length;
     final isValid = explanationLen >= 20;
-    final reward = isAudio
-        ? (_refRecorder.state == RecorderState.stopped ? 12 : 8)
-        : 4;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('첨삭 작성'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '완료 시 +$reward 크레딧',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-        ),
       ),
       body: Form(
         key: _formKey,
@@ -830,14 +815,6 @@ class _RefRecordingSection extends StatelessWidget {
         Row(
           children: [
             const _SectionLabel(label: '원어민 재녹음 (선택)'),
-            const Spacer(),
-            Text(
-              '+4 추가 크레딧',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: Colors.green.shade600,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 4),

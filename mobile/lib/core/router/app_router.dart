@@ -22,7 +22,6 @@ import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/card_detail_page.dart';
 import 'package:tonebridge/features/study_session/presentation/session_detail_page.dart';
 import 'package:tonebridge/features/study_session/presentation/study_page.dart';
-import 'package:tonebridge/features/wallet/presentation/wallet_page.dart';
 
 part 'app_router.g.dart';
 
@@ -223,7 +222,7 @@ GoRouter appRouter(Ref ref) {
                   ),
                   GoRoute(
                     path: 'wallet',
-                    builder: (context, state) => const WalletPage(),
+                    redirect: (context, state) => AppRoute.study,
                   ),
                   GoRoute(
                     path: 'settings',

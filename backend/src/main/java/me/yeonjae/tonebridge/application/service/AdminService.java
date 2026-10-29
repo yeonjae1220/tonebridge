@@ -1,6 +1,8 @@
 package me.yeonjae.tonebridge.application.service;
 
 import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.shared.exception.ErrorCode;
+import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import me.yeonjae.tonebridge.application.port.out.AdminPort;
 import me.yeonjae.tonebridge.domain.admin.AdminStats;
 import me.yeonjae.tonebridge.domain.admin.AdminUserSummary;
@@ -28,6 +30,6 @@ public class AdminService {
 
     @Transactional
     public void adjustUserCredits(UUID userId, int delta) {
-        adminPort.adjustUserCredits(userId, delta);
+        throw new ToneBridgeException(ErrorCode.CREDITS_RETIRED);
     }
 }

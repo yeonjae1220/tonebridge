@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/router/app_router.dart';
@@ -341,12 +340,6 @@ class _RequestPageState extends ConsumerState<RequestPage> {
               ),
               const SizedBox(height: 16),
 
-              // ── 크레딧 비용 ──
-              _CreditBanner(
-                isAudio: _isAudio,
-                isCommunity: _destination == RequestDestination.community,
-              ),
-              const SizedBox(height: 20),
 
               // ── 제출 ──
               FilledButton(
@@ -743,41 +736,6 @@ class _SectionCard extends StatelessWidget {
         const SizedBox(height: 10),
         child,
       ],
-    );
-  }
-}
-
-class _CreditBanner extends ConsumerWidget {
-  const _CreditBanner({required this.isAudio, required this.isCommunity});
-  final bool isAudio;
-  final bool isCommunity;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final strings = ref.watch(tProvider);
-    final cost = isCommunity
-        ? (isAudio ? AppConfig.audioRequestCost : AppConfig.textRequestCost)
-        : 0;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.toll_rounded, color: theme.colorScheme.primary, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            strings.creditCost(cost),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

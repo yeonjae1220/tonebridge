@@ -481,17 +481,6 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            <button
-              onClick={() => router.push('/profile/wallet')}
-              className="bg-surface rounded-2xl border border-gray-100 p-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
-            >
-              <span>
-                <span className="block text-sm font-semibold text-gray-500 mb-1">{t('profile.wallet')}</span>
-                <span className="block text-2xl font-black text-blue-600">{me?.credits ?? '—'}</span>
-              </span>
-              <span className="text-gray-300 text-2xl">›</span>
-            </button>
-
             {/* 스트릭 */}
             <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.streakTitle')}</p>
@@ -506,7 +495,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-gray-400 mt-2">{t('profile.streakStart')}</p>
               ) : profile.correctionStreak > 0 && profile.correctionStreak % 7 === 0 ? (
                 <p className="text-xs text-orange-600 mt-2 font-medium">
-                  🎉 {formatMessage(t('profile.streakBonus'), { count: profile.correctionStreak })}
+                  🎉 {formatMessage(t('profile.streakMilestone'), { count: profile.correctionStreak })}
                 </p>
               ) : null}
             </div>

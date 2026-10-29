@@ -43,6 +43,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test deployment ordering
+        run: python3 -m unittest discover -s scripts/tests -v
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -73,6 +76,27 @@ jobs:
         working-directory: frontend
         run: npm run type-check
 
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser regression tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Test Flutter mobile
+        working-directory: ./mobile
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter test
+
   build-and-push:
     # PR 에서는 이미지 빌드·푸시를 하지 않는다 (배포는 push 에서만)
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -95,12 +119,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
       - name: Build & push backend
         uses: docker/build-push-action@v6
         with:
@@ -111,15 +129,6 @@ jobs:
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Test Flutter mobile
-        working-directory: ./mobile
-        run: |
-          flutter pub get
-          dart run build_runner build --delete-conflicting-outputs
-          flutter test
-        env:
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
       - name: Build & push frontend (Next.js)
         uses: docker/build-push-action@v6
@@ -203,15 +212,11 @@ jobs:
           sudo kubectl apply -f /opt/tonebridge/k8s/minio.yaml
           sudo kubectl apply -f /opt/tonebridge/k8s/minio-init.yaml
           sudo kubectl apply -f /opt/tonebridge/k8s/backend.yaml
-          sudo kubectl apply -f /opt/tonebridge/k8s/frontend.yaml
           sudo kubectl apply -f /opt/tonebridge/k8s/ingress.yaml
 
           # 이미지 최신화 및 롤아웃 (SHA 태그로 변경을 강제하여 :latest 동일 시 롤아웃 누락 방지)
           sudo kubectl set image deployment/backend \
             backend="${BACKEND_IMAGE}:${GIT_SHA}" \
-            -n tonebridge
-          sudo kubectl set image deployment/frontend \
-            frontend="${FRONTEND_IMAGE}:${GIT_SHA}" \
             -n tonebridge
 
           if ! sudo kubectl rollout status deployment/backend -n tonebridge --timeout=300s; then
@@ -224,6 +229,13 @@ jobs:
             sudo kubectl describe pod "$NEW_POD" -n tonebridge | tail -30
             exit 1
           fi
+
+          # V25와 무료 정책 서버의 전환이 끝난 뒤에만 웹을 갱신한다.
+          # apply도 :latest 롤아웃을 시작할 수 있으므로 백엔드 대기 뒤에 둔다.
+          sudo kubectl apply -f /opt/tonebridge/k8s/frontend.yaml
+          sudo kubectl set image deployment/frontend \
+            frontend="${FRONTEND_IMAGE}:${GIT_SHA}" \
+            -n tonebridge
 
           if ! sudo kubectl rollout status deployment/frontend -n tonebridge --timeout=120s; then
             echo "=== Frontend pod status ==="

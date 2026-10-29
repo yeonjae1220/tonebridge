@@ -46,6 +46,114 @@ class ToneBridgeStrings {
 
   final String language;
 
+  String get friendLearningIntro => _pick({
+    'ko': "친구와 표현과 음성을 주고받고, 피드백을 보며 다시 연습하세요.",
+    'en': "Exchange phrases and recordings with friends, share feedback, and try again.",
+    'ja': "友達と表現や録音を交換し、フィードバックを見てもう一度練習しましょう。",
+    'zh': "与朋友交换表达和录音，分享反馈，再次练习。",
+    'es': "Intercambia frases y grabaciones con amigos, comparte comentarios y vuelve a practicar.",
+    'fr': "Échangez des phrases et des enregistrements, partagez vos retours et réessayez.",
+    'de': "Tauscht Sätze und Aufnahmen aus, gebt Feedback und übt erneut.",
+    'pt': "Troque frases e gravações com amigos, compartilhe comentários e pratique de novo.",
+    'ru': "Обменивайтесь фразами и записями, делитесь отзывами и пробуйте снова.",
+  });
+
+  String get continueTogether => _pick({
+    'ko': "함께 이어가기",
+    'en': "Continue together",
+    'ja': "一緒に続ける",
+    'zh': "一起继续",
+    'es': "Continúen juntos",
+    'fr': "Continuer ensemble",
+    'de': "Gemeinsam weitermachen",
+    'pt': "Continuem juntos",
+    'ru': "Продолжить вместе",
+  });
+
+  String get continueTogetherHint => _pick({
+    'ko': "친구 요청을 확인하거나 원하는 연습장을 열어보세요.",
+    'en': "Check friend requests or open a notebook whenever you want.",
+    'ja': "友達リクエストを確認したり、好きなノートを開きましょう。",
+    'zh': "查看好友请求，或随时打开练习本。",
+    'es': "Revisa solicitudes de amistad o abre un cuaderno cuando quieras.",
+    'fr': "Consultez les demandes ou ouvrez un carnet quand vous voulez.",
+    'de': "Prüfe Freundschaftsanfragen oder öffne ein Übungsheft.",
+    'pt': "Confira os pedidos de amizade ou abra um caderno quando quiser.",
+    'ru': "Проверьте заявки в друзья или откройте тетрадь в удобное время.",
+  });
+
+  String get inviteLink => _pick({
+    'ko': "친구 초대 링크",
+    'en': "Invite a friend",
+    'ja': "友達を招待",
+    'zh': "邀请朋友",
+    'es': "Invita a un amigo",
+    'fr': "Inviter un ami",
+    'de': "Freund einladen",
+    'pt': "Convide um amigo",
+    'ru': "Пригласить друга",
+  });
+
+  String get inviteHelp => _pick({
+    'ko': "링크를 받은 친구가 요청을 보내면 수락해 주세요. 연습장은 함께 연 뒤에만 공유됩니다.",
+    'en': "Your friend can send a request from this link. Accept it, then open a shared notebook.",
+    'ja': "リンクを受け取った友達からのリクエストを承認して、共有ノートを開きましょう。",
+    'zh': "朋友可通过链接发送请求。接受后再打开共享练习本。",
+    'es': "Tu amigo puede enviarte una solicitud desde el enlace. Acéptala y abre un cuaderno compartido.",
+    'fr': "Votre ami peut envoyer une demande via ce lien. Acceptez-la, puis ouvrez un carnet partagé.",
+    'de': "Dein Freund kann über den Link eine Anfrage senden. Nimm sie an und öffnet ein gemeinsames Heft.",
+    'pt': "Seu amigo pode enviar um pedido pelo link. Aceite e abra um caderno compartilhado.",
+    'ru': "Друг может отправить заявку по ссылке. Примите её и откройте общую тетрадь.",
+  });
+
+  String get copyLink => _pick({
+    'ko': "링크 복사",
+    'en': "Copy link",
+    'ja': "リンクをコピー",
+    'zh': "复制链接",
+    'es': "Copiar enlace",
+    'fr': "Copier le lien",
+    'de': "Link kopieren",
+    'pt': "Copiar link",
+    'ru': "Копировать ссылку",
+  });
+
+  String get linkCopied => _pick({
+    'ko': "링크를 복사했어요.",
+    'en': "Link copied.",
+    'ja': "コピーしました。",
+    'zh': "已复制链接。",
+    'es': "Enlace copiado.",
+    'fr': "Lien copié.",
+    'de': "Link kopiert.",
+    'pt': "Link copiado.",
+    'ru': "Ссылка скопирована.",
+  });
+
+  String get copyFailed => _pick({
+    'ko': "복사하지 못했어요. 위 링크를 선택해 복사해 주세요.",
+    'en': "Could not copy. Select and copy the link above.",
+    'ja': "コピーできませんでした。上のリンクを選択してコピーしてください。",
+    'zh': "复制失败，请选中上面的链接复制。",
+    'es': "No se pudo copiar. Selecciona y copia el enlace.",
+    'fr': "Copie impossible. Sélectionnez et copiez le lien.",
+    'de': "Kopieren fehlgeschlagen. Markiere und kopiere den Link.",
+    'pt': "Não foi possível copiar. Selecione e copie o link.",
+    'ru': "Не удалось скопировать. Выделите и скопируйте ссылку.",
+  });
+
+  String get startWithFriend => _pick({
+    'ko': "친구와 시작하기",
+    'en': "Start with a friend",
+    'ja': "友達と始める",
+    'zh': "和朋友开始",
+    'es': "Empezar con un amigo",
+    'fr': "Commencer avec un ami",
+    'de': "Mit einem Freund starten",
+    'pt': "Começar com um amigo",
+    'ru': "Начать с другом",
+  });
+
   String get settings => _pick({
     'ko': '설정',
     'en': 'Settings',
@@ -536,15 +644,15 @@ class ToneBridgeStrings {
   });
 
   String get feedSubtitle => _pick({
-    'ko': '공개 요청을 도와주고 크레딧을 받아요',
-    'en': 'Help with public requests and earn credits',
-    'ja': '公開依頼を手伝ってクレジットを獲得しましょう',
-    'zh': '帮助公开请求并获得积分',
-    'es': 'Ayuda con solicitudes públicas y gana créditos',
-    'fr': 'Aidez sur des demandes publiques et gagnez des crédits',
-    'de': 'Hilf bei öffentlichen Anfragen und verdiene Credits',
-    'pt': 'Ajude em pedidos públicos e ganhe créditos',
-    'ru': 'Помогайте с открытыми запросами и получайте кредиты',
+    'ko': "다른 학습자의 표현을 함께 다듬어 보세요.",
+    'en': "Help other learners improve their expressions.",
+    'ja': "他の学習者の表現を一緒に磨きましょう。",
+    'zh': "一起帮助其他学习者改善表达。",
+    'es': "Ayuda a otros estudiantes a mejorar sus expresiones.",
+    'fr': "Aidez les autres à améliorer leurs expressions.",
+    'de': "Hilf anderen Lernenden, ihre Ausdrücke zu verbessern.",
+    'pt': "Ajude outros estudantes a melhorar suas expressões.",
+    'ru': "Помогайте другим улучшать свои выражения.",
   });
 
   String get requestTitle => _pick({
@@ -679,20 +787,6 @@ class ToneBridgeStrings {
     'ru': 'Фокус обратной связи (необязательно)',
   });
 
-  String creditCost(int cost) => _format(
-    _pick({
-      'ko': '크레딧 {count} 차감',
-      'en': '{count} credits',
-      'ja': '{count}クレジット消費',
-      'zh': '消耗 {count} 积分',
-      'es': '{count} créditos',
-      'fr': '{count} crédits',
-      'de': '{count} Credits',
-      'pt': '{count} créditos',
-      'ru': '{count} кредитов',
-    }),
-    {'count': cost.toString()},
-  );
 
   String get submitCorrectionRequest => _pick({
     'ko': '교정 요청하기',

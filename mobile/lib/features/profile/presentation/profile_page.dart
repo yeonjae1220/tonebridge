@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/constants/languages.dart';
 import 'package:tonebridge/core/providers/language_variants_provider.dart';
 import 'package:tonebridge/core/router/app_router.dart';
-import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/presentation/profile_provider.dart';
 
@@ -70,10 +69,6 @@ class ProfilePage extends ConsumerWidget {
             children: [
               _ProfileHeader(profile: profile),
               const SizedBox(height: 20),
-              _CreditShortcut(
-                credits: ref.watch(authStateProvider).value?.user.credits ?? 0,
-              ),
-              const SizedBox(height: 20),
               _StatsRow(profile: profile),
               const SizedBox(height: 20),
               // Reputation bar
@@ -95,36 +90,6 @@ class ProfilePage extends ConsumerWidget {
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
-
-class _CreditShortcut extends StatelessWidget {
-  const _CreditShortcut({required this.credits});
-  final int credits;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: ListTile(
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            Icons.account_balance_wallet_rounded,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-        ),
-        title: const Text('크레딧 지갑'),
-        subtitle: Text('보유 크레딧 $credits'),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => context.push(AppRoute.wallet),
-      ),
-    );
-  }
-}
 
 class _ProfileHeader extends ConsumerWidget {
   const _ProfileHeader({required this.profile});
@@ -436,7 +401,7 @@ class _StreakSection extends StatelessWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.outline))
         else if (streak > 0 && streak % 7 == 0)
-          Text('🎉 ${streak}일 달성! 보너스 크레딧이 지급됐어요.',
+          Text('🎉 ${streak}일 달성! 함께 나눈 피드백이 쌓이고 있어요.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: Colors.orange.shade700)),
       ],

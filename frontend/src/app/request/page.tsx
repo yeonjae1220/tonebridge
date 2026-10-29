@@ -57,6 +57,11 @@ export default function RequestPage() {
   const [error, setError] = useState('')
   const [recordSheetOpen, setRecordSheetOpen] = useState(false)
 
+  useEffect(() => {
+    const intent = new URLSearchParams(window.location.search).get('destination')
+    if (intent === 'COMMUNITY' || intent === 'FRIEND' || intent === 'PERSONAL') setDestination(intent)
+  }, [])
+
   const recorder = useAudioRecorder()
   const { upload, uploading } = usePresignedUpload()
 
@@ -207,7 +212,6 @@ export default function RequestPage() {
     })
   }
 
-  const creditCost = destination === 'COMMUNITY' ? (kind === 'TEXT' ? 5 : 10) : 0
   const isPending = submitMutation.isPending || uploading
   const hasContent = kind === 'TEXT' ? !!contentText.trim() : recorder.state === 'stopped'
   const canSubmit =
@@ -397,10 +401,6 @@ export default function RequestPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
-                <span className="text-sm text-gray-600">{t('request.creditCost')}</span>
-                <span className="text-lg font-bold text-blue-600">{creditCost === 0 ? '0' : `-${creditCost}`}</span>
-              </div>
             </div>
           )}
 

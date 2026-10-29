@@ -1,6 +1,8 @@
 # ToneBridge Frontend — 아키텍처
 
-> Next.js 15 App Router, TypeScript, Tailwind CSS
+> Next.js 14 App Router, TypeScript, Tailwind CSS
+
+현재 제품 흐름은 [친구 중심 사용자 흐름](product/user-flows.md)을 기준으로 한다. 크레딧 화면을 기본 동선에 추가하지 않는다.
 
 ---
 
@@ -18,7 +20,7 @@ frontend/src/
 │   ├── correct/[requestId]/    # 첨삭 수행
 │   ├── result/[requestId]/     # 결과 확인
 │   ├── study/                  # 학습
-│   ├── profile/                # 프로필, 설정, 지갑
+│   ├── profile/                # 프로필, 설정 (옛 지갑 URL은 학습 홈으로 이동)
 │   └── admin/                  # 관리자
 ├── components/
 │   ├── AppShell.tsx            # 전체 레이아웃 (헤더, 네비게이션)

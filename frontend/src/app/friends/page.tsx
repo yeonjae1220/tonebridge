@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useDebounce } from '@/hooks/useDebounce'
-import type { Friend, FriendRequest, UserSearchResult } from '@/types'
+import type { Friend, FriendRequest, UserSearchResult, StudySession } from '@/types'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate } from '@/lib/dateUtils'
 
@@ -27,6 +28,9 @@ export default function FriendsPage() {
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { language, t } = useI18n()
+  const { data: currentUser } = useCurrentUser()
+  const [origin, setOrigin] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -38,8 +42,19 @@ export default function FriendsPage() {
   const debouncedQuery = useDebounce(searchQuery, 300)
 
   useEffect(() => {
-    if (!accessToken) router.replace('/login')
+    if (!accessToken) router.replace('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search))
   }, [accessToken, router])
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+    const invite = new URLSearchParams(window.location.search).get('invite')
+    // Existing Google usernames can exceed the 20-character rename limit.
+    // Match the persisted username and /users/search limit (50).
+    if (invite && /^[A-Za-z0-9_]{2,50}$/.test(invite)) {
+      setSearchQuery(invite)
+      setShowSearch(true)
+    }
+  }, [])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -57,13 +72,13 @@ export default function FriendsPage() {
     enabled: !!accessToken,
   })
 
-  const { data: pending = [] } = useQuery<FriendRequest[]>({
+  const { data: pending = [], isError: pendingError } = useQuery<FriendRequest[]>({
     queryKey: ['friends', 'pending'],
     queryFn: () => api.get('/friends/pending').then((r) => r.data),
     enabled: !!accessToken,
   })
 
-  const { data: searchResults = [] } = useQuery<UserSearchResult[]>({
+  const { data: searchResults = [], isFetching: searchLoading, isError: searchError } = useQuery<UserSearchResult[]>({
     queryKey: ['users', 'search', debouncedQuery],
     queryFn: () =>
       api.get('/users/search', { params: { q: debouncedQuery, limit: 10 } }).then((r) => r.data),
@@ -75,6 +90,7 @@ export default function FriendsPage() {
       api.post('/friends/request', { receiverUsername }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
+      setNotice(t('friends.requestSent'))
       setSearchQuery('')
       setShowSearch(false)
       setSendError(null)
@@ -96,20 +112,38 @@ export default function FriendsPage() {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
     },
+    onError: () => setSendError(t('friends.requestFailed')),
     onSettled: () => setAcceptingId(null),
   })
 
   const declineMutation = useMutation({
     mutationFn: (requestId: string) => api.delete(`/friends/requests/${requestId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }),
+    onError: () => setSendError(t('friends.requestFailed')),
     onSettled: () => setDecliningId(null),
   })
 
   const removeMutation = useMutation({
     mutationFn: (friendId: string) => api.delete(`/friends/${friendId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends'] }),
+    onError: () => setSendError(t('friends.requestFailed')),
     onSettled: () => setRemovingId(null),
   })
+
+  const practiceMutation = useMutation({
+    mutationFn: async (friendId: string) => {
+      const { data: sessions } = await api.get<StudySession[]>('/sessions')
+      const existing = sessions.find((session) => session.memberIds.length === 2 && session.memberIds.includes(friendId))
+      if (existing) return existing.id
+      const { data } = await api.post<StudySession>('/sessions', { friendId })
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      return data.id
+    },
+    onSuccess: (id) => router.push('/study/' + id),
+    onError: () => setSendError(t('study.createFailed')),
+  })
+
+  const inviteUrl = origin && currentUser ? origin + '/friends?invite=' + encodeURIComponent(currentUser.username) : ''
 
   const friendIds = new Set(friends.map((f) => f.id))
 
@@ -132,6 +166,26 @@ export default function FriendsPage() {
           </button>
         </div>
 
+        {inviteUrl && (
+          <section className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4">
+            <p className="text-sm font-semibold mb-2">{t('friends.inviteLink')}</p>
+            <p className="text-xs text-gray-500 mb-3">{t('friends.inviteHelp')}</p>
+            <input aria-label={t('friends.inviteLink')} readOnly value={inviteUrl}
+              onFocus={(event) => event.target.select()} className="w-full border rounded-xl p-2 text-sm" />
+            <button type="button" className="mt-2 text-sm font-semibold text-blue-600" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(inviteUrl)
+                setNotice(t('friends.linkCopied'))
+              } catch {
+                setSendError(t('friends.copyFailed'))
+              }
+            }}>{t('friends.copyLink')}</button>
+          </section>
+        )}
+        {notice && <p role="status" className="text-sm text-green-700 mb-3">{notice}</p>}
+        {sendError && <p role="alert" className="text-sm text-red-500 mb-3">{sendError}</p>}
+        {pendingError && <p role="alert" className="text-sm text-red-500 mb-3">{t('friends.loadFailed')}</p>}
+
         {/* 친구 검색 패널 */}
         {showSearch && (
           <div ref={searchRef} className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
@@ -151,25 +205,26 @@ export default function FriendsPage() {
               </svg>
             </div>
 
-            {sendError && <p className="text-xs text-red-500 mt-2">{sendError}</p>}
+            {searchLoading && <p>{t('common.loading')}</p>}
+            {searchError && <p role="alert" className="text-red-500">{t('friends.loadFailed')}</p>}
 
             {debouncedQuery.trim().length >= 1 && searchResults.length > 0 && (
               <div className="mt-2 flex flex-col gap-1">
                 {searchResults.map((user) => {
                   const isFriend = friendIds.has(user.id)
                   return (
-                    <div key={user.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{user.username}</p>
+                    <div key={user.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-all text-sm font-semibold text-gray-800">{user.username}</p>
                         <p className="text-xs text-gray-500">{langLabel(user.nativeLanguage)}</p>
                       </div>
                       {isFriend ? (
-                        <span className="text-xs text-green-600 font-medium">{t('friends.alreadyFriends')}</span>
+                        <span className="shrink-0 text-xs text-green-600 font-medium">{t('friends.alreadyFriends')}</span>
                       ) : (
                         <button
                           onClick={() => sendRequestMutation.mutate(user.username)}
                           disabled={sendRequestMutation.isPending}
-                          className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
                         >
                           {t('friends.request')}
                         </button>
@@ -180,7 +235,7 @@ export default function FriendsPage() {
               </div>
             )}
 
-            {debouncedQuery.trim().length >= 1 && searchResults.length === 0 && (
+            {debouncedQuery.trim().length >= 1 && !searchLoading && !searchError && searchResults.length === 0 && (
               <p className="text-sm text-gray-400 text-center py-4">{t('friends.noSearchResults')}</p>
             )}
           </div>
@@ -206,7 +261,7 @@ export default function FriendsPage() {
                     <button
                       onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
                       disabled={acceptingId === req.id || decliningId === req.id}
-                      className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
                     >
                       {acceptingId === req.id ? t('friends.accepting') : t('friends.accept')}
                     </button>
@@ -262,6 +317,11 @@ export default function FriendsPage() {
                       <p className="text-xs text-gray-500">{langLabel(friend.nativeLanguage)}</p>
                     </div>
                   </div>
+                  <button type="button"
+                    disabled={practiceMutation.isPending}
+                    onClick={() => practiceMutation.mutate(friend.id)}
+                    className="ml-auto px-3 py-2 text-xs font-semibold text-blue-600 disabled:opacity-40"
+                  >{t('study.openCards')}</button>
                   <button
                     onClick={() => {
                       if (window.confirm(formatMessage(t('friends.removeConfirm'), { name: friend.username }))) {

@@ -27,7 +27,8 @@ export function middleware(request: NextRequest) {
   if (needsAuth && !request.cookies.has('session')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirect', pathname)
+    url.search = ''
+    url.searchParams.set('redirect', pathname + request.nextUrl.search)
     const redirectRes = NextResponse.redirect(url)
     redirectRes.headers.set('Content-Security-Policy', csp)
     return redirectRes

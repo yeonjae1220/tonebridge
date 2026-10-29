@@ -218,6 +218,7 @@ class StudyPage extends ConsumerStatefulWidget {
 }
 
 class _StudyPageState extends ConsumerState<StudyPage> {
+  bool _openingPersonal = false;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -344,8 +345,9 @@ class _StudyPageState extends ConsumerState<StudyPage> {
   }
 
   Future<void> _openPersonalPractice(BuildContext context) async {
-    final sessions =
-        ref.read(studySessionListStateProvider).asData?.value ?? [];
+    final state = ref.read(studySessionListStateProvider);
+    if (_openingPersonal || !state.hasValue || state.hasError) return;
+    final sessions = state.requireValue;
     StudySession? personal;
     for (final session in sessions) {
       if (session.memberIds.length == 1) {
@@ -359,6 +361,7 @@ class _StudyPageState extends ConsumerState<StudyPage> {
     }
 
     final messenger = ScaffoldMessenger.of(context);
+    _openingPersonal = true;
     try {
       final session = await ref
           .read(studySessionListStateProvider.notifier)
@@ -375,11 +378,13 @@ class _StudyPageState extends ConsumerState<StudyPage> {
           ),
         );
       }
+    } finally {
+      _openingPersonal = false;
     }
   }
 }
 
-class _TodayStudyPanel extends StatelessWidget {
+class _TodayStudyPanel extends ConsumerWidget {
   const _TodayStudyPanel({
     required this.sessionsAsync,
     required this.friendsAsync,
@@ -393,11 +398,9 @@ class _TodayStudyPanel extends StatelessWidget {
   final VoidCallback onStartWithFriend;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final sessions = sessionsAsync.asData?.value ?? const <StudySession>[];
-    final friends = friendsAsync.asData?.value ?? const <Friend>[];
-    final todoCount = sessions.length + friends.length;
+    final strings = ref.watch(tProvider);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -417,40 +420,21 @@ class _TodayStudyPanel extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '오늘의 스터디',
-                        style: TextStyle(
+                      Text(
+                        strings.continueTogether,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        sessions.isEmpty
-                            ? '떠오른 표현을 먼저 내 연습장에 기록해보세요.'
-                            : '연습과 기록할 표현을 한 곳에 모았어요.',
+                        strings.friendLearningIntro,
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$todoCount',
-                    style: TextStyle(
-                      color: theme.colorScheme.onPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
                   ),
                 ),
               ],
@@ -466,19 +450,25 @@ class _TodayStudyPanel extends StatelessWidget {
             childAspectRatio: 2.4,
             children: [
               _QuickActionButton(
+                icon: Icons.people_rounded,
+                label: strings.startWithFriend,
+                onTap: friendsAsync.hasValue && !friendsAsync.hasError
+                    ? onStartWithFriend
+                    : null,
+              ),
+              _QuickActionButton(
                 icon: Icons.edit_note_rounded,
                 label: '글 작성',
-                onTap: onOpenPersonal,
+                onTap: sessionsAsync.hasValue && !sessionsAsync.hasError
+                    ? onOpenPersonal
+                    : null,
               ),
               _QuickActionButton(
                 icon: Icons.mic_rounded,
                 label: '녹음',
-                onTap: onOpenPersonal,
-              ),
-              _QuickActionButton(
-                icon: Icons.people_rounded,
-                label: '친구에게 보내기',
-                onTap: onStartWithFriend,
+                onTap: sessionsAsync.hasValue && !sessionsAsync.hasError
+                    ? onOpenPersonal
+                    : null,
               ),
               _QuickActionButton(
                 icon: Icons.forum_rounded,
@@ -503,7 +493,7 @@ class _QuickActionButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1011,7 +1001,7 @@ class _UserSuggestionTile extends StatelessWidget {
   });
 
   final UserSearchResult user;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool sending;
 
   @override

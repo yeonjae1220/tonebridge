@@ -1,12 +1,14 @@
 # ToneBridge
 
-ToneBridge is a language-correction credit community: users contribute feedback on another person's language to earn credits, then use credits to request feedback on their own pronunciation or writing.
+ToneBridge helps friends learn each other’s languages through shared phrases, example recordings, practice attempts, and feedback. Personal practice and community feedback remain available. The MVP has no credit balance requirement, request charges, or contribution rewards.
+
+Product decisions: [MVP policy](docs/product/mvp-policy.md) · [User flows](docs/product/user-flows.md) · [Delivery and validation](docs/product/delivery-plan.md)
 
 ## What the project demonstrates
 
 - **Token refresh under concurrent requests** — a learning screen can issue several protected requests at once. A single-flight refresh queue collapses four competing refreshes into one and lets waiting requests retry with the new token.
 - **Direct object-storage upload** — the backend authorizes an upload and issues a presigned URL; audio bytes flow directly between the client and object storage instead of transiting the application server.
-- **Domain rules in one place** — credit balance, duplicate grant, and exchange rules live in the domain layer rather than being duplicated across controllers.
+- **Learning roles and access** — session membership, card ownership, practice, and feedback are checked separately; either participant can practise or provide examples.
 - **Deployment boundaries** — the service uses Kubernetes network policies with a default-deny posture and explicit service-to-service paths.
 
 ## Architecture

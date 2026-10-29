@@ -56,15 +56,16 @@ public class ToneBridgeProperties {
     }
 
     @Getter @Setter
+    // Legacy configuration binding only. Services do not read these values.
     public static class Credit {
-        private int signupBonus = 30;
-        private int textRequestCost = 5;
-        private int audioRequestCost = 10;
-        private int textCorrectionReward = 4;
-        private int audioCorrectionReward = 8;
-        private int audioWithRecordingReward = 12;
-        private int streak7dayBonus = 10;
-        private int acceptBonus = 5;
+        private int signupBonus = 0;
+        private int textRequestCost = 0;
+        private int audioRequestCost = 0;
+        private int textCorrectionReward = 0;
+        private int audioCorrectionReward = 0;
+        private int audioWithRecordingReward = 0;
+        private int streak7dayBonus = 0;
+        private int acceptBonus = 0;
     }
 
     @Getter @Setter

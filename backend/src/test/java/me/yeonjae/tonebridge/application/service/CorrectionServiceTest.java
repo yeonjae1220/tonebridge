@@ -68,9 +68,7 @@ class CorrectionServiceTest {
                 correctionPort,
                 ratingPort,
                 eventPublisher,
-                new ToneBridgeProperties(),
-                reputationService,
-                creditPort
+                reputationService
         );
     }
 
@@ -274,6 +272,8 @@ class CorrectionServiceTest {
         assertThat(event.correctorId()).isEqualTo(correctorId);
         assertThat(event.requesterId()).isEqualTo(requesterId);
         assertThat(event.isAudio()).isFalse();
+        assertThat(event.reward()).isZero();
+        verify(correctionPort).save(org.mockito.ArgumentMatchers.argThat(c -> c.creditEarned() == 0));
     }
 
     // ───── Accept 테스트 ─────────────────────────────────────────────────────
