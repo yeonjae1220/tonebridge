@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     default: 'ToneBridge',
     template: '%s | ToneBridge',
   },
-  description: '원어민과 함께하는 언어 교정 교환 커뮤니티. 내 글을 교정받고, 상대방의 글을 교정해주세요.',
+  description: '친구와 표현과 음성을 나누고 서로의 피드백으로 다시 연습하는 무료 언어 학습 공간.',
   keywords: ['언어 교정', '외국어 교환', '원어민', 'language correction', 'language exchange'],
   authors: [{ name: 'ToneBridge' }],
   creator: 'ToneBridge',
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     url: BASE_URL,
     siteName: 'ToneBridge',
     title: 'ToneBridge — 언어 교정 교환 커뮤니티',
-    description: '원어민과 함께하는 언어 교정 교환 커뮤니티. 내 글을 교정받고, 상대방의 글을 교정해주세요.',
+    description: '친구와 표현과 음성을 나누고 서로의 피드백으로 다시 연습하는 무료 언어 학습 공간.',
     images: [
       {
         url: '/icons/og-image.png',
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'ToneBridge — 언어 교정 교환 커뮤니티',
-    description: '원어민과 함께하는 언어 교정 교환 커뮤니티.',
+    description: '친구와 함께하는 무료 상호 언어 학습.',
     images: ['/icons/og-image.png'],
   },
   robots: {

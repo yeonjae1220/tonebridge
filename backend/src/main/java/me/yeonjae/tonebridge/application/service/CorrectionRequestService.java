@@ -10,16 +10,12 @@ import me.yeonjae.tonebridge.application.port.in.UpdateCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteCorrectionRequestUseCase;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.application.port.out.CorrectionRequestPort;
-import me.yeonjae.tonebridge.application.port.out.CreditPort;
 import me.yeonjae.tonebridge.application.port.out.LanguageVariantPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
 import me.yeonjae.tonebridge.domain.correction.CorrectionRequest;
 import me.yeonjae.tonebridge.domain.correction.CorrectionType;
 import me.yeonjae.tonebridge.domain.correction.RequestStatus;
-import me.yeonjae.tonebridge.domain.credit.CreditTransaction;
-import me.yeonjae.tonebridge.domain.credit.TransactionType;
 import me.yeonjae.tonebridge.domain.user.User;
-import me.yeonjae.tonebridge.shared.config.ToneBridgeProperties;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.stereotype.Service;
@@ -45,10 +41,8 @@ public class CorrectionRequestService implements
 
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
-    private final CreditPort creditPort;
     private final UserPort userPort;
     private final LanguageVariantPort languageVariantPort;
-    private final ToneBridgeProperties properties;
 
     private void validateVariant(String targetLanguage, String targetVariant) {
         if (targetVariant == null) return;
@@ -63,17 +57,13 @@ public class CorrectionRequestService implements
     @Override
     public CorrectionRequest submit(SubmitTextCorrectionRequestUseCase.Command command) {
         validateVariant(command.targetLanguage(), command.targetVariant());
-        int cost = properties.getCredit().getTextRequestCost();
-        creditPort.adjustCredits(command.requesterId(), -cost);
-        creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
-                TransactionType.SPEND, null, "텍스트 교정 요청", null));
 
         CorrectionRequest request = new CorrectionRequest(
                 null, command.requesterId(), CorrectionType.TEXT,
                 command.contentText(), null, command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
-                cost, RequestStatus.PENDING, null, null, null, null
+                0, RequestStatus.PENDING, null, null, null, null
         );
         return correctionRequestPort.save(request);
     }
@@ -81,17 +71,13 @@ public class CorrectionRequestService implements
     @Override
     public CorrectionRequest submit(SubmitAudioCorrectionRequestUseCase.Command command) {
         validateVariant(command.targetLanguage(), command.targetVariant());
-        int cost = properties.getCredit().getAudioRequestCost();
-        creditPort.adjustCredits(command.requesterId(), -cost);
-        creditPort.save(new CreditTransaction(null, command.requesterId(), -cost,
-                TransactionType.SPEND, null, "음성 교정 요청", null));
 
         CorrectionRequest request = new CorrectionRequest(
                 null, command.requesterId(), CorrectionType.AUDIO,
                 null, command.audioKey(), command.targetLanguage(), command.targetVariant(),
                 command.context(),
                 command.feedbackGoals() != null ? command.feedbackGoals() : List.of(),
-                cost, RequestStatus.PENDING, null, null, null, null
+                0, RequestStatus.PENDING, null, null, null, null
         );
         return correctionRequestPort.save(request);
     }

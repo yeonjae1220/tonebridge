@@ -10,13 +10,10 @@ import me.yeonjae.tonebridge.application.port.in.LoginWithGoogleUseCase;
 import me.yeonjae.tonebridge.application.port.in.LoginWithIdTokenUseCase;
 import me.yeonjae.tonebridge.application.port.in.RefreshTokenUseCase;
 import me.yeonjae.tonebridge.application.port.in.RegisterLocalUserUseCase;
-import me.yeonjae.tonebridge.application.port.out.CreditPort;
 import me.yeonjae.tonebridge.application.port.out.GoogleOAuthPort;
 import me.yeonjae.tonebridge.application.port.out.PasswordHasherPort;
 import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
 import me.yeonjae.tonebridge.application.port.out.UserPort;
-import me.yeonjae.tonebridge.domain.credit.CreditTransaction;
-import me.yeonjae.tonebridge.domain.credit.TransactionType;
 import me.yeonjae.tonebridge.domain.user.CorrectorLevel;
 import me.yeonjae.tonebridge.domain.user.OAuthProvider;
 import me.yeonjae.tonebridge.domain.user.User;
@@ -42,7 +39,6 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
         RefreshTokenUseCase, RegisterLocalUserUseCase, LoginLocalUseCase {
 
     private final UserPort userPort;
-    private final CreditPort creditPort;
     private final GoogleOAuthPort googleOAuthPort;
     private final RefreshTokenPort refreshTokenPort;
     private final PasswordHasherPort passwordHasherPort;
@@ -135,25 +131,19 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
     }
 
     /**
-     * 신규 회원을 기본값(언어 미설정 — 온보딩에서 채움)으로 생성하고 가입 보너스 크레딧을 지급한다.
+     * 신규 회원을 기본값(언어 미설정 — 온보딩에서 채움)으로 생성한다. 학습은 잔액 없이 이용한다.
      * Google/LOCAL 가입이 공유하는 단일 경로.
      */
     private User createUser(String email, String username, OAuthProvider provider, String passwordHash) {
-        int signupBonus = properties.getCredit().getSignupBonus();
         boolean isAdmin = properties.getAdmin().getEmails().contains(email);
 
         User newUser = new User(
                 null, email, username, "", "ko", List.of(), List.of(),
                 null, Map.of(), Map.of(),
-                signupBonus, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), isAdmin,
+                0, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), isAdmin,
                 provider, passwordHash
         );
         User saved = userPort.save(newUser);
-
-        creditPort.save(new CreditTransaction(
-                null, saved.id(), signupBonus, TransactionType.SIGNUP,
-                null, "가입 축하 크레딧", Instant.now()
-        ));
 
         log.info("New user registered: userId={}, provider={}", saved.id(), provider);
         return saved;

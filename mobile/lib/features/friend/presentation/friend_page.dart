@@ -1,11 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:tonebridge/core/config/app_config.dart';
 import 'package:tonebridge/core/i18n/ui_language.dart';
+import 'package:tonebridge/core/router/app_router.dart';
+import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/friend/domain/model/friend.dart';
 import 'package:tonebridge/features/friend/domain/model/user_search_result.dart';
 import 'package:tonebridge/features/friend/presentation/friend_provider.dart';
+import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
+import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class FriendPage extends ConsumerWidget {
   const FriendPage({super.key});
@@ -35,6 +42,41 @@ class FriendPage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
           children: [
+            Card(
+              child: ListTile(
+                title: Text(strings.inviteLink),
+                subtitle: Text(strings.inviteHelp),
+                trailing: IconButton(
+                  tooltip: strings.copyLink,
+                  icon: const Icon(Icons.link),
+                  onPressed: () async {
+                    final username = ref
+                        .read(authStateProvider)
+                        .value
+                        ?.user
+                        .username;
+                    if (username == null) return;
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      final link = Uri.parse(AppConfig.webBaseUrl).replace(
+                        path: '/friends',
+                        queryParameters: {'invite': username},
+                      );
+                      await Clipboard.setData(
+                        ClipboardData(text: link.toString()),
+                      );
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(strings.linkCopied)),
+                      );
+                    } catch (_) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(strings.genericError)),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
             pendingAsync.when(
               loading: () => const SizedBox.shrink(),
               error: (_, _) => const SizedBox.shrink(),
@@ -58,7 +100,12 @@ class FriendPage extends ConsumerWidget {
                     )
                   : Column(
                       children: friends
-                          .map((friend) => _FriendTile(friend: friend))
+                          .map(
+                            (friend) => _FriendTile(
+                              key: ValueKey(friend.id),
+                              friend: friend,
+                            ),
+                          )
                           .toList(),
                     ),
             ),
@@ -139,18 +186,61 @@ class _PendingRequestsCard extends ConsumerWidget {
   }
 }
 
-class _FriendTile extends ConsumerWidget {
-  const _FriendTile({required this.friend});
+class _FriendTile extends ConsumerStatefulWidget {
+  const _FriendTile({required this.friend, super.key});
   final Friend friend;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FriendTile> createState() => _FriendTileState();
+}
+
+class _FriendTileState extends ConsumerState<_FriendTile> {
+  bool _opening = false;
+
+  Future<void> _openPractice() async {
+    if (_opening) return;
+    final friendId = widget.friend.id;
+    setState(() => _opening = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final strings = ref.read(tProvider);
+    try {
+      final repo = ref.read(studySessionRepositoryProvider);
+      final sessions = await repo.getSessions();
+      if (!mounted || widget.friend.id != friendId) return;
+      String? sessionId;
+      for (final session in sessions) {
+        if (session.memberIds.length == 2 &&
+            session.memberIds.contains(friendId)) {
+          sessionId = session.id;
+          break;
+        }
+      }
+      if (sessionId == null) {
+        final session = await repo.createSession(friendId);
+        if (!mounted || widget.friend.id != friendId) return;
+        sessionId = session.id;
+        ref.invalidate(studySessionListStateProvider);
+      }
+      if (mounted) context.push(AppRoute.sessionDetail(sessionId));
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(strings.genericError)));
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final friend = widget.friend;
     final theme = Theme.of(context);
     final strings = ref.watch(tProvider);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
+        onTap: _opening ? null : _openPractice,
         leading: CircleAvatar(
           backgroundColor: theme.colorScheme.primaryContainer,
           child: Text(
@@ -162,7 +252,9 @@ class _FriendTile extends ConsumerWidget {
           ),
         ),
         title: Text(friend.username),
-        subtitle: Text(friend.nativeLanguage),
+        subtitle: _opening
+            ? const LinearProgressIndicator()
+            : Text(strings.continueTogether),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline_rounded),
           tooltip: strings.delete,

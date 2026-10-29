@@ -113,7 +113,7 @@ function LoginInner() {
 
         <p className="text-center text-sm text-gray-500">
           {t('login.noAccount')}{' '}
-          <Link href="/signup" className="font-medium text-gray-900 underline-offset-2 hover:underline">
+          <Link href="/signup" onClick={stashRedirect} className="font-medium text-gray-900 underline-offset-2 hover:underline">
             {t('login.signupLink')}
           </Link>
         </p>

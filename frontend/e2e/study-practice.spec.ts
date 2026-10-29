@@ -51,7 +51,7 @@ async function mockStudy(page: Page, userId = 'owner') {
       }
       return route.fulfill({ status: 201, json: {} })
     }
-    if (path === '/api/users/me') return route.fulfill({ json: { id: userId, username: userId, uiLanguage: 'ko', credits: 30, nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'] } })
+    if (path === '/api/users/me') return route.fulfill({ json: { id: userId, username: userId, uiLanguage: 'ko', credits: 0, nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'] } })
     if (path === '/api/cards/card-1') return route.fulfill({ json: card })
     if (path.endsWith('/attempts')) return route.fulfill({ json: state.attempts })
     if (path === '/api/sessions/session-1') return route.fulfill({ json: session })

@@ -55,7 +55,6 @@ class CorrectionRequestCard extends ConsumerWidget {
                   const SizedBox(width: 8),
                   _TypeBadge(isAudio: isAudio),
                   const Spacer(),
-                  _CreditChip(credits: item.creditCost),
                   if (onEdit != null || onDelete != null)
                     PopupMenuButton<String>(
                       onSelected: (value) {
@@ -219,30 +218,6 @@ class _TypeBadge extends ConsumerWidget {
               : theme.colorScheme.onSecondaryContainer,
         ),
       ),
-    );
-  }
-}
-
-class _CreditChip extends StatelessWidget {
-  const _CreditChip({required this.credits});
-  final int credits;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.toll_rounded, size: 16, color: theme.colorScheme.primary),
-        const SizedBox(width: 3),
-        Text(
-          '+$credits',
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 }

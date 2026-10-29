@@ -53,10 +53,8 @@ class CorrectionRequestServiceTest {
         service = new CorrectionRequestService(
                 correctionRequestPort,
                 correctionPort,
-                creditPort,
                 userPort,
-                languageVariantPort,
-                new ToneBridgeProperties()
+                languageVariantPort
         );
     }
 

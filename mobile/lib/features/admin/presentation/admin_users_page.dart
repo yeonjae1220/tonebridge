@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -15,16 +14,6 @@ class AdminUsersPage extends ConsumerStatefulWidget {
 
 class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
   int _page = 0;
-  String? _editingUserId;
-  final _deltaController = TextEditingController();
-  bool _isSaving = false;
-
-  @override
-  void dispose() {
-    _deltaController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final usersAsync = ref.watch(adminUsersProvider(_page));
@@ -58,61 +47,19 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
           ),
           data: (page) => _UserList(
             page: page,
-            editingUserId: _editingUserId,
-            deltaController: _deltaController,
-            isSaving: _isSaving,
             onPageChanged: (page) => setState(() => _page = page),
-            onToggleEdit: (userId) {
-              setState(() {
-                _editingUserId = _editingUserId == userId ? null : userId;
-                _deltaController.clear();
-              });
-            },
-            onSave: _adjustCredits,
           ),
         ),
       ),
     );
   }
-
-  Future<void> _adjustCredits(String userId) async {
-    final delta = int.tryParse(_deltaController.text.trim());
-    if (delta == null) return;
-
-    setState(() => _isSaving = true);
-    try {
-      await ref
-          .read(adminRepositoryProvider)
-          .adjustCredits(userId: userId, delta: delta);
-      ref.invalidate(adminUsersProvider(_page));
-      setState(() {
-        _editingUserId = null;
-        _deltaController.clear();
-      });
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
 }
 
 class _UserList extends StatelessWidget {
-  const _UserList({
-    required this.page,
-    required this.editingUserId,
-    required this.deltaController,
-    required this.isSaving,
-    required this.onPageChanged,
-    required this.onToggleEdit,
-    required this.onSave,
-  });
+  const _UserList({required this.page, required this.onPageChanged});
 
   final AdminUserPage page;
-  final String? editingUserId;
-  final TextEditingController deltaController;
-  final bool isSaving;
   final ValueChanged<int> onPageChanged;
-  final ValueChanged<String> onToggleEdit;
-  final ValueChanged<String> onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -129,35 +76,16 @@ class _UserList extends StatelessWidget {
           return _PaginationBar(page: page, onPageChanged: onPageChanged);
         }
         final user = page.users[index];
-        return _UserCard(
-          user: user,
-          isEditing: editingUserId == user.id,
-          deltaController: deltaController,
-          isSaving: isSaving,
-          onToggleEdit: () => onToggleEdit(user.id),
-          onSave: () => onSave(user.id),
-        );
+        return _UserCard(user: user);
       },
     );
   }
 }
 
 class _UserCard extends StatelessWidget {
-  const _UserCard({
-    required this.user,
-    required this.isEditing,
-    required this.deltaController,
-    required this.isSaving,
-    required this.onToggleEdit,
-    required this.onSave,
-  });
+  const _UserCard({required this.user});
 
   final AdminUserSummary user;
-  final bool isEditing;
-  final TextEditingController deltaController;
-  final bool isSaving;
-  final VoidCallback onToggleEdit;
-  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -203,11 +131,6 @@ class _UserCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: onToggleEdit,
-                  icon: const Icon(Icons.toll_rounded, size: 18),
-                  label: const Text('크레딧'),
-                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -216,7 +139,6 @@ class _UserCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _Meta(label: '언어', value: user.nativeLanguage),
-                _Meta(label: '크레딧', value: '${user.credits}'),
                 _Meta(label: '스트릭', value: '${user.correctionStreak}일'),
                 _Meta(
                   label: '평판',
@@ -228,39 +150,6 @@ class _UserCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isEditing) ...[
-              const Divider(height: 28),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: deltaController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        signed: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: '조정값',
-                        hintText: '예: 10 또는 -5',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton(
-                    onPressed: isSaving ? null : onSave,
-                    child: isSaving
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('저장'),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),

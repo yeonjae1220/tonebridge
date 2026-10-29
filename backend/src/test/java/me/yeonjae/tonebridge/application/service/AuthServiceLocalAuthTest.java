@@ -49,7 +49,7 @@ class AuthServiceLocalAuthTest {
     @Mock private PasswordHasherPort passwordHasherPort;
     @Mock private JwtProvider jwtProvider;
 
-    // 실제 인스턴스 사용 — 기본값(signupBonus=30, ttl=43200, admin emails 비어있음)
+    // 실제 인스턴스 사용 — 기본값(signupBonus=0, ttl=43200, admin emails 비어있음)
     private final JwtProperties jwtProperties = new JwtProperties();
     private final ToneBridgeProperties properties = new ToneBridgeProperties();
 
@@ -58,7 +58,7 @@ class AuthServiceLocalAuthTest {
     @BeforeEach
     void setUp() {
         when(passwordHasherPort.encode("tonebridge-constant-time-dummy-password")).thenReturn("DUMMY_HASH");
-        authService = new AuthService(userPort, creditPort, googleOAuthPort, refreshTokenPort,
+        authService = new AuthService(userPort, googleOAuthPort, refreshTokenPort,
                 passwordHasherPort, jwtProvider, jwtProperties, properties);
         authService.initDummyPasswordHash();
     }
@@ -73,8 +73,8 @@ class AuthServiceLocalAuthTest {
     // ── register ──────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("register: 신규 이메일이면 비밀번호를 해시하고 가입 보너스를 지급한 뒤 토큰을 발급한다")
-    void register_newUser_issuesTokensAndGrantsBonus() {
+    @DisplayName("register: 신규 이메일이면 비밀번호를 해시하고 크레딧 없이 토큰을 발급한다")
+    void register_newUser_issuesTokensWithoutCurrency() {
         UUID newId = UUID.randomUUID();
         when(userPort.existsByEmail("alice@example.com")).thenReturn(false);
         when(userPort.existsByUsername("alice")).thenReturn(false);
@@ -91,7 +91,8 @@ class AuthServiceLocalAuthTest {
         assertThat(result.accessToken()).isEqualTo("ACCESS");
         assertThat(result.refreshToken()).isEqualTo("REFRESH");
         verify(passwordHasherPort).encode("Str0ng!pw");
-        verify(creditPort).save(any(CreditTransaction.class));
+        org.mockito.Mockito.verifyNoInteractions(creditPort);
+        verify(userPort).save(org.mockito.ArgumentMatchers.argThat(user -> user.credits() == 0));
         verify(refreshTokenPort).save(eq("REFRESH"), eq(newId), anyLong());
     }
 

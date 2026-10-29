@@ -26,7 +26,8 @@ public enum ErrorCode {
     REQUEST_ALREADY_COMPLETED(HttpStatus.CONFLICT, "REQ_002", "이미 완료된 요청입니다"),
     CANNOT_CORRECT_OWN_REQUEST(HttpStatus.BAD_REQUEST, "REQ_003", "자신의 요청은 교정할 수 없습니다"),
 
-    // Credit
+    // Credit (legacy API)
+    CREDITS_RETIRED(HttpStatus.GONE, "CREDIT_002", "크레딧 기능은 종료되었습니다. 학습은 무료로 이용할 수 있습니다"),
     INSUFFICIENT_CREDITS(HttpStatus.BAD_REQUEST, "CREDIT_001", "크레딧이 부족합니다"),
 
     // Correction

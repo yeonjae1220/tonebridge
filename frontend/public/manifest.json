@@ -1,7 +1,7 @@
 {
   "name": "ToneBridge",
   "short_name": "ToneBridge",
-  "description": "A language correction exchange community",
+  "description": "Learn languages with friends through examples, feedback and practice",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

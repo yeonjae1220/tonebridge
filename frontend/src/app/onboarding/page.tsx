@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { consumePostAuthRedirect } from '@/lib/authNavigate'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { useI18n } from '@/i18n/I18nProvider'
 import { getApiErrorStatus } from '@/lib/apiError'
@@ -57,7 +58,7 @@ export default function OnboardingPage() {
         fluentLanguages,
         learningLanguages,
       })
-      router.replace('/study')
+      router.replace(consumePostAuthRedirect())
     } catch (err: unknown) {
       const status = getApiErrorStatus(err)
       if (status !== 409) console.error('[onboarding] 프로필 저장 실패', err)

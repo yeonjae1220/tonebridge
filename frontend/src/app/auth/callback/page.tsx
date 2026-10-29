@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
-import { api } from '@/lib/api'
+import { resolvePostAuthPath } from '@/lib/authNavigate'
 import { useI18n } from '@/i18n/I18nProvider'
 
 function AuthCallbackInner() {
@@ -28,31 +28,8 @@ function AuthCallbackInner() {
       return
     }
 
-    // /로 시작하고 //가 아닌 경우만 허용 — open redirect 방지
-    const isSafeRedirect = (path: string) => /^\/(?!\/)/.test(path)
-
     setAccessToken(token)
-
-    const explicitRedirect = sessionStorage.getItem('auth_redirect')
-    sessionStorage.removeItem('auth_redirect')
-
-    if (explicitRedirect && isSafeRedirect(explicitRedirect)) {
-      router.replace(explicitRedirect)
-      return
-    }
-
-    // 기존 사용자는 /feed로, 온보딩 미완료 사용자는 /onboarding으로 분기
-    api.get<{ onboardingCompleted: boolean }>('/users/me')
-      .then(({ data }) => {
-        router.replace(data.onboardingCompleted ? '/study' : '/onboarding')
-      })
-      .catch((e) => {
-        // 분기 판단에 실패했을 뿐 로그인 자체는 성공했으므로 온보딩으로 보내는 폴백은 유지한다.
-        // 다만 조용히 보내면 '기존 사용자가 왜 온보딩으로 갔는지' 추적할 수단이 0이 된다
-        // (GLOBAL-PIT-108 ①).
-        console.error('[auth/callback] /users/me 조회 실패 — 온보딩으로 폴백', e)
-        router.replace('/onboarding')
-      })
+    void resolvePostAuthPath().then((path) => router.replace(path))
   }, [router, setAccessToken])
 
   return (

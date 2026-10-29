@@ -157,7 +157,6 @@ export default function CorrectPage() {
 
   const isAudio = request?.type === 'AUDIO'
   const isValid = explanation.trim().length >= 20
-  const reward = isAudio ? (refRecorder.state === 'stopped' ? 12 : 8) : 4
 
   if (!accessToken) return null
 
@@ -168,7 +167,6 @@ export default function CorrectPage() {
           <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{t('correct.title')}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{formatMessage(t('correct.reward'), { count: reward })}</p>
           </div>
         </div>
 
@@ -290,7 +288,6 @@ export default function CorrectPage() {
           <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-gray-700">{t('correct.referenceAudio')}</label>
-              <span className="text-xs text-green-600 font-medium">{t('correct.extraCredits')}</span>
             </div>
             <p className="text-xs text-gray-400">{t('correct.referenceHelp')}</p>
             <RecorderErrorMessage error={refRecorder.error} />

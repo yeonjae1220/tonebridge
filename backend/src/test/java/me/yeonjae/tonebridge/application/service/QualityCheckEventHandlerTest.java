@@ -45,7 +45,7 @@ class QualityCheckEventHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new QualityCheckEventHandler(
-                creditPort, correctionPort, notificationPort, fcmNotificationPort,
+                correctionPort, notificationPort, fcmNotificationPort,
                 streakService, badgeService);
     }
 
@@ -81,14 +81,17 @@ class QualityCheckEventHandlerTest {
     }
 
     @Test
-    void passedCheckRewardsCorrectorAndLeavesStatusAlone() {
+    void legacyRewardEventNotifiesWithoutChangingCredits() {
         UUID correctionId = UUID.randomUUID();
         UUID correctorId = UUID.randomUUID();
         UUID requesterId = UUID.randomUUID();
 
         handler.handle(new QualityCheckCompletedEvent(correctionId, correctorId, requesterId, true, 4, false));
 
-        verify(creditPort).adjustCredits(correctorId, 4);
+        org.mockito.Mockito.verifyNoInteractions(creditPort);
+        verify(fcmNotificationPort).sendCorrectionReady(requesterId, correctionId);
+        verify(streakService).recordCorrection(correctorId);
+        verify(badgeService).evaluateAfterCorrection(correctorId, 0);
         verify(notificationPort).sendCorrectionReady(requesterId, correctionId);
         verify(correctionPort, never()).updateStatusIfCurrent(any(), any(), any());
     }

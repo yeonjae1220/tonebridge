@@ -92,15 +92,6 @@ tonebridge:
     claude-api-key: ${CLAUDE_API_KEY:}
     claude-model: ${CLAUDE_MODEL:claude-sonnet-4-6}
     openai-api-key: ${OPENAI_API_KEY:}
-  credit:
-    signup-bonus: 30
-    text-request-cost: 5
-    audio-request-cost: 10
-    text-correction-reward: 4
-    audio-correction-reward: 8
-    audio-with-recording-reward: 12
-    streak-7day-bonus: 10
-    accept-bonus: 5
   correction:
     expiry-hours: 48
     ai-fallback-after-hours: 48

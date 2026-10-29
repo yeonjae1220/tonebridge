@@ -26,7 +26,7 @@ class _SignedIn extends AuthState {
       nativeLanguage: 'ko',
       fluentLanguages: const [],
       learningLanguages: const ['ja'],
-      credits: 30,
+      credits: 0,
     ),
     accessToken: 'test-only',
   );
