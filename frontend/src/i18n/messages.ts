@@ -1598,6 +1598,7 @@ export const messages: Record<UiLanguage, Messages> = {
 }
 
 const defaultExtraMessages = {
+  'validation.help': 'Help and contact',
   'friends.inviteLink': 'Invite a friend',
   'friends.inviteHelp': 'Your friend can send a request from this link. Accept it, then open a shared notebook.',
   'friends.copyLink': 'Copy link',
@@ -3612,4 +3613,49 @@ Object.assign(messages.ru, {
   'friends.linkCopied': "Ссылка скопирована.",
   'friends.copyFailed': "Не удалось скопировать. Выделите и скопируйте ссылку.",
   'friends.requestSent': "Заявка отправлена. После принятия можно заниматься вместе.",
+})
+
+Object.assign(messages.ko, {
+  'validation.help': "이용 안내와 문의",
+  'friends.removeConfirm': messages.ko['friends.removeConfirm'] + '\n\n' + "친구를 삭제해도 기존 공유 연습장과 기록의 접근 권한은 유지됩니다. 접근 중단은 이용 안내와 문의에서 요청해 주세요.",
+})
+
+Object.assign(messages.en, {
+  'validation.help': "Help and contact",
+  'friends.removeConfirm': messages.en['friends.removeConfirm'] + '\n\n' + "Existing shared notebooks remain accessible after removing a friend. Request access withdrawal through Help and contact.",
+})
+
+Object.assign(messages.ja, {
+  'validation.help': "利用案内・お問い合わせ",
+  'friends.removeConfirm': messages.ja['friends.removeConfirm'] + '\n\n' + "友達を削除しても既存の共有ノートにはアクセスできます。アクセス停止はお問い合わせから依頼してください。",
+})
+
+Object.assign(messages.zh, {
+  'validation.help': "使用说明与联系",
+  'friends.removeConfirm': messages.zh['friends.removeConfirm'] + '\n\n' + "删除好友后仍可访问已有共享笔记。需要停止访问时，请通过使用说明与联系提出请求。",
+})
+
+Object.assign(messages.es, {
+  'validation.help': "Ayuda y contacto",
+  'friends.removeConfirm': messages.es['friends.removeConfirm'] + '\n\n' + "Eliminar a un amigo mantiene el acceso a los cuadernos compartidos. Solicita retirar el acceso en Ayuda y contacto.",
+})
+
+Object.assign(messages.fr, {
+  'validation.help': "Aide et contact",
+  'friends.removeConfirm': messages.fr['friends.removeConfirm'] + '\n\n' + "Supprimer un ami conserve l’accès aux carnets partagés existants. Demandez le retrait de cet accès via Aide et contact.",
+})
+
+Object.assign(messages.de, {
+  'validation.help': "Hilfe und Kontakt",
+  'friends.removeConfirm': messages.de['friends.removeConfirm'] + '\n\n' + "Geteilte Hefte bleiben nach dem Entfernen eines Freundes zugänglich. Beantrage den Entzug des Zugriffs über Hilfe und Kontakt.",
+})
+
+Object.assign(messages.pt, {
+  'validation.help': "Ajuda e contato",
+  'friends.removeConfirm': messages.pt['friends.removeConfirm'] + '\n\n' + "Remover um amigo mantém o acesso aos cadernos compartilhados. Solicite a retirada do acesso em Ajuda e contato.",
+})
+
+Object.assign(messages.ru, {
+  'validation.help': "Помощь и связь",
+  'friends.removeConfirm': messages.ru['friends.removeConfirm'] + '\n\n' + "После удаления друга общие тетради остаются доступны. Запросите прекращение доступа через раздел помощи.",
 })

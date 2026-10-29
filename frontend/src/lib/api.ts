@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
     _retry?: boolean
+    _sessionGeneration?: number
   }
 }
 
@@ -14,135 +15,166 @@ export const api = axios.create({
   withCredentials: true, // refresh_token httpOnly 쿠키를 모든 요청에 포함
 })
 
+function requireSession(generation: number | undefined) {
+  if (generation !== useAuthStore.getState().sessionGeneration) {
+    throw new axios.CanceledError('Account changed')
+  }
+}
+
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  const { accessToken, sessionGeneration } = useAuthStore.getState()
+  config._sessionGeneration ??= sessionGeneration
+  requireSession(config._sessionGeneration)
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
+  else config.headers.delete('Authorization')
   return config
 })
 
-// 동시 401 응답에서 refresh를 한 번만 호출하기 위한 플래그
-let isRefreshing = false
-let pendingQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = []
+type RefreshFlight = { generation: number; controller: AbortController; promise: Promise<string> }
+let refreshFlight: RefreshFlight | null = null
+let logoutFlight: Promise<void> | null = null
+let authenticationAttempt: AbortController | null = null
+useAuthStore.subscribe((state, previous) => {
+  if (state.sessionGeneration === previous.sessionGeneration) return
+  refreshFlight?.controller.abort()
+  refreshFlight = null
+  authenticationAttempt?.abort()
+  authenticationAttempt = null
+})
 
-function processQueue(error: unknown, token: string | null) {
-  pendingQueue.forEach(({ resolve, reject }) => {
-    if (error) {
-      reject(error)
-    } else if (token !== null) {
-      resolve(token)
-    } else {
-      reject(new Error('Token was null after successful refresh'))
-    }
+function refreshAccessToken(generation: number): Promise<string> {
+  requireSession(generation)
+  if (authenticationAttempt) throw new axios.CanceledError('Authentication in progress')
+  if (refreshFlight?.generation === generation) return refreshFlight.promise
+  const controller = new AbortController()
+  const flight: RefreshFlight = { generation, controller, promise: Promise.resolve('') }
+  flight.promise = axios.post<{ accessToken: string }>('/api/auth/refresh', null, {
+    withCredentials: true, signal: controller.signal,
+  }).then(({ data }) => {
+    requireSession(generation)
+    useAuthStore.getState().setAccessToken(data.accessToken)
+    return data.accessToken
+  }).finally(() => {
+    // An older refresh must never clear a newer account's in-flight refresh.
+    if (refreshFlight === flight) refreshFlight = null
   })
-  pendingQueue = []
+  refreshFlight = flight
+  return flight.promise
+}
+
+function expireSession(generation: number | undefined) {
+  requireSession(generation)
+  useAuthStore.getState().logout()
+  if (typeof window !== 'undefined') window.location.href = '/login'
 }
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    requireSession(res.config._sessionGeneration)
+    return res
+  },
   async (error) => {
-    const original: InternalAxiosRequestConfig & { _retry?: boolean } = error.config
-
-    // _retry が true なら refresh 自体の失敗か retry済み → 로그아웃
-    if (error.response?.status === 401 && original?._retry) {
-      useAuthStore.getState().logout()
-      if (typeof window !== 'undefined') window.location.href = '/login'
+    const original: InternalAxiosRequestConfig | undefined = error.config
+    if (!original) return Promise.reject(error)
+    requireSession(original._sessionGeneration)
+    if (error.response?.status !== 401) return Promise.reject(error)
+    if (original._retry) {
+      expireSession(original._sessionGeneration)
       return Promise.reject(error)
     }
-
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true
-
-      if (isRefreshing) {
-        // 이미 refresh 중이면 큐에 대기
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({ resolve, reject })
-        }).then((token) => {
-          original.headers.Authorization = `Bearer ${token}`
-          return api(original)
-        })
+    original._retry = true
+    try {
+      await refreshAccessToken(original._sessionGeneration!)
+    } catch (refreshError) {
+      // A cancelled/late refresh belongs to its original account only.
+      if (!axios.isCancel(refreshError) && original._sessionGeneration === useAuthStore.getState().sessionGeneration) {
+        expireSession(original._sessionGeneration)
       }
-
-      isRefreshing = true
-      try {
-        // _retry: true 를 명시해서 이 요청 자체가 401이 되면 위의 guard가 잡음
-        const { data } = await axios.post<{ accessToken: string }>(
-          '/api/auth/refresh',
-          null,
-          { withCredentials: true, _retry: true } as InternalAxiosRequestConfig
-        )
-        const newToken = data.accessToken
-        useAuthStore.getState().setAccessToken(newToken)
-        processQueue(null, newToken)
-        original.headers.Authorization = `Bearer ${newToken}`
-        return api(original)
-      } catch (refreshError) {
-        processQueue(refreshError, null)
-        useAuthStore.getState().logout()
-        if (typeof window !== 'undefined') window.location.href = '/login'
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
-      }
+      return Promise.reject(refreshError)
     }
-
-    return Promise.reject(error)
+    requireSession(original._sessionGeneration)
+    return api(original)
   }
 )
 
-/**
- * 이메일/비밀번호 로그인. 성공 시 accessToken을 메모리에 저장하고 refresh 쿠키가 설정됩니다.
- * `api` 인스턴스 대신 bare axios를 사용 — 401 응답이 refresh 인터셉터 루프를 타지 않도록 함.
- */
-export async function loginWithPassword(email: string, password: string): Promise<void> {
-  const { data } = await axios.post<{ accessToken: string }>(
-    '/api/auth/login',
-    { email, password },
-    { withCredentials: true }
-  )
-  useAuthStore.getState().setAccessToken(data.accessToken)
+/** Password authentication owns its HTTP request, including Set-Cookie side effects. */
+async function authenticate(path: string, payload: Record<string, string>, signal?: AbortSignal): Promise<void> {
+  authenticationAttempt?.abort()
+  refreshFlight?.controller.abort()
+  refreshFlight = null
+  const controller = new AbortController()
+  authenticationAttempt = controller
+  const generation = useAuthStore.getState().sessionGeneration
+  const cancel = () => controller.abort()
+  signal?.addEventListener('abort', cancel, { once: true })
+  if (signal?.aborted) cancel()
+  const requireCurrentAttempt = () => {
+    requireSession(generation)
+    if (controller.signal.aborted || authenticationAttempt !== controller) {
+      throw new axios.CanceledError('Authentication cancelled')
+    }
+  }
+  try {
+    // Cookie deletion must finish before a new login/register response sets its cookie.
+    await logoutFlight
+    requireCurrentAttempt()
+    const { data } = await axios.post<{ accessToken: string }>(path, payload, {
+      withCredentials: true, signal: controller.signal,
+    })
+    requireCurrentAttempt()
+    authenticationAttempt = null
+    useAuthStore.getState().beginSession(data.accessToken)
+  } finally {
+    signal?.removeEventListener('abort', cancel)
+    if (authenticationAttempt === controller) authenticationAttempt = null
+  }
 }
 
-/**
- * 이메일/비밀번호 회원가입. 성공 시 즉시 로그인 처리되어 accessToken이 저장됩니다.
- */
-export async function registerWithPassword(
+/** Bare axios keeps credential errors out of the general API refresh interceptor. */
+export function loginWithPassword(email: string, password: string, signal?: AbortSignal): Promise<void> {
+  return authenticate('/api/auth/login', { email, password }, signal)
+}
+
+export function registerWithPassword(
   email: string,
   username: string,
-  password: string
+  password: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const { data } = await axios.post<{ accessToken: string }>(
-    '/api/auth/register',
-    { email, username, password },
-    { withCredentials: true }
-  )
-  useAuthStore.getState().setAccessToken(data.accessToken)
+  return authenticate('/api/auth/register', { email, username, password }, signal)
 }
 
 /** 페이지 최초 로드 시 accessToken이 없으면 쿠키로 조용히 복원을 시도합니다. */
 export async function tryRestoreSession(): Promise<boolean> {
+  if (logoutFlight || authenticationAttempt) return false
   if (useAuthStore.getState().accessToken) return true
+  const generation = useAuthStore.getState().sessionGeneration
   try {
-    const { data } = await axios.post<{ accessToken: string }>(
-      '/api/auth/refresh',
-      null,
-      { withCredentials: true }
-    )
-    useAuthStore.getState().setAccessToken(data.accessToken)
+    await refreshAccessToken(generation)
     return true
   } catch {
     return false
   }
 }
 
-/** 로그아웃: 백엔드 쿠키 삭제 후 로컬 상태 초기화 */
+/** 로그아웃: 로컬 작업을 즉시 무효화한 뒤 백엔드 쿠키 삭제 */
 export async function logout(): Promise<void> {
-  try {
-    await axios.post('/api/auth/logout', null, { withCredentials: true })
-  } catch {
-    // 쿠키 삭제 실패해도 로컬 상태는 지움
-  }
   useAuthStore.getState().logout()
-  await clearOfflineCaches()
+  if (logoutFlight) return logoutFlight
+  const flight = (async () => {
+    try {
+      await axios.post('/api/auth/logout', null, { withCredentials: true })
+    } catch {
+      // Local access has already been cleared, even if cookie deletion fails.
+    }
+    await clearOfflineCaches()
+  })()
+  logoutFlight = flight
+  try {
+    await flight
+  } finally {
+    if (logoutFlight === flight) logoutFlight = null
+  }
 }
 
 /** 서비스워커 캐시 비우기 — 옛 SW(v1)가 캐싱해 둔 API 응답이 다음 사용자에게 남지 않게. */

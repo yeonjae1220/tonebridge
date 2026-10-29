@@ -28,4 +28,13 @@ public interface FriendRequestJpaRepository extends JpaRepository<FriendRequestE
               AND f.status = 'ACCEPTED'
             """)
     Optional<FriendRequestEntity> findAcceptedBetween(UUID userId1, UUID userId2);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT f FROM FriendRequestEntity f
+            WHERE (f.senderId = :userId1 AND f.receiverId = :userId2
+                OR f.senderId = :userId2 AND f.receiverId = :userId1)
+              AND f.status = 'ACCEPTED'
+            """)
+    Optional<FriendRequestEntity> lockAcceptedBetween(UUID userId1, UUID userId2);
 }

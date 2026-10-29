@@ -61,4 +61,8 @@ public class FriendJpaAdapter implements FriendPort {
         return repository.findAcceptedBetween(userId1, userId2)
                 .map(FriendRequestEntity::toDomain);
     }
+    @Override
+    public Optional<FriendRequest> lockAcceptedBetween(UUID userId1, UUID userId2) {
+        return repository.lockAcceptedBetween(userId1, userId2).map(FriendRequestEntity::toDomain);
+    }
 }

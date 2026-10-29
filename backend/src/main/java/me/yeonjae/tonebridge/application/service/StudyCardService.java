@@ -8,6 +8,7 @@ import me.yeonjae.tonebridge.domain.studycard.LearnerAttempt;
 import me.yeonjae.tonebridge.domain.studycard.StudyCard;
 import me.yeonjae.tonebridge.domain.user.User;
 import me.yeonjae.tonebridge.shared.event.CorrectionNoteAddedEvent;
+import me.yeonjae.tonebridge.shared.event.LearningActivity;
 import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -119,7 +120,10 @@ public class StudyCardService implements
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireMember(card.sessionId(), command.uploaderId());
-        return cardPort.save(card.withNativeAudio(command.audioKey()));
+        StudyCard saved = cardPort.save(card.withNativeAudio(command.audioKey()));
+        eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.EXAMPLE_SAVED,
+                command.uploaderId(), null, card.sessionId(), card.id(), null));
+        return saved;
     }
 
     // ─── GetNativeAudioDownloadUrlUseCase ─────────────────────────────────
@@ -148,7 +152,10 @@ public class StudyCardService implements
 
         LearnerAttempt attempt = new LearnerAttempt(
                 null, command.cardId(), command.learnerId(), command.audioKey(), null, null, null);
-        return attemptPort.save(attempt);
+        LearnerAttempt saved = attemptPort.save(attempt);
+        eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.PRACTICE_SAVED,
+                command.learnerId(), null, card.sessionId(), card.id(), saved.id()));
+        return saved;
     }
 
     // ─── AddCorrectionNoteUseCase ──────────────────────────────────────────
@@ -164,6 +171,9 @@ public class StudyCardService implements
         requireMember(card.sessionId(), command.reviewerId());
 
         LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score()));
+
+        eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.FEEDBACK_SAVED,
+                command.reviewerId(), attempt.learnerId(), card.sessionId(), card.id(), attempt.id()));
 
         String reviewerUsername = userPort.findById(command.reviewerId())
                 .map(User::username).orElse("파트너");

@@ -15,6 +15,8 @@ import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import me.yeonjae.tonebridge.shared.event.LearningActivity;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -31,6 +33,7 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
 
     private final FriendPort friendPort;
     private final UserPort userPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public FriendRequest send(SendFriendRequestUseCase.Command command) {
@@ -68,7 +71,10 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
             throw new ToneBridgeException(ErrorCode.NOT_FRIEND_REQUEST_RECEIVER);
         }
 
-        return friendPort.save(request.accept());
+        FriendRequest accepted = friendPort.save(request.accept());
+        eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.FRIEND_ACCEPTED,
+                accepted.receiverId(), accepted.senderId(), null, null, null));
+        return accepted;
     }
 
     @Override
@@ -109,7 +115,7 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
 
     @Override
     public void remove(RemoveFriendUseCase.Command command) {
-        FriendRequest relationship = friendPort.findAcceptedBetween(command.requesterId(), command.friendId())
+        FriendRequest relationship = friendPort.lockAcceptedBetween(command.requesterId(), command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
 
         friendPort.deleteById(relationship.id());

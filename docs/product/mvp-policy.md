@@ -1,7 +1,7 @@
 # ToneBridge MVP 제품 정책
 
 결정일: 2026-10-29 · 범위: 친구 중심, 크레딧 없는 MVP 검증
-구현 상태와 후속 작업: [전환 및 검증](delivery-plan.md) · [사용자 흐름](user-flows.md)
+구현 상태와 후속 작업: [전환 및 검증](delivery-plan.md) · [사용자 흐름](user-flows.md) · [사용자 검증 준비](validation-readiness.md)
 
 ## 서비스 정의
 

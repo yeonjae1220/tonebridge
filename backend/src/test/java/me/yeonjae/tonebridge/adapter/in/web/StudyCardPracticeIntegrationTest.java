@@ -55,6 +55,8 @@ class StudyCardPracticeIntegrationTest extends PostgresIntegrationTest {
     void creatorCanPractisePersonalCardRepeatedlyUsingExistingPayload() throws Exception {
         submit(owner, "practice/first.m4a");
         submit(owner, "practice/retry.webm");
+        // Pilot collection is opt-in; the default application must not collect raw activity.
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM learning_activity WHERE card_id = ?", Long.class, cardId)).isZero();
 
         mvc.perform(get("/api/cards/{id}/attempts", cardId).with(as(owner)))
                 .andExpect(status().isOk())

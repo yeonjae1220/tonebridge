@@ -17,5 +17,7 @@ public interface FriendPort {
     void deleteById(UUID id);
 
     /** Find the ACCEPTED relationship between two users (either direction). */
+    Optional<FriendRequest> lockAcceptedBetween(UUID userId1, UUID userId2);
+
     Optional<FriendRequest> findAcceptedBetween(UUID userId1, UUID userId2);
 }
