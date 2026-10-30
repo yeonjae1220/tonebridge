@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { useAudioRecorder, type RecorderError } from '@/hooks/useAudioRecorder'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useI18n } from '@/i18n/I18nProvider'
+import { Dialog } from '@/components/ui/Dialog'
 
 export function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
@@ -29,7 +30,7 @@ export function RecordedAudioPreview({
           type="button"
           onClick={togglePlay}
           disabled={!ready}
-          className="w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center disabled:opacity-40"
+          className="w-11 h-11 rounded-full bg-action-neutral text-action-neutral-foreground flex items-center justify-center disabled:opacity-40"
           aria-label={playing ? t('common.stop') : t('common.play')}
         >
           {playing ? 'Ⅱ' : '▶'}
@@ -81,29 +82,14 @@ interface RecorderModalProps {
 export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) {
   const { t } = useI18n()
   const heading = title ?? t('request.recordingLabel')
+  const close = () => {
+    if (recorder.starting) recorder.reset()
+    onClose()
+  }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4 pb-[env(safe-area-inset-bottom)]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && recorder.state !== 'recording' && !recorder.starting) onClose()
-      }}
-    >
-      <div className="w-full max-w-sm bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{heading}</h2>
-          {recorder.state !== 'recording' && !recorder.starting && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600"
-              aria-label="닫기"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
+    <Dialog title={heading} onClose={close} busy={recorder.state === 'recording'}>
+      <div className="flex flex-col gap-5">
         <RecorderErrorMessage error={recorder.error} />
 
         {recorder.state === 'idle' && (
@@ -111,7 +97,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
             type="button"
             onClick={() => void recorder.start()}
             disabled={recorder.starting}
-            className="mx-auto w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+            className="mx-auto w-20 h-20 rounded-full bg-action-record text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-action-record-hover transition-colors"
             aria-label={t('request.startRecording')}
           >
             <span className="text-3xl">●</span>
@@ -123,7 +109,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
             <button
               type="button"
               onClick={recorder.stop}
-              className="w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+              className="w-20 h-20 rounded-full bg-action-record text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-action-record-hover transition-colors"
               aria-label={t('request.stopRecording')}
             >
               <span className="w-7 h-7 rounded-sm bg-white" />
@@ -141,13 +127,13 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+              className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover transition-colors"
             >
               {t('request.useRecording')}
             </button>
           </>
         )}
       </div>
-    </div>
+    </Dialog>
   )
 }

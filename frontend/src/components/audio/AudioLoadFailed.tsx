@@ -12,7 +12,7 @@ export function AudioLoadFailed({ failed, onRetry }: { failed: boolean; onRetry:
       <button
         type="button"
         onClick={onRetry}
-        className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+        className="shrink-0 rounded-lg bg-action-neutral px-3 py-1.5 text-xs font-semibold text-action-neutral-foreground"
       >
         {t('common.retry')}
       </button>

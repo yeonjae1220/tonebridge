@@ -18,7 +18,7 @@ export function UiLanguageSwitcher({ className = '' }: { className?: string }) {
       <select
         value={language}
         onChange={(event) => setLanguage(event.target.value)}
-        className="appearance-none rounded-lg border border-gray-200 bg-surface pl-8 pr-7 py-1.5 text-sm text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="max-w-[8rem] appearance-none rounded-lg border border-gray-200 bg-surface pl-8 pr-7 py-1.5 text-sm text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
       >
         {UI_LANGUAGES.map((lang) => (
           <option key={lang.code} value={lang.code}>

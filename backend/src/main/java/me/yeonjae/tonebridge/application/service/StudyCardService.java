@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StudyCardService implements
         GetStudyCardUseCase,
+        GetLearnerAttemptAudioUseCase,
         CreateStudyCardUseCase,
         UploadNativeAudioUseCase,
         GetNativeAudioDownloadUrlUseCase,
@@ -156,6 +157,21 @@ public class StudyCardService implements
         eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.PRACTICE_SAVED,
                 command.learnerId(), null, card.sessionId(), card.id(), saved.id()));
         return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getAttemptDownloadUrl(UUID attemptId, UUID requesterId) {
+        LearnerAttempt attempt = attemptPort.findById(attemptId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.ATTEMPT_NOT_FOUND));
+        StudyCard card = cardPort.findById(attempt.cardId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
+        // Ownership or a former friendship does not replace current notebook membership.
+        requireMember(card.sessionId(), requesterId);
+        if (attempt.audioUrl() == null || attempt.audioUrl().isBlank()) {
+            throw new ToneBridgeException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return storagePort.generatePresignedDownloadUrl(attempt.audioUrl(), Duration.ofMinutes(15));
     }
 
     // ─── AddCorrectionNoteUseCase ──────────────────────────────────────────

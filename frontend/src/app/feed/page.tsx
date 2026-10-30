@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -44,7 +45,7 @@ function GuestBanner() {
       </div>
       <button
         onClick={() => router.push('/login?redirect=/feed')}
-        className="shrink-0 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+        className="shrink-0 px-4 py-2 bg-action-primary text-white text-sm font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
       >
         {t('feed.login')}
       </button>
@@ -125,7 +126,7 @@ export default function FeedPage() {
 
   const handleRequestClick = () => {
     if (isGuest) {
-      router.push('/login?redirect=/request')
+      router.push('/login?redirect=' + encodeURIComponent('/request?destination=COMMUNITY'))
       return
     }
     router.push('/request?destination=COMMUNITY')
@@ -147,7 +148,7 @@ export default function FeedPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('feed.title')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{t('feed.subtitle')}</p>
@@ -163,7 +164,7 @@ export default function FeedPage() {
             )}
             <button
               onClick={handleRequestClick}
-              className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+              className="shrink-0 whitespace-nowrap px-4 py-2 bg-action-primary text-white text-sm font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
             >
               {t('feed.request')}
             </button>
@@ -206,7 +207,7 @@ export default function FeedPage() {
           </div>
         )}
 
-        {tab === 'help' ? (
+        {isGuest ? <Link href="/#practice-preview" className="block py-4 text-sm font-semibold text-blue-600">{t('landing.browseFeed')} →</Link> : tab === 'help' ? (
           <>
             <RequestList
               requests={feedItems}
@@ -466,8 +467,8 @@ function RequestCard({
           }}
           className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${
             mine
-              ? 'bg-gray-900 text-white hover:bg-gray-800'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
+              ? 'bg-action-neutral text-action-neutral-foreground hover:bg-gray-800'
+              : 'bg-action-primary text-white hover:bg-action-primary-hover'
           }`}
         >
           {mine ? t('feed.viewResult') : t('feed.correctNow')}
@@ -565,7 +566,7 @@ function RequestEditSheet({
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </label>
-        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
           {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>

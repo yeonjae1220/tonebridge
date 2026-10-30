@@ -158,7 +158,7 @@ export default function FriendsPage() {
           <h1 className="text-2xl font-bold text-gray-900">{t('friends.title')}</h1>
           <button
             onClick={() => { setShowSearch(true); setSendError(null) }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-action-primary text-white text-sm font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -226,7 +226,7 @@ export default function FriendsPage() {
                         <button
                           onClick={() => sendRequestMutation.mutate(user.username)}
                           disabled={sendRequestMutation.isPending}
-                          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                          className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-action-primary text-white rounded-lg hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
                         >
                           {t('friends.request')}
                         </button>
@@ -263,7 +263,7 @@ export default function FriendsPage() {
                     <button
                       onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
                       disabled={acceptingId === req.id || decliningId === req.id}
-                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-action-primary text-white rounded-lg hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
                     >
                       {acceptingId === req.id ? t('friends.accepting') : t('friends.accept')}
                     </button>

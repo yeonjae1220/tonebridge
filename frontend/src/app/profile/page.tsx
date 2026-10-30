@@ -33,7 +33,7 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; labelKey: 'settings.themeSy
 function ReputationBar({ score }: { score: number }) {
   const pct = Math.min(100, (score / 10) * 100)
   const color =
-    score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-blue-500' : score >= 4 ? 'bg-yellow-500' : 'bg-red-400'
+    score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-action-primary' : score >= 4 ? 'bg-yellow-500' : 'bg-red-400'
   return (
     <div className="flex items-center gap-3">
       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -254,7 +254,7 @@ export default function ProfilePage() {
             <button
               onClick={() => updateLangMutation.mutate()}
               disabled={!nativeLang || updateLangMutation.isPending}
-              className="w-full py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-colors disabled:opacity-40"
+              className="w-full py-3 bg-action-primary text-white font-semibold rounded-2xl hover:bg-action-primary-hover transition-colors disabled:opacity-40"
             >
               {updateLangMutation.isPending ? t('common.saving') : t('profile.saveChanges')}
             </button>
@@ -424,7 +424,7 @@ export default function ProfilePage() {
                         <button
                           onClick={handleNicknameSave}
                           disabled={updateNicknameMutation.isPending}
-                          className="px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                          className="px-3 py-1.5 text-xs font-semibold bg-action-primary text-white rounded-lg hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
                         >
                           {updateNicknameMutation.isPending ? t('common.saving') : t('common.save')}
                         </button>

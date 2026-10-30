@@ -248,7 +248,7 @@ export default function CorrectPage() {
               <button
                 onClick={addTimestampComment}
                 disabled={!ws.ready}
-                className="px-3 py-2 rounded-xl bg-blue-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-blue-600 transition-colors"
+                className="px-3 py-2 rounded-xl bg-action-primary text-white text-sm font-medium disabled:opacity-40 hover:bg-action-primary-hover transition-colors"
               >
                 +
               </button>
@@ -303,7 +303,7 @@ export default function CorrectPage() {
               {refRecorder.state === 'recording' && (
                 <button
                   onClick={refRecorder.stop}
-                  className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium animate-pulse"
+                  className="px-4 py-2 rounded-xl bg-action-record text-white text-sm font-medium animate-pulse"
                 >
                   ⏹ {t('correct.recordingStop')}
                 </button>
@@ -374,7 +374,7 @@ export default function CorrectPage() {
         <button
           onClick={() => mutation.mutate()}
           disabled={!isValid || mutation.isPending || uploadingRef}
-          className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-semibold disabled:opacity-40 hover:bg-blue-600 transition-colors"
+          className="w-full py-3.5 rounded-xl bg-action-primary text-white font-semibold disabled:opacity-40 hover:bg-action-primary-hover transition-colors"
         >
           {mutation.isPending || uploadingRef ? t('correct.submitting') : t('correct.submit')}
         </button>

@@ -11,6 +11,14 @@ const config: Config = {
   ],
   theme: {
     colors: {
+      action: {
+        primary: color('--color-action-primary'),
+        'primary-hover': color('--color-action-primary-hover'),
+        neutral: color('--color-action-neutral'),
+        'neutral-foreground': color('--color-action-neutral-foreground'),
+        record: color('--color-action-record'),
+        'record-hover': color('--color-action-record-hover'),
+      },
       transparent: 'transparent',
       current: 'currentColor',
       white: 'rgb(255 255 255 / <alpha-value>)',

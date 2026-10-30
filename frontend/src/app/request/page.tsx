@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -12,6 +12,7 @@ import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { Friend, StudyCard, StudySession } from '@/types'
+import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
 
 const FEEDBACK_GOALS = [
@@ -63,11 +64,28 @@ export default function RequestPage() {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
   const [error, setError] = useState('')
   const [recordSheetOpen, setRecordSheetOpen] = useState(false)
+  const [sourceCardId, setSourceCardId] = useState<string | null>(null)
+  const appliedSource = useRef<string | null>(null)
 
   useEffect(() => {
-    const intent = new URLSearchParams(window.location.search).get('destination')
+    const params = new URLSearchParams(window.location.search)
+    const intent = params.get('destination')
+    setSourceCardId(params.get('sourceCard'))
+    if (params.get('kind') === 'AUDIO') { setKind('AUDIO'); setRecordSheetOpen(true) }
     if (intent === 'COMMUNITY' || intent === 'FRIEND' || intent === 'PERSONAL') setDestination(intent)
   }, [])
+
+  const source = useQuery<StudyCard>({
+    queryKey: ['cards', sourceCardId],
+    queryFn: () => api.get(`/cards/${encodeURIComponent(sourceCardId!)}`).then((response) => response.data),
+    enabled: !!accessToken && !!sourceCardId,
+  })
+  useEffect(() => {
+    if (!source.data || appliedSource.current === source.data.id) return
+    appliedSource.current = source.data.id
+    setContentText(source.data.phrase)
+    setContext(source.data.context ?? '')
+  }, [source.data])
 
   const recorder = useAudioRecorder()
   const { upload, uploading } = usePresignedUpload()
@@ -234,7 +252,7 @@ export default function RequestPage() {
     hasContent &&
     (destination !== 'FRIEND' || !!selectedFriendId) &&
     (destination !== 'COMMUNITY' || !!targetLanguage) &&
-    !isPending
+    !isPending && (!sourceCardId || (source.isSuccess && !source.isError))
 
   const stepReady = useMemo(() => {
     if (step === 0) return hasContent
@@ -248,21 +266,23 @@ export default function RequestPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto flex max-w-lg flex-col gap-5 px-4 py-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('request.title')}</h1>
-          <p className="mt-1 text-sm text-gray-500">{t('request.subtitle')}</p>
+          <button type="button" onClick={() => router.back()} className="mb-3 min-h-11 text-sm font-semibold text-blue-600">← {t('common.back')}</button>
+          <h1 className="text-2xl font-bold text-gray-900">{t('request.composeTitle')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('request.composeHelp')}</p>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
           {[t('request.stepContent'), t('request.stepDestination'), t('request.stepFeedback')].map((label, index) => (
             <div key={label} className={`rounded-xl px-3 py-2 text-center text-xs font-bold ${
-              step === index ? 'bg-blue-500 text-white' : 'bg-surface text-gray-400 border border-gray-100'
+              step === index ? 'bg-action-primary text-white' : 'bg-surface text-gray-400 border border-gray-100'
             }`}>
               {index + 1}. {label}
             </div>
           ))}
         </div>
 
-        <section className="rounded-2xl border border-gray-100 bg-surface p-5">
+        {sourceCardId && <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-relaxed text-blue-800">{t('request.sourceNotice')}</p>}
+        {sourceCardId && source.isError ? <QueryError onRetry={() => void source.refetch()} /> : sourceCardId && source.isLoading ? <p role="status">{t('common.loading')}</p> : <section className="rounded-2xl border border-gray-100 bg-surface p-5">
           {step === 0 && (
             <div className="flex flex-col gap-5">
               <div>
@@ -302,7 +322,7 @@ export default function RequestPage() {
                       type="button"
                       onClick={() => setRecordSheetOpen(true)}
                       disabled={isPending}
-                      className="w-full rounded-xl bg-red-500 py-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600"
+                      className="w-full rounded-xl bg-action-record py-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-action-record-hover"
                     >
                       {t('request.startRecording')}
                     </button>
@@ -310,7 +330,7 @@ export default function RequestPage() {
                   {recorder.state === 'recording' && (
                     <div className="flex w-full items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
                       <span className="font-mono text-sm font-semibold text-red-600">{formatDuration(recorder.duration)}</span>
-                      <button type="button" onClick={recorder.stop} className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+                      <button type="button" onClick={recorder.stop} className="rounded-lg bg-action-neutral px-4 py-2 text-sm font-medium text-action-neutral-foreground">
                         {t('request.stopRecording')}
                       </button>
                     </div>
@@ -420,6 +440,7 @@ export default function RequestPage() {
             </div>
           )}
 
+          {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
           {error && <p className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
           <div className="mt-5 flex gap-2">
@@ -438,7 +459,7 @@ export default function RequestPage() {
                 type="button"
                 onClick={() => setStep((prev) => prev + 1)}
                 disabled={!stepReady || isPending}
-                className="flex-1 rounded-xl bg-blue-500 py-3 font-semibold text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
+                className="flex-1 rounded-xl bg-action-primary py-3 font-semibold text-white transition-colors hover:bg-action-primary-hover disabled:opacity-40"
               >
                 {t('common.next')}
               </button>
@@ -446,13 +467,13 @@ export default function RequestPage() {
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="flex-1 rounded-xl bg-blue-500 py-3 font-semibold text-white transition-colors hover:bg-blue-600 disabled:opacity-40"
+                className="flex-1 rounded-xl bg-action-primary py-3 font-semibold text-white transition-colors hover:bg-action-primary-hover disabled:opacity-40"
               >
-                {isPending ? t('request.submitting') : t('request.submit')}
+                {isPending ? t('request.submitting') : t(destination === 'COMMUNITY' ? 'request.submit' : destination === 'FRIEND' ? 'request.destinationFriend' : 'common.save')}
               </button>
             )}
           </div>
-        </section>
+        </section>}
       </div>
       {recordSheetOpen && (
         <RecorderModal

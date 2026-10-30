@@ -46,7 +46,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-surface font-sans">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-blue-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-action-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
       >
         {t('landing.skipToContent')}
       </a>
@@ -54,8 +54,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <header>
         <nav aria-label={t('landing.navAria')} className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-gray-100">
-          <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between gap-3">
-            <span className="text-lg font-bold tracking-tight text-gray-900">
+          <div className="max-w-4xl mx-auto px-4 min-h-16 py-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="shrink-0 text-lg font-bold tracking-tight text-gray-900">
               Tone<span className="text-blue-500">Bridge</span>
             </span>
             <div className="flex items-center gap-2">
@@ -63,7 +63,7 @@ export default function LandingPage() {
               <ThemeToggle className="hidden sm:inline-flex" />
               <Link
                 href="/login"
-                className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+                className="shrink-0 whitespace-nowrap px-4 py-2 bg-action-primary text-white text-sm font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
               >
                 {t('landing.navCta')}
               </Link>
@@ -74,9 +74,9 @@ export default function LandingPage() {
 
       <main id="main-content">
       {/* Hero */}
-      <section className="py-24 px-6">
+      <section className="py-16 sm:py-24 px-6">
         <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-gray-900 leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-gray-900 leading-tight [word-break:keep-all]">
             {t('landing.heroTitle').split('\n').map((line, index) => (
               <span key={line}>{line}{index === 0 && <br />}</span>
             ))}
@@ -89,12 +89,12 @@ export default function LandingPage() {
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href="/login"
-              className="px-6 py-3.5 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+              className="px-6 py-3.5 bg-action-primary text-white font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
             >
               {t('landing.startFree')}
             </Link>
             <Link
-              href="/community"
+              href="#practice-preview"
               className="px-6 py-3.5 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
             >
               {t('landing.browseFeed')} →
@@ -122,12 +122,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Correction examples */}
-      <section className="py-20 px-6">
+      {/* A read-only example lets visitors understand the learning loop before signing up. */}
+      <section id="practice-preview" className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900 text-center mb-12">
-            {t('landing.examplesTitle')}
-          </h2>
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900 text-center mb-4">{t('landing.examplesTitle')}</h2>
+          <p className="mx-auto mb-8 max-w-lg text-center text-sm leading-relaxed text-gray-500">{t('landing.previewHelp')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {EXAMPLES.map((ex) => (
               <div
@@ -177,7 +176,7 @@ export default function LandingPage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="py-24 px-6 bg-blue-50">
+      <section className="py-16 sm:py-24 px-6 bg-blue-50">
         <div className="max-w-lg mx-auto text-center">
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">
             {t('landing.bottomTitle')}
@@ -185,7 +184,7 @@ export default function LandingPage() {
           <p className="mt-3 text-gray-500">{t('landing.bottomSubtitle')}</p>
           <Link
             href="/login"
-            className="mt-7 inline-block px-8 py-3.5 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+            className="mt-7 inline-block px-8 py-3.5 bg-action-primary text-white font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
           >
             {t('landing.startFree')}
           </Link>
