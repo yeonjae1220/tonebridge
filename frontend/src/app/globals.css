@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 :root {
+  --color-action-primary: 37 99 235;
+  --color-action-primary-hover: 29 78 216;
+  --color-action-neutral: 15 23 42;
+  --color-action-neutral-foreground: 255 255 255;
+  --color-action-record: 185 28 28;
+  --color-action-record-hover: 153 27 27;
   --color-app: 248 250 252;
   --color-surface: 255 255 255;
   --color-elevated: 255 255 255;
@@ -16,7 +22,7 @@
   --color-gray-100: 241 245 249;
   --color-gray-200: 226 232 240;
   --color-gray-300: 203 213 225;
-  --color-gray-400: 148 163 184;
+  --color-gray-400: 100 116 139;
   --color-gray-500: 100 116 139;
   --color-gray-600: 71 85 105;
   --color-gray-700: 51 65 85;
@@ -88,6 +94,11 @@
 }
 
 .dark {
+  --color-action-primary: 37 99 235;
+  --color-action-primary-hover: 29 78 216;
+  --color-action-neutral: 226 232 240;
+  --color-action-neutral-foreground: 15 23 42;
+  --color-action-record: 185 28 28;
   --color-app: 10 15 25;
   --color-surface: 17 24 39;
   --color-elevated: 24 33 51;
@@ -101,7 +112,7 @@
   --color-gray-100: 30 41 59;
   --color-gray-200: 51 65 85;
   --color-gray-300: 71 85 105;
-  --color-gray-400: 100 116 139;
+  --color-gray-400: 148 163 184;
   --color-gray-500: 148 163 184;
   --color-gray-600: 203 213 225;
   --color-gray-700: 226 232 240;
@@ -186,4 +197,10 @@
   select {
     @apply bg-surface text-gray-900 placeholder:text-gray-400 transition-colors duration-200;
   }
+}
+
+@layer base {
+  button, a, summary { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid rgb(var(--color-blue-500)); outline-offset: 3px; }
+  dialog::backdrop { backdrop-filter: blur(3px); }
 }

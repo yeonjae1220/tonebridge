@@ -1,3 +1,5 @@
+import { uxMessages, type UxMessageKey } from './uxMessages'
+
 export const SUPPORTED_UI_LANGUAGES = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
 
 export type UiLanguage = typeof SUPPORTED_UI_LANGUAGES[number]
@@ -3521,7 +3523,7 @@ export function languageDisplayName(code: string, uiLanguage: UiLanguage) {
   }
 }
 
-type MessageKey = KnownMessageKey | keyof typeof defaultExtraMessages
+type MessageKey = KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey
 
 export type { MessageKey }
 
@@ -3659,3 +3661,5 @@ Object.assign(messages.ru, {
   'validation.help': "Помощь и связь",
   'friends.removeConfirm': messages.ru['friends.removeConfirm'] + '\n\n' + "После удаления друга общие тетради остаются доступны. Запросите прекращение доступа через раздел помощи.",
 })
+
+for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], uxMessages[language])

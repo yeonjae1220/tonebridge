@@ -106,7 +106,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 px-4 rounded-xl bg-gray-900 text-white font-medium hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-3 px-4 rounded-xl bg-action-neutral text-action-neutral-foreground font-medium hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {t('signup.submit')}
           </button>

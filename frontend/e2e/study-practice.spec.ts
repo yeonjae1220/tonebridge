@@ -127,7 +127,7 @@ test('failed practice submission keeps the recording for retry', async ({ page }
   await expect(page.locator('#recording-panel audio')).toHaveCount(0)
 })
 
-test('microphone permission wait locks the recorder and its purpose', async ({ page }) => {
+test('microphone permission wait prevents repeated starts and purpose changes but allows closing', async ({ page }) => {
   await mockStudy(page)
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => new Promise((_resolve, reject) => {
@@ -137,8 +137,9 @@ test('microphone permission wait locks the recorder and its purpose', async ({ p
   await page.goto('/study/session-1/cards/card-1')
   await page.locator('#recording-panel').getByRole('button', { name: '녹음 시작', exact: true }).click()
   await page.getByRole('button', { name: '녹음 시작', exact: true }).last().click()
-  await expect(page.getByRole('button', { name: '닫기', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toBeDisabled()
+  await expect(page.getByRole('dialog').getByRole('button', { name: '녹음 시작', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true, includeHidden: true })).toBeDisabled()
   await page.evaluate(() => window.dispatchEvent(new Event('test:deny-microphone')))
   await page.getByRole('button', { name: '닫기', exact: true }).click()
   await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toBeEnabled()
@@ -231,6 +232,8 @@ test('leaving a card while microphone permission is pending stops the late strea
   await page.locator('#recording-panel').getByRole('button', { name: '녹음 시작', exact: true }).click()
   await page.getByRole('button', { name: '녹음 시작', exact: true }).last().click()
   await expect.poll(() => page.evaluate(() => !!(window as unknown as { testStream?: MediaStream }).testStream)).toBe(true)
+  // Cancel the permission wait before using navigation behind the modal.
+  await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).click()
   // The app's bottom navigation performs client navigation, retaining the pending promise.
   await page.getByRole('link', { name: '친구', exact: true }).click()
   await expect(page).toHaveURL(/\/friends$/)

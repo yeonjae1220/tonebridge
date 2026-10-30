@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -9,7 +9,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { usePresignedUpload } from '@/hooks/usePresignedUpload'
-import { useWaveSurfer } from '@/hooks/useWaveSurfer'
+import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
+import { QueryError } from '@/components/ui/QueryError'
 import { formatDate } from '@/lib/dateUtils'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -18,65 +19,12 @@ import { StudyScore } from '@/components/study/StudyScore'
 import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
 
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [url, setUrl] = useState<string | null>(null)
-  // 🔴 실패를 setUrl(null) 로 치환하면 초기 상태(로딩 중)와 구분되지 않는다 — 재생 버튼이
-  //    영원히 비활성인 채 이유가 화면에도 콘솔에도 남지 않았다. 실패 판정은 별도 boolean 으로
-  //    한다(원인이 falsy 한 실패를 성공으로 취급하지 않기 위해 — GLOBAL-PIT-108).
-  const [failed, setFailed] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
   const { language, t } = useI18n()
-  const ws = useWaveSurfer(ref, url)
-
-  useEffect(() => {
-    let alive = true
-    setFailed(false)
-    api
-      .get<{ downloadUrl: string }>(`/native-audios/${audio.id}/download-url`)
-      .then((r) => {
-        if (alive) setUrl(r.data.downloadUrl)
-      })
-      .catch((e) => {
-        if (!alive) return
-        console.error(`[NativeAudioPlayer] 다운로드 URL 조회 실패 (audioId=${audio.id})`, e)
-        setUrl(null)
-        setFailed(true)
-      })
-    return () => {
-      alive = false
-    }
-  }, [audio.id, reloadKey])
-
-  return (
-    <div className="rounded-xl border border-gray-100 p-3">
-      {failed ? (
-        <div role="alert" className="min-h-[48px] flex items-center justify-between gap-3 px-3 rounded-lg bg-red-50">
-          <span className="text-xs text-red-700">{t('error.unexpected')}</span>
-          <button
-            type="button"
-            onClick={() => setReloadKey((k) => k + 1)}
-            className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold"
-          >
-            {t('common.retry')}
-          </button>
-        </div>
-      ) : (
-        <div ref={ref} className="min-h-[48px] bg-gray-50 rounded-lg overflow-hidden" />
-      )}
-      <div className="mt-2 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={ws.togglePlay}
-          disabled={!ws.ready}
-          className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold disabled:opacity-40"
-        >
-          {ws.playing ? t('common.pause') : t('common.play')}
-        </button>
-        <span className="text-xs text-gray-400">{formatDate(audio.createdAt, language)}</span>
-      </div>
-      {audio.note && <p className="mt-2 text-xs text-gray-500">{audio.note}</p>}
-    </div>
-  )
+  return <div className="rounded-xl border border-gray-100 p-3">
+    <StudyAudioPlayer exampleId={audio.id} label={t('study.cardDetail.nativeAudios')} />
+    <p className="mt-2 text-xs text-gray-500">{formatDate(audio.createdAt, language)}</p>
+    {audio.note && <p className="mt-2 text-sm text-gray-600">{audio.note}</p>}
+  </div>
 }
 
 function AttemptNoteForm({
@@ -101,6 +49,7 @@ function AttemptNoteForm({
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-2">
       <textarea
+        aria-label={t('study.cardDetail.notePlaceholder')}
         value={note}
         onChange={(event) => setNote(event.target.value)}
         rows={2}
@@ -122,7 +71,7 @@ function AttemptNoteForm({
         <button
           type="submit"
           disabled={disabled || !note.trim()}
-          className="flex-1 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40"
+          className="flex-1 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40"
         >
           {t('common.save')}
         </button>
@@ -143,6 +92,7 @@ export default function StudyCardDetailPage() {
   const { upload, uploading } = usePresignedUpload()
   const [noteDraft, setNoteDraft] = useState('')
   const [actionError, setActionError] = useState('')
+  const [notice, setNotice] = useState('')
   const [nativeModalOpen, setNativeModalOpen] = useState(false)
   const [attemptModalOpen, setAttemptModalOpen] = useState(false)
   const [recordingPurpose, setRecordingPurpose] = useState<'practice' | 'example'>('practice')
@@ -151,19 +101,19 @@ export default function StudyCardDetailPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: card, isLoading } = useQuery<StudyCard>({
+  const { data: card, isLoading, isError: cardError, refetch: refetchCard, isFetching: cardFetching } = useQuery<StudyCard>({
     queryKey: ['cards', cardId],
     queryFn: () => api.get(`/cards/${cardId}`).then((r) => r.data),
     enabled: !!accessToken && !!cardId,
   })
 
-  const { data: attempts = [] } = useQuery<LearnerAttempt[]>({
+  const { data: attempts = [], isLoading: attemptsLoading, isError: attemptsError, refetch: refetchAttempts } = useQuery<LearnerAttempt[]>({
     queryKey: ['cards', cardId, 'attempts'],
     queryFn: () => api.get(`/cards/${cardId}/attempts`).then((r) => r.data),
     enabled: !!accessToken && !!cardId,
   })
 
-  const { data: nativeAudios = [] } = useQuery<NativeAudioEntry[]>({
+  const { data: nativeAudios = [], isLoading: examplesLoading, isError: examplesError, refetch: refetchExamples } = useQuery<NativeAudioEntry[]>({
     queryKey: ['cards', cardId, 'native-audios'],
     queryFn: () => api.get(`/cards/${cardId}/native-audios`).then((r) => r.data),
     enabled: !!accessToken && !!cardId,
@@ -175,13 +125,16 @@ export default function StudyCardDetailPage() {
 
   const submitAttemptMutation = useMutation({
     mutationFn: async () => {
-      setActionError('')
+      setActionError(''); setNotice('')
+      const requireSameAccount = captureAccountGuard()
       const file = attemptRecorder.getFile(`attempt_${Date.now()}.webm`)
       if (!file) throw new Error('NO_AUDIO')
       const audioKey = await upload(file)
+      requireSameAccount()
       return api.post(`/cards/${cardId}/attempts`, { audioKey })
     },
     onSuccess: () => {
+      setNotice(t('common.saved'))
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
       attemptRecorder.reset()
@@ -191,7 +144,7 @@ export default function StudyCardDetailPage() {
 
   const submitNativeAudioMutation = useMutation({
     mutationFn: async () => {
-      setActionError('')
+      setActionError(''); setNotice('')
       const requireSameAccount = captureAccountGuard()
       const file = nativeRecorder.getFile(`native_${Date.now()}.webm`)
       if (!file) throw new Error('NO_AUDIO')
@@ -208,28 +161,30 @@ export default function StudyCardDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'native-audios'] })
       queryClient.invalidateQueries({ queryKey: ['cards', cardId] })
       nativeRecorder.reset()
+      setNotice(t('common.saved'))
     },
     onError: () => setActionError(t('study.cardDetail.nativeAudioFailed')),
   })
 
   const updateNoteMutation = useMutation({
     mutationFn: () => {
-      setActionError('')
+      setActionError(''); setNotice('')
       return api.patch(`/cards/${cardId}/note`, { note: noteDraft.trim() || null })
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cards', cardId] }),
+    onSuccess: () => { setNotice(t('common.saved')); queryClient.invalidateQueries({ queryKey: ['cards', cardId] }) },
     onError: () => setActionError(t('study.cardDetail.noteSaveFailed')),
   })
 
   const addAttemptNoteMutation = useMutation({
     mutationFn: (payload: { attemptId: string; correctionNote: string; score: number | null }) => {
-      setActionError('')
+      setActionError(''); setNotice('')
       return api.patch(`/attempts/${payload.attemptId}/correction`, {
         correctionNote: payload.correctionNote,
         score: payload.score,
       })
     },
     onSuccess: () => {
+      setNotice(t('common.saved'))
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
     },
@@ -252,7 +207,9 @@ export default function StudyCardDetailPage() {
           <h1 className="text-xl font-bold text-gray-900">{t('study.cardDetail.title')}</h1>
         </div>
 
-        {isLoading || !card ? (
+        {cardError ? (
+          <QueryError onRetry={() => void refetchCard()} retrying={cardFetching} />
+        ) : isLoading || !card ? (
           <div className="h-40 rounded-2xl bg-gray-200 animate-pulse" />
         ) : (
           <>
@@ -271,26 +228,20 @@ export default function StudyCardDetailPage() {
               )}
             </section>
 
-            <section id="card-note" className="bg-surface rounded-2xl border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</h2>
-              <textarea
-                value={noteDraft}
-                onChange={(event) => setNoteDraft(event.target.value)}
-                rows={3}
-                placeholder={t('study.cardDetail.cardNotePlaceholder')}
-                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none"
-              />
-              <button
-                onClick={() => updateNoteMutation.mutate()}
-                disabled={updateNoteMutation.isPending}
-                className="mt-3 w-full rounded-xl bg-blue-500 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                {updateNoteMutation.isPending ? t('common.saving') : t('common.save')}
-              </button>
+            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudios')}</h2>
+              <div className="mt-3 flex flex-col gap-3">
+                {examplesError ? <QueryError onRetry={() => void refetchExamples()} /> : examplesLoading ? <p role="status">{t('common.loading')}</p> : nativeAudios.length === 0 ? (
+                  <p className="text-sm text-gray-400">{t('study.cardDetail.noNativeAudios')}</p>
+                ) : nativeAudios.map((audio) => (
+                  <NativeAudioPlayer key={audio.id} audio={audio} />
+                ))}
+              </div>
             </section>
 
+            {notice && <p role="status" className="rounded-xl bg-green-50 p-3 text-sm text-green-700">{notice}</p>}
             {actionError && (
-              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                 {actionError}
               </div>
             )}
@@ -304,7 +255,7 @@ export default function StudyCardDetailPage() {
                     aria-pressed={recordingPurpose === purpose}
                     disabled={recordingBusy}
                     onClick={() => setRecordingPurpose(purpose)}
-                    className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold disabled:opacity-40 ${recordingPurpose === purpose ? 'bg-blue-500 text-white' : 'bg-surface border border-gray-200 text-gray-700'}`}
+                    className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold disabled:opacity-40 ${recordingPurpose === purpose ? 'bg-action-primary text-white' : 'bg-surface border border-gray-200 text-gray-700'}`}
                   >
                     {t(purpose === 'practice' ? 'study.cardDetail.practiceRecording' : 'study.cardDetail.nativeAudio')}
                   </button>
@@ -323,7 +274,7 @@ export default function StudyCardDetailPage() {
                       type="button"
                       onClick={() => setNativeModalOpen(true)}
                       disabled={recordingBusy}
-                      className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
+                      className="w-full py-3 rounded-xl bg-action-record text-white text-sm font-semibold hover:bg-action-record-hover transition-colors disabled:opacity-40"
                     >
                       {t('study.cardDetail.startRecording')}
                     </button>
@@ -345,7 +296,7 @@ export default function StudyCardDetailPage() {
                     <button
                       onClick={() => submitNativeAudioMutation.mutate()}
                       disabled={submitNativeAudioMutation.isPending}
-                      className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                      className="w-full rounded-xl bg-action-neutral py-2.5 text-sm font-semibold text-action-neutral-foreground disabled:opacity-40"
                     >
                       {submitNativeAudioMutation.isPending ? t('common.saving') : t('study.cardDetail.uploadNativeAudio')}
                     </button>
@@ -362,7 +313,7 @@ export default function StudyCardDetailPage() {
                       type="button"
                       onClick={() => setAttemptModalOpen(true)}
                       disabled={recordingBusy}
-                      className="w-full py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-40"
+                      className="w-full py-3 rounded-xl bg-action-record text-white text-sm font-semibold hover:bg-action-record-hover transition-colors disabled:opacity-40"
                     >
                       {t('study.cardDetail.startRecording')}
                     </button>
@@ -384,7 +335,7 @@ export default function StudyCardDetailPage() {
                     <button
                       onClick={() => submitAttemptMutation.mutate()}
                       disabled={submitAttemptMutation.isPending || uploading}
-                      className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                      className="w-full rounded-xl bg-action-neutral py-2.5 text-sm font-semibold text-action-neutral-foreground disabled:opacity-40"
                     >
                       {submitAttemptMutation.isPending || uploading ? t('common.saving') : t('study.cardDetail.submitAttempt')}
                     </button>
@@ -394,22 +345,11 @@ export default function StudyCardDetailPage() {
             )}
 
             <section className="bg-surface rounded-2xl border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudios')}</h2>
-              <div className="mt-3 flex flex-col gap-3">
-                {nativeAudios.length === 0 ? (
-                  <p className="text-sm text-gray-400">{t('study.cardDetail.noNativeAudios')}</p>
-                ) : nativeAudios.map((audio) => (
-                  <NativeAudioPlayer key={audio.id} audio={audio} />
-                ))}
-              </div>
-            </section>
-
-            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.attempts')}</h2>
               <div className="mt-3 flex flex-col gap-3">
-                {attempts.length === 0 ? (
+                {attemptsError ? <QueryError onRetry={() => void refetchAttempts()} /> : attemptsLoading ? <p role="status">{t('common.loading')}</p> : attempts.length === 0 ? (
                   <p className="text-sm text-gray-400">{t('study.cardDetail.noAttempts')}</p>
-                ) : attempts.map((attempt) => (
+                ) : [...attempts].sort((a, b) => b.attemptedAt.localeCompare(a.attemptedAt)).map((attempt) => (
                   <div key={attempt.id} className="rounded-xl border border-gray-100 p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">{formatDate(attempt.attemptedAt, language)}</span>
@@ -418,7 +358,11 @@ export default function StudyCardDetailPage() {
                     <p className="mt-1 text-xs text-gray-500">
                       {t(attempt.learnerId === currentUser?.id ? 'study.cardDetail.myAttempt' : 'study.cardDetail.partnerAttempt')}
                     </p>
+                    <div className="mt-3"><StudyAudioPlayer attemptId={attempt.audioUrl ? attempt.id : undefined} label={t(attempt.learnerId === currentUser?.id ? 'study.cardDetail.myAttempt' : 'study.cardDetail.partnerAttempt')} /></div>
                     {attempt.correctionNote && <p className="mt-2 text-sm text-gray-700">{attempt.correctionNote}</p>}
+                    {attempt.learnerId === currentUser?.id && attempt.correctionNote && <button type="button"
+                      disabled={recordingBusy} onClick={() => { setRecordingPurpose('practice'); setAttemptModalOpen(true) }}
+                      className="mt-3 min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">{t('study.retryWithFeedback')}</button>}
                     {permissionReady && (
                       <AttemptNoteForm
                         attempt={attempt}
@@ -430,6 +374,25 @@ export default function StudyCardDetailPage() {
                 ))}
               </div>
             </section>
+            <details id="card-note" className="bg-surface rounded-2xl border border-gray-100 p-5">
+              <summary className="cursor-pointer text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</summary>
+              <textarea
+                aria-label={t('study.cardDetail.cardNote')}
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                rows={3}
+                placeholder={t('study.cardDetail.cardNotePlaceholder')}
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none"
+              />
+              <button
+                onClick={() => updateNoteMutation.mutate()}
+                disabled={updateNoteMutation.isPending}
+                className="mt-3 w-full rounded-xl bg-action-primary py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {updateNoteMutation.isPending ? t('common.saving') : t('common.save')}
+              </button>
+            </details>
+
           </>
         )}
       </div>
@@ -448,31 +411,19 @@ export default function StudyCardDetailPage() {
         />
       )}
       {card && (
-        <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-[env(safe-area-inset-bottom)]">
-          <div className="mx-auto flex max-w-lg gap-2 rounded-2xl border border-gray-100 bg-surface/95 p-2 shadow-lg backdrop-blur">
+        <div className="px-4 pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto flex max-w-lg flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => {
-                document.getElementById('recording-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (recordingPurpose === 'example') setNativeModalOpen(true)
-                else setAttemptModalOpen(true)
-              }}
-              disabled={!permissionReady || recordingBusy}
-              className="flex-1 rounded-xl bg-red-500 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-            >
-              {t('study.recordVoice')}
-            </button>
-            <button
-              type="button"
-              onClick={() => document.getElementById('card-note')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              onClick={() => { const note = document.getElementById('card-note') as HTMLDetailsElement | null; if (note) { note.open = true; note.scrollIntoView({ behavior: 'smooth', block: 'center' }); note.querySelector('textarea')?.focus() } }}
               className="flex-1 rounded-xl border border-gray-200 py-2.5 text-xs font-bold text-gray-700"
             >
-              {t('study.writeNote')}
+              {t('study.cardDetail.cardNote')}
             </button>
             <button
               type="button"
-              onClick={() => router.push('/request')}
-              className="flex-1 rounded-xl bg-gray-900 py-2.5 text-xs font-bold text-white"
+              onClick={() => router.push('/request?destination=COMMUNITY&sourceCard=' + encodeURIComponent(cardId))}
+              className="flex-1 rounded-xl bg-action-neutral py-2.5 text-xs font-bold text-action-neutral-foreground"
             >
               {t('study.askCommunity')}
             </button>

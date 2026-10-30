@@ -412,7 +412,7 @@ export default function ResultPage() {
                         )}
                         <button
                           onClick={() => setSavingCorrection(correction)}
-                          className="w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                          className="w-full py-2.5 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold hover:bg-gray-800 transition-colors"
                         >
                           {t('result.saveCard')}
                         </button>
@@ -528,7 +528,7 @@ function RequestEditSheet({
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           placeholder={t('request.context')}
         />
-        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
           {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
@@ -582,7 +582,7 @@ function CorrectionEditSheet({
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
           placeholder={t('result.explanation')}
         />
-        <button type="submit" disabled={pending || !explanation.trim()} className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+        <button type="submit" disabled={pending || !explanation.trim()} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
           {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
@@ -637,7 +637,7 @@ function SaveCardSheet({
           <div className="py-6 text-center">
             <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
-            <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold">
+            <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-action-primary text-white text-sm font-semibold">
               {t('study.startPractice')}
             </button>
           </div>
@@ -650,7 +650,7 @@ function SaveCardSheet({
             </select>
             <textarea value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
             <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder={t('study.cards.context')} />
-            <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-40">
+            <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold disabled:opacity-40">
               {pending ? t('common.saving') : t('common.save')}
             </button>
           </>

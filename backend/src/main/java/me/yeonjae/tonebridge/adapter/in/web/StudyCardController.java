@@ -31,6 +31,7 @@ public class StudyCardController {
     private final UploadNativeAudioUseCase uploadNativeAudioUseCase;
     private final GetNativeAudioDownloadUrlUseCase getNativeAudioDownloadUrlUseCase;
     private final SubmitLearnerAttemptUseCase submitAttemptUseCase;
+    private final GetLearnerAttemptAudioUseCase getAttemptAudioUseCase;
     private final AddCorrectionNoteUseCase addNoteUseCase;
     private final AddCardNativeAudioUseCase addNativeAudioUseCase;
     private final GetCardNativeAudiosUseCase getNativeAudiosUseCase;
@@ -131,6 +132,15 @@ public class StudyCardController {
             @PathVariable UUID cardId) {
         var attempts = getCardUseCase.getAttempts(cardId, userId);
         return ResponseEntity.ok(attempts.stream().map(LearnerAttemptResponse::from).toList());
+    }
+
+    @GetMapping("/attempts/{attemptId}/download-url")
+    public ResponseEntity<Map<String, String>> getAttemptDownloadUrl(
+            @AuthenticationPrincipal UUID userId,
+            @PathVariable UUID attemptId) {
+        return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(Map.of("downloadUrl", getAttemptAudioUseCase.getAttemptDownloadUrl(attemptId, userId)));
     }
 
     @PatchMapping("/attempts/{attemptId}/correction")

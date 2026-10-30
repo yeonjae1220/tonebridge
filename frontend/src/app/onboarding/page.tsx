@@ -7,18 +7,20 @@ import { api } from '@/lib/api'
 import { consumePostAuthRedirect } from '@/lib/authNavigate'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { useI18n } from '@/i18n/I18nProvider'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { getApiErrorStatus } from '@/lib/apiError'
 
-type Step = 'nickname' | 'native' | 'fluent' | 'learning'
+type Step = 'native' | 'learning'
 
-const STEP_ORDER: Step[] = ['nickname', 'native', 'fluent', 'learning']
+const STEP_ORDER: Step[] = ['native', 'learning']
 
 export default function OnboardingPage() {
   const router = useRouter()
   const accessToken = useAuthStore((s) => s.accessToken)
-  const { language, setLanguage, t } = useI18n()
+  const { language, t } = useI18n()
 
-  const [step, setStep] = useState<Step>('nickname')
+  const [step, setStep] = useState<Step>('native')
+  const { data: currentUser } = useCurrentUser()
   const [username, setUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [nativeLanguage, setNativeLanguage] = useState('')
@@ -38,16 +40,9 @@ export default function OnboardingPage() {
     return null
   }
 
-  const handleNicknameNext = () => {
-    if (username) {
-      const err = validateUsername(username)
-      if (err) { setUsernameError(err); return }
-    }
-    setUsernameError(null)
-    setStep('native')
-  }
-
   const handleSubmit = async () => {
+    const validation = validateUsername(username)
+    if (validation) { setUsernameError(validation); return }
     setLoading(true)
     setError(null)
     try {
@@ -63,6 +58,7 @@ export default function OnboardingPage() {
       const status = getApiErrorStatus(err)
       if (status !== 409) console.error('[onboarding] 프로필 저장 실패', err)
       if (status === 409) {
+        setUsernameError(t('profile.nicknameTaken'))
         setError(t('profile.nicknameTaken'))
       } else {
         setError(t('profile.saveFailed'))
@@ -81,28 +77,6 @@ export default function OnboardingPage() {
     onNext: () => void
     nextLabel?: string
   }> = {
-    nickname: {
-      title: t('onboarding.nickname.title'),
-      subtitle: t('onboarding.nickname.subtitle'),
-      content: (
-        <div className="flex flex-col gap-2">
-          <label htmlFor="onboarding-username" className="sr-only">{t('profile.nickname')}</label>
-          <input
-            id="onboarding-username"
-            type="text"
-            value={username}
-            onChange={(e) => { setUsername(e.target.value); setUsernameError(null) }}
-            maxLength={20}
-            placeholder={t('onboarding.nickname.placeholder')}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 transition-colors"
-          />
-          {usernameError && <p className="text-xs text-red-500">{usernameError}</p>}
-          <p className="text-xs text-gray-400">{t('onboarding.nickname.helper')}</p>
-        </div>
-      ),
-      canNext: true,
-      onNext: handleNicknameNext,
-    },
     native: {
       title: t('onboarding.native.title'),
       subtitle: t('onboarding.native.subtitle'),
@@ -111,27 +85,12 @@ export default function OnboardingPage() {
           value={nativeLanguage}
           onLanguageChange={(code) => {
             setNativeLanguage(code)
-            setLanguage(code)
           }}
           showVariantPicker={false}
         />
       ),
       canNext: !!nativeLanguage,
-      onNext: () => setStep('fluent'),
-    },
-    fluent: {
-      title: t('onboarding.fluent.title'),
-      subtitle: t('onboarding.fluent.subtitle'),
-      content: (
-        <LanguagePicker
-          multiSelect
-          value={fluentLanguages}
-          onLanguageChange={setFluentLanguages}
-          excludeCodes={[nativeLanguage]}
-        />
-      ),
-      canNext: true,
-      onNext: () => setStep('learning'),
+      onNext: () => { setFluentLanguages((values) => values.filter((value) => value !== nativeLanguage)); setLearningLanguages((values) => values.filter((value) => value !== nativeLanguage)); setStep('learning') },
     },
     learning: {
       title: t('onboarding.learning.title'),
@@ -156,13 +115,13 @@ export default function OnboardingPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md flex flex-col gap-8">
+      <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 p-6 w-full max-w-md flex flex-col gap-6">
         <div className="flex gap-2">
           {STEP_ORDER.map((_, i) => (
             <div
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
-                i <= stepIndex ? 'bg-blue-500' : 'bg-gray-200'
+                i <= stepIndex ? 'bg-action-primary' : 'bg-gray-200'
               }`}
             />
           ))}
@@ -174,18 +133,33 @@ export default function OnboardingPage() {
         </div>
 
         {current.content}
+        {step === 'learning' && <details open={!!usernameError || undefined} className="rounded-xl border border-gray-200 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-gray-600">{t('onboarding.optional')}</summary>
+          <label className="mt-4 flex flex-col gap-2 text-sm">
+            <span>{t('profile.nickname')}</span>
+            <input id="onboarding-username" value={username} placeholder={currentUser?.username ?? t('onboarding.nickname.placeholder')} maxLength={20}
+              onChange={(event) => { setUsername(event.target.value); setUsernameError(null) }} className="rounded-xl border border-gray-200 px-3 py-3" />
+          </label>
+          {usernameError && <p role="alert" className="mt-2 text-sm text-red-500">{usernameError}</p>}
+          <p className="mt-4 mb-2 text-sm font-semibold">{t('onboarding.fluent.title')}</p>
+          <LanguagePicker multiSelect value={fluentLanguages} onLanguageChange={setFluentLanguages} excludeCodes={[nativeLanguage]} />
+        </details>}
 
         {error && (
           <p className="text-sm text-red-500 text-center">{error}</p>
         )}
 
+        <div className="flex gap-3">
+        {stepIndex > 0 && <button type="button" disabled={loading} onClick={() => { setError(null); setStep(STEP_ORDER[stepIndex - 1]) }}
+          className="min-h-11 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-gray-600">{t('common.back')}</button>}
         <button
           onClick={current.onNext}
           disabled={!current.canNext || loading}
-          className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-semibold disabled:opacity-40 hover:bg-blue-600 transition-colors"
+          className="w-full py-3.5 rounded-xl bg-action-primary text-white font-semibold disabled:opacity-40 hover:bg-action-primary-hover transition-colors"
         >
           {current.nextLabel ?? t('common.next')}
         </button>
+        </div>
       </div>
     </main>
   )

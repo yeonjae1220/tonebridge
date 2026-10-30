@@ -36,7 +36,7 @@ export function InstallBanner({ className = '' }: Props) {
           {showPWAButton && (
             <button
               onClick={platform === 'ios' ? () => setShowIOSGuide(true) : triggerInstall}
-              className="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+              className="px-3 py-1.5 bg-action-primary text-white text-xs font-semibold rounded-lg hover:bg-action-primary-hover transition-colors"
             >
               {platform === 'ios' ? '추가 방법' : '홈 화면에 추가'}
             </button>
@@ -102,21 +102,21 @@ export function InstallBanner({ className = '' }: Props) {
 
             <ol className="flex flex-col gap-4">
               <li className="flex items-start gap-3">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                <span className="shrink-0 w-6 h-6 rounded-full bg-action-primary text-white text-xs font-bold flex items-center justify-center mt-0.5">1</span>
                 <div>
                   <p className="text-sm font-medium text-gray-900">Safari 하단 공유 버튼 탭</p>
                   <p className="text-xs text-gray-500 mt-0.5">화면 아래 가운데에 있는 □↑ 아이콘</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                <span className="shrink-0 w-6 h-6 rounded-full bg-action-primary text-white text-xs font-bold flex items-center justify-center mt-0.5">2</span>
                 <div>
                   <p className="text-sm font-medium text-gray-900">스크롤 내려서 &ldquo;홈 화면에 추가&rdquo; 탭</p>
                   <p className="text-xs text-gray-500 mt-0.5">목록에서 + 아이콘과 함께 표시돼요</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                <span className="shrink-0 w-6 h-6 rounded-full bg-action-primary text-white text-xs font-bold flex items-center justify-center mt-0.5">3</span>
                 <div>
                   <p className="text-sm font-medium text-gray-900">오른쪽 위 &ldquo;추가&rdquo; 탭</p>
                   <p className="text-xs text-gray-500 mt-0.5">홈 화면에 ToneBridge 아이콘이 생겨요</p>
@@ -126,7 +126,7 @@ export function InstallBanner({ className = '' }: Props) {
 
             <button
               onClick={() => setShowIOSGuide(false)}
-              className="mt-6 w-full py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-colors"
+              className="mt-6 w-full py-3 bg-action-primary text-white font-semibold rounded-xl hover:bg-action-primary-hover transition-colors"
             >
               확인
             </button>

@@ -10,6 +10,8 @@ import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 import { localizedLabel } from '@/lib/localizedLabels'
+import { Dialog } from '@/components/ui/Dialog'
+import { QueryError } from '@/components/ui/QueryError'
 import { StudyScore } from '@/components/study/StudyScore'
 
 export default function StudySessionPage() {
@@ -27,13 +29,13 @@ export default function StudySessionPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: session, isLoading: sessionLoading } = useQuery<StudySession>({
+  const { data: session, isLoading: sessionLoading, isError: sessionError, refetch: refetchSession } = useQuery<StudySession>({
     queryKey: ['sessions', sessionId],
     queryFn: () => api.get(`/sessions/${sessionId}`).then((r) => r.data),
     enabled: !!accessToken && !!sessionId,
   })
 
-  const { data: cards = [], isLoading: cardsLoading, isError: cardsError } = useQuery<StudyCard[]>({
+  const { data: cards = [], isLoading: cardsLoading, isError: cardsError, refetch: refetchCards } = useQuery<StudyCard[]>({
     queryKey: ['sessions', sessionId, 'cards'],
     queryFn: () => api.get(`/sessions/${sessionId}/cards`).then((r) => r.data),
     enabled: !!accessToken && !!sessionId,
@@ -51,7 +53,7 @@ export default function StudySessionPage() {
       context: card.context,
       tags: card.tags,
     }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }); setCardSheet(null) },
   })
 
   const createCardMutation = useMutation({
@@ -115,17 +117,15 @@ export default function StudySessionPage() {
           )}
           <button
             onClick={() => setCardSheet({ mode: 'create' })}
-            className="px-3 py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+            disabled={!session || sessionError}
+            className="px-3 py-2 rounded-xl bg-action-primary text-white text-xs font-semibold hover:bg-action-primary-hover transition-colors"
           >
             {t('study.cards.add')}
           </button>
         </div>
 
-        {cardsError ? (
-          <div className="bg-surface rounded-2xl border border-red-100 py-12 text-center">
-            <p className="text-sm text-red-500 font-medium">{t('study.cards.loadFailed')}</p>
-            <p className="text-xs text-gray-400 mt-1">{t('common.retryLater')}</p>
-          </div>
+        {cardsError || sessionError ? (
+          <QueryError onRetry={() => { void refetchCards(); void refetchSession() }} />
         ) : cardsLoading ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
@@ -139,7 +139,7 @@ export default function StudySessionPage() {
             <p className="text-xs text-gray-400 mt-1">{t('study.cards.emptySubtitle')}</p>
             <button
               onClick={() => setCardSheet({ mode: 'create' })}
-              className="mt-4 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+              className="mt-4 px-4 py-2 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover transition-colors"
             >
               {t('study.cards.first')}
             </button>
@@ -204,7 +204,7 @@ export default function StudySessionPage() {
                     </div>
                   )}
                   {canManage && (
-                    <div className="flex gap-2 mt-4">
+                    <details className="mt-3"><summary className="cursor-pointer py-2 text-sm text-gray-500">{t('study.manageCard')}</summary><div className="flex flex-wrap gap-2 mt-2">
                       <button
                         onClick={() => moveWithinSession(card, Math.max(0, index - 1))}
                         disabled={index === 0 || moveCardMutation.isPending}
@@ -241,7 +241,7 @@ export default function StudySessionPage() {
                       >
                         {t('common.delete')}
                       </button>
-                    </div>
+                    </div></details>
                   )}
                 </div>
               )
@@ -253,11 +253,11 @@ export default function StudySessionPage() {
         <CardSheet
           initial={cardSheet.mode === 'edit' ? cardSheet.card : undefined}
           pending={createCardMutation.isPending || updateCardMutation.isPending}
+          failed={createCardMutation.isError || updateCardMutation.isError}
           onClose={() => setCardSheet(null)}
           onSubmit={(payload) => {
             if (cardSheet.mode === 'edit') {
               updateCardMutation.mutate({ ...cardSheet.card, ...payload })
-              setCardSheet(null)
             } else {
               createCardMutation.mutate(payload)
             }
@@ -270,6 +270,7 @@ export default function StudySessionPage() {
           sessions={sessions}
           currentSessionId={sessionId}
           pending={moveCardMutation.isPending}
+          failed={moveCardMutation.isError}
           onClose={() => setMovingCard(null)}
           onSubmit={(payload) => {
             moveCardMutation.mutate({
@@ -287,11 +288,13 @@ export default function StudySessionPage() {
 function CardSheet({
   initial,
   pending,
+  failed,
   onClose,
   onSubmit,
 }: {
   initial?: StudyCard
   pending: boolean
+  failed: boolean
   onClose: () => void
   onSubmit: (payload: { phrase: string; context: string | null; tags: string[] }) => void
 }) {
@@ -312,12 +315,9 @@ function CardSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{initial ? t('study.cards.edit') : t('study.cards.new')}</h2>
-          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
-        </div>
+    <Dialog title={initial ? t('study.cards.edit') : t('study.cards.new')} onClose={onClose} busy={pending}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        {failed && <p role="alert" className="text-sm text-red-500">{t('error.unexpected')}</p>}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.phrase')}</span>
           <textarea
@@ -350,12 +350,12 @@ function CardSheet({
         <button
           type="submit"
           disabled={pending || !phrase.trim()}
-          className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+          className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
@@ -364,6 +364,7 @@ function MoveCardSheet({
   sessions,
   currentSessionId,
   pending,
+  failed,
   onClose,
   onSubmit,
 }: {
@@ -371,6 +372,7 @@ function MoveCardSheet({
   sessions: StudySession[]
   currentSessionId: string
   pending: boolean
+  failed: boolean
   onClose: () => void
   onSubmit: (payload: { targetSessionId: string; position: number }) => void
 }) {
@@ -384,12 +386,9 @@ function MoveCardSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{t('study.cards.move')}</h2>
-          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
-        </div>
+    <Dialog title={t('study.cards.move')} onClose={onClose} busy={pending}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        {failed && <p role="alert" className="text-sm text-red-500">{t('error.unexpected')}</p>}
         <p className="text-sm text-gray-500 line-clamp-2">{card.phrase}</p>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.targetPractice')}</span>
@@ -416,11 +415,11 @@ function MoveCardSheet({
         <button
           type="submit"
           disabled={pending || !targetSessionId}
-          className="w-full py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+          className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}
         </button>
       </form>
-    </div>
+    </Dialog>
   )
 }
