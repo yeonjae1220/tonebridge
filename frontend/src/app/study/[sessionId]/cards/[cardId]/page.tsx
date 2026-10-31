@@ -145,7 +145,7 @@ export default function StudyCardDetailPage() {
       setNotice(t('common.saved'))
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
-      attemptRecorder.reset()
+      attemptRecorder.clearSaved(attemptRecorder.audioBlob)
     },
     onError: (error) => setActionError(t(error instanceof RecordingTimeoutError ? 'recording.timeout' : 'study.cardDetail.submitAttemptFailed')),
   })
@@ -160,7 +160,7 @@ export default function StudyCardDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'native-audios'] })
       queryClient.invalidateQueries({ queryKey: ['cards', cardId] })
-      nativeRecorder.reset()
+      nativeRecorder.clearSaved(nativeRecorder.audioBlob)
       setNotice(t('common.saved'))
     },
     onError: (error) => setActionError(t(error instanceof RecordingTimeoutError ? 'recording.timeout' : 'study.cardDetail.nativeAudioFailed')),

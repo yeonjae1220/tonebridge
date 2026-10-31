@@ -137,6 +137,38 @@ test('example draft reopens in its original purpose after browser back', async (
   await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('a late save after navigation cannot delete a newer draft', async ({ page }) => {
+  await mockStudy(page)
+  let finish!: () => void
+  const held = new Promise<void>((resolve) => { finish = resolve })
+  let started!: () => void
+  const saving = new Promise<void>((resolve) => { started = resolve })
+  await page.route('**/api/cards/card-1/attempts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    started(); await held
+    await route.fulfill({ status: 201, json: attempt })
+  })
+  await page.goto('/study/session-1')
+  await page.getByText('こんにちは', { exact: true }).click()
+  await recordAudio(page)
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await saving
+  await page.goBack()
+  await page.getByText('こんにちは', { exact: true }).click()
+  await page.locator('#recording-panel').getByRole('button', { name: '다시 녹음', exact: true }).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('dialog').getByRole('button', { name: '다시 녹음', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '녹음 시작', exact: true }).click()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: '녹음 중지', exact: true }).click()
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
+  const newer = await page.locator('#recording-panel audio').getAttribute('src')
+  const response = page.waitForResponse((r) => r.url().endsWith('/attempts') && r.request().method() === 'POST')
+  finish(); await response
+  await page.waitForTimeout(150)
+  await expect(page.locator('#recording-panel audio')).toHaveAttribute('src', newer!)
+})
+
 test('upload timeout explains the wait, preserves audio and retries the same key', async ({ page }) => {
   const state = await mockStudy(page)
   await page.goto('/study/session-1/cards/card-1')

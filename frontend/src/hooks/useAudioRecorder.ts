@@ -208,5 +208,10 @@ export function useAudioRecorder(scope = '') {
     return new File([audioBlob], `${stem}.${extension}`, { type: audioBlob.type })
   }, [audioBlob])
 
-  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, getFile }
+  const clearSaved = useCallback((savedBlob: Blob | null) => {
+    // A save may finish after navigation and a newer recording in the same scope.
+    if (savedBlob && recordingDrafts.get(draftKey)?.blob === savedBlob) reset()
+  }, [draftKey, reset])
+
+  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, clearSaved, getFile }
 }

@@ -166,7 +166,7 @@ export default function RequestPage() {
     },
     onSuccess: (result, payload) => {
       if (!belongsToCurrentAccount(payload)) return
-      recorder.reset()
+      recorder.clearSaved(recorder.audioBlob)
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
