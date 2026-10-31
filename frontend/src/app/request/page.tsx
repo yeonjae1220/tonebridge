@@ -14,6 +14,8 @@ import { useI18n } from '@/i18n/I18nProvider'
 import type { Friend, StudyCard, StudySession } from '@/types'
 import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
+import { recordingRequest, RecordingTimeoutError } from '@/lib/recordingRequest'
 
 const FEEDBACK_GOALS = [
   { key: 'goal.pronunciation', value: '발음' },
@@ -87,7 +89,8 @@ export default function RequestPage() {
     setContext(source.data.context ?? '')
   }, [source.data])
 
-  const recorder = useAudioRecorder()
+  const recorder = useAudioRecorder('compose')
+  const navigate = useRecordingNavigation()
   const { upload, uploading } = usePresignedUpload()
 
   useEffect(() => {
@@ -163,6 +166,7 @@ export default function RequestPage() {
     },
     onSuccess: (result, payload) => {
       if (!belongsToCurrentAccount(payload)) return
+      recorder.reset()
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
@@ -173,7 +177,7 @@ export default function RequestPage() {
     },
     onError: (e: unknown, payload) => {
       if (!belongsToCurrentAccount(payload)) return
-      setError(getApiErrorMessage(e, t('request.failed')))
+      setError(e instanceof RecordingTimeoutError ? t('recording.timeout') : getApiErrorMessage(e, t('request.failed')))
     },
   })
 
@@ -213,10 +217,10 @@ export default function RequestPage() {
   const attachNativeAudio = async (cardId: string, file: File | undefined, requireSameAccount: () => void) => {
     if (!file) throw new Error(t('request.noAudioFile'))
     requireSameAccount()
-    const { data } = await api.post<{ uploadUrl: string; audioKey: string }>(
+    const { data } = await recordingRequest((signal) => api.post<{ uploadUrl: string; audioKey: string }>(
       `/cards/${cardId}/native-audios/upload-url`,
-      { fileName: file.name },
-    )
+      { fileName: file.name }, { signal },
+    ))
     requireSameAccount()
     await uploadRecording(data.uploadUrl, file)
     requireSameAccount()
@@ -266,7 +270,7 @@ export default function RequestPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto flex max-w-lg flex-col gap-5 px-4 py-8">
         <div>
-          <button type="button" onClick={() => router.back()} className="mb-3 min-h-11 text-sm font-semibold text-blue-600">← {t('common.back')}</button>
+          <button type="button" onClick={() => navigate(() => router.back())} className="mb-3 min-h-11 text-sm font-semibold text-blue-600">← {t('common.back')}</button>
           <h1 className="text-2xl font-bold text-gray-900">{t('request.composeTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('request.composeHelp')}</p>
         </div>
@@ -441,7 +445,7 @@ export default function RequestPage() {
           )}
 
           {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
-          {error && <p className="mt-4 text-sm font-medium text-red-500">{error}</p>}
+          {error && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
           <div className="mt-5 flex gap-2">
             {step > 0 && (

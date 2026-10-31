@@ -27,6 +27,46 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Exercises the existing API and security filters against PostgreSQL and real migrations. */
 class StudyCardPracticeIntegrationTest extends PostgresIntegrationTest {
 
+    @ParameterizedTest
+    @ValueSource(strings = {"attempts", "native-audios"})
+    void concurrentAndRepeatedConfirmationOfOneRecordingCreatesOneRow(String endpoint) throws Exception {
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<String> save = () -> {
+                start.await();
+                return mvc.perform(post("/api/cards/{id}/" + endpoint, cardId).with(as(owner))
+                                .contentType(MediaType.APPLICATION_JSON).content("{\"audioKey\":\"retry/same.webm\"}"))
+                        .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            };
+            var first = executor.submit(save);
+            var second = executor.submit(save);
+            start.countDown();
+            var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+            String id = mapper.readTree(first.get(15, java.util.concurrent.TimeUnit.SECONDS)).get("id").asText();
+            assertThat(mapper.readTree(second.get(15, java.util.concurrent.TimeUnit.SECONDS)).get("id").asText()).isEqualTo(id);
+            assertThat(mapper.readTree(save.call()).get("id").asText()).isEqualTo(id);
+        }
+        String table = endpoint.equals("attempts") ? "learner_attempts" : "card_native_audio";
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE card_id = ?", Integer.class, cardId)).isEqualTo(1);
+        // A matching key is not authority to replay another participant's write.
+        mvc.perform(post("/api/cards/{id}/" + endpoint, cardId).with(as(outsider))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"audioKey\":\"retry/same.webm\"}"))
+                .andExpect(status().isForbidden());
+        jdbc.update("UPDATE study_cards SET deleted_at = NOW() WHERE id = ?", cardId);
+        mvc.perform(post("/api/cards/{id}/" + endpoint, cardId).with(as(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"audioKey\":\"retry/same.webm\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void retryIdentityDoesNotMergeDifferentLearners() throws Exception {
+        join(friend);
+        submit(owner, "retry/shared-key.webm");
+        submit(friend, "retry/shared-key.webm");
+        submit(owner, "retry/shared-key.webm");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM learner_attempts WHERE card_id = ?", Integer.class, cardId)).isEqualTo(2);
+    }
+
     @Autowired WebApplicationContext context;
     @Autowired JdbcTemplate jdbc;
 

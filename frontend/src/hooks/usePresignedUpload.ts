@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { uploadRecording, captureAccountGuard } from '@/lib/validationDiagnostics'
+import { recordingRequest } from '@/lib/recordingRequest'
 
 interface PresignedUploadResult {
   uploadUrl: string
@@ -16,10 +17,10 @@ export function usePresignedUpload() {
     setUploading(true)
     setError(null)
     try {
-      const { data } = await api.post<PresignedUploadResult>('/storage/presigned-upload', {
+      const { data } = await recordingRequest((signal) => api.post<PresignedUploadResult>('/storage/presigned-upload', {
         fileName: file.name,
         contentType: file.type,
-      })
+      }, { signal }))
 
       requireSameAccount()
       await uploadRecording(data.uploadUrl, file)

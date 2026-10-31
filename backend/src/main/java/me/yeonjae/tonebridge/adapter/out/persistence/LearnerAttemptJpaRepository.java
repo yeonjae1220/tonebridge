@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface LearnerAttemptJpaRepository extends JpaRepository<LearnerAttemptEntity, UUID> {
+    Optional<LearnerAttemptEntity> findFirstByCardIdAndLearnerIdAndAudioUrlOrderByAttemptedAtAsc(UUID cardId, UUID learnerId, String audioUrl);
     Optional<LearnerAttemptEntity> findFirstByCardIdOrderByAttemptedAtDesc(UUID cardId);
     List<LearnerAttemptEntity> findByCardIdOrderByAttemptedAtDesc(UUID cardId);
     List<LearnerAttemptEntity> findByLearnerIdOrderByAttemptedAtDesc(UUID learnerId);

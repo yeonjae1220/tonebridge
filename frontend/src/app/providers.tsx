@@ -10,6 +10,7 @@ import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ErrorToast } from '@/components/ui/ErrorToast'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import { useErrorToastStore } from '@/stores/errorToastStore'
+import { RecordingNavigationGuard } from '@/hooks/useRecordingNavigation'
 
 /**
  * 뮤테이션 실패의 전역 안전망. 화면이 onError 를 직접 달았으면 그쪽이 책임지고, 안 달았으면 여기서
@@ -61,6 +62,7 @@ export function Providers({
       <QueryClientProvider client={queryClient}>
         {sessionReady ? (
           <I18nProvider initialLanguage={initialLanguage}>
+            <RecordingNavigationGuard />
             {children}
             <ErrorToast />
           </I18nProvider>

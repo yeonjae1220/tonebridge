@@ -4,11 +4,14 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { uploadRecording, captureAccountGuard } from '@/lib/validationDiagnostics'
+import { RecordingTimeoutError } from '@/lib/recordingRequest'
+import { recordingDrafts } from '@/lib/recordingDrafts'
 import { useAuthStore } from '@/stores/authStore'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
-import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { useStudyRecordingSave } from '@/hooks/useStudyRecordingSave'
+import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
+import { RecordingSaveStatus } from '@/components/recorder/RecordingSaveStatus'
 import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
 import { QueryError } from '@/components/ui/QueryError'
 import { formatDate } from '@/lib/dateUtils'
@@ -87,15 +90,23 @@ export default function StudyCardDetailPage() {
   const { data: currentUser, isLoading: currentUserLoading } = useCurrentUser()
   const queryClient = useQueryClient()
   const { language, t } = useI18n()
-  const attemptRecorder = useAudioRecorder(cardId)
-  const nativeRecorder = useAudioRecorder(cardId)
-  const { upload, uploading } = usePresignedUpload()
+  const attemptRecorder = useAudioRecorder(`practice:${cardId}`)
+  const nativeRecorder = useAudioRecorder(`example:${cardId}`)
+  const attemptSave = useStudyRecordingSave(cardId, 'practice')
+  const nativeSave = useStudyRecordingSave(cardId, 'example')
+  const navigate = useRecordingNavigation()
   const [noteDraft, setNoteDraft] = useState('')
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
   const [nativeModalOpen, setNativeModalOpen] = useState(false)
   const [attemptModalOpen, setAttemptModalOpen] = useState(false)
   const [recordingPurpose, setRecordingPurpose] = useState<'practice' | 'example'>('practice')
+
+  useEffect(() => {
+    const generation = useAuthStore.getState().sessionGeneration
+    setRecordingPurpose(recordingDrafts.get(`${generation}:example:${cardId}`)
+      && !recordingDrafts.get(`${generation}:practice:${cardId}`) ? 'example' : 'practice')
+  }, [cardId])
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -124,14 +135,11 @@ export default function StudyCardDetailPage() {
   }, [card])
 
   const submitAttemptMutation = useMutation({
+    networkMode: 'always',
     mutationFn: async () => {
       setActionError(''); setNotice('')
-      const requireSameAccount = captureAccountGuard()
-      const file = attemptRecorder.getFile(`attempt_${Date.now()}.webm`)
-      if (!file) throw new Error('NO_AUDIO')
-      const audioKey = await upload(file)
-      requireSameAccount()
-      return api.post(`/cards/${cardId}/attempts`, { audioKey })
+      if (!attemptRecorder.audioBlob) throw new Error('NO_AUDIO')
+      return attemptSave.save(attemptRecorder.audioBlob)
     },
     onSuccess: () => {
       setNotice(t('common.saved'))
@@ -139,23 +147,15 @@ export default function StudyCardDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
       attemptRecorder.reset()
     },
-    onError: () => setActionError(t('study.cardDetail.submitAttemptFailed')),
+    onError: (error) => setActionError(t(error instanceof RecordingTimeoutError ? 'recording.timeout' : 'study.cardDetail.submitAttemptFailed')),
   })
 
   const submitNativeAudioMutation = useMutation({
+    networkMode: 'always',
     mutationFn: async () => {
       setActionError(''); setNotice('')
-      const requireSameAccount = captureAccountGuard()
-      const file = nativeRecorder.getFile(`native_${Date.now()}.webm`)
-      if (!file) throw new Error('NO_AUDIO')
-      const { data } = await api.post<{ uploadUrl: string; audioKey: string }>(
-        `/cards/${cardId}/native-audios/upload-url`,
-        { fileName: file.name },
-      )
-      requireSameAccount()
-      await uploadRecording(data.uploadUrl, file)
-      requireSameAccount()
-      return api.post(`/cards/${cardId}/native-audios`, { audioKey: data.audioKey })
+      if (!nativeRecorder.audioBlob) throw new Error('NO_AUDIO')
+      return nativeSave.save(nativeRecorder.audioBlob)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'native-audios'] })
@@ -163,7 +163,7 @@ export default function StudyCardDetailPage() {
       nativeRecorder.reset()
       setNotice(t('common.saved'))
     },
-    onError: () => setActionError(t('study.cardDetail.nativeAudioFailed')),
+    onError: (error) => setActionError(t(error instanceof RecordingTimeoutError ? 'recording.timeout' : 'study.cardDetail.nativeAudioFailed')),
   })
 
   const updateNoteMutation = useMutation({
@@ -194,16 +194,17 @@ export default function StudyCardDetailPage() {
   if (!accessToken) return null
 
   const permissionReady = !!card && !currentUserLoading && !!currentUser
-  const recordingBusy = nativeModalOpen || attemptModalOpen || uploading
+  const recordingBusy = nativeModalOpen || attemptModalOpen
     || nativeRecorder.starting || attemptRecorder.starting
     || nativeRecorder.state === 'recording' || attemptRecorder.state === 'recording'
+    || nativeRecorder.state === 'processing' || attemptRecorder.state === 'processing'
     || submitAttemptMutation.isPending || submitNativeAudioMutation.isPending
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push(`/study/${sessionId}`)} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100">←</button>
+          <button onClick={() => navigate(() => router.push(`/study/${sessionId}`))} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100">←</button>
           <h1 className="text-xl font-bold text-gray-900">{t('study.cardDetail.title')}</h1>
         </div>
 
@@ -290,7 +291,7 @@ export default function StudyCardDetailPage() {
                     </button>
                   )}
                   {nativeRecorder.state === 'stopped' && nativeRecorder.audioUrl && (
-                    <audio controls src={nativeRecorder.audioUrl} className="w-full h-9" />
+                    <><p className="text-xs text-gray-500">{t('recording.draft')}</p><audio controls src={nativeRecorder.audioUrl} className="w-full h-9" /></>
                   )}
                   {nativeRecorder.state === 'stopped' && (
                     <button
@@ -301,6 +302,7 @@ export default function StudyCardDetailPage() {
                       {submitNativeAudioMutation.isPending ? t('common.saving') : t('study.cardDetail.uploadNativeAudio')}
                     </button>
                   )}
+                  <RecordingSaveStatus pending={submitNativeAudioMutation.isPending} stage={nativeSave.stage} />
                 </div>
               </section>
             ) : (
@@ -329,17 +331,18 @@ export default function StudyCardDetailPage() {
                     </button>
                   )}
                   {attemptRecorder.state === 'stopped' && attemptRecorder.audioUrl && (
-                    <audio controls src={attemptRecorder.audioUrl} className="w-full h-9" />
+                    <><p className="text-xs text-gray-500">{t('recording.draft')}</p><audio controls src={attemptRecorder.audioUrl} className="w-full h-9" /></>
                   )}
                   {attemptRecorder.state === 'stopped' && (
                     <button
                       onClick={() => submitAttemptMutation.mutate()}
-                      disabled={submitAttemptMutation.isPending || uploading}
+                      disabled={submitAttemptMutation.isPending}
                       className="w-full rounded-xl bg-action-neutral py-2.5 text-sm font-semibold text-action-neutral-foreground disabled:opacity-40"
                     >
-                      {submitAttemptMutation.isPending || uploading ? t('common.saving') : t('study.cardDetail.submitAttempt')}
+                      {submitAttemptMutation.isPending ? t('common.saving') : t('study.cardDetail.submitAttempt')}
                     </button>
                   )}
+                  <RecordingSaveStatus pending={submitAttemptMutation.isPending} stage={attemptSave.stage} />
                 </div>
               </section>
             )}
@@ -422,7 +425,7 @@ export default function StudyCardDetailPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push('/request?destination=COMMUNITY&sourceCard=' + encodeURIComponent(cardId))}
+              onClick={() => navigate(() => router.push('/request?destination=COMMUNITY&sourceCard=' + encodeURIComponent(cardId)))}
               className="flex-1 rounded-xl bg-action-neutral py-2.5 text-xs font-bold text-action-neutral-foreground"
             >
               {t('study.askCommunity')}

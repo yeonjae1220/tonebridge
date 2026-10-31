@@ -145,11 +145,15 @@ public class StudyCardService implements
 
     @Override
     public LearnerAttempt submit(SubmitLearnerAttemptUseCase.Command command) {
-        StudyCard card = cardPort.findById(command.cardId())
+        StudyCard card = cardPort.findByIdForUpdate(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
 
         // Card ownership controls editing, not who can practise the expression.
         requireMember(card.sessionId(), command.learnerId());
+
+        // Serialize same-card saves before checking; retries may race a timed-out request.
+        var existing = attemptPort.findByRecording(command.cardId(), command.learnerId(), command.audioKey());
+        if (existing.isPresent()) return existing.get();
 
         LearnerAttempt attempt = new LearnerAttempt(
                 null, command.cardId(), command.learnerId(), command.audioKey(), null, null, null);

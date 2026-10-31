@@ -125,6 +125,7 @@ for (const switching of [true, false]) {
       await started.promise
       if (switching) {
         await page.goBack()
+        page.once('dialog', (dialog) => dialog.accept())
         await page.getByRole('link', { name: 'Profile', exact: true }).click()
         await page.getByRole('button', { name: 'Settings', exact: true }).click()
         await page.getByRole('button', { name: /Log out/ }).click()

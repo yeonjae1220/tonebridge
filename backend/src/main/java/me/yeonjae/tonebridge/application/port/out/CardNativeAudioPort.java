@@ -10,5 +10,6 @@ public interface CardNativeAudioPort {
     CardNativeAudio save(CardNativeAudio audio);
     List<CardNativeAudio> findAllByCardId(UUID cardId);
     Optional<CardNativeAudio> findById(UUID id);
+    Optional<CardNativeAudio> findByRecording(UUID cardId, String audioKey);
     void deleteByIdAndCardId(UUID id, UUID cardId);
 }
