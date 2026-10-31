@@ -9,7 +9,7 @@ import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostic
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { isAxiosError } from 'axios'
-import { clearComposition, createComposition, loadComposition, markCompositionUploaded, PendingCompositionError, type CompositionDraft } from '@/lib/compositionDraft'
+import { clearComposition, compositionFile, createComposition, isCompositionSource, loadComposition, markCompositionUploaded, PendingCompositionError, type CompositionDraft } from '@/lib/compositionDraft'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -31,7 +31,7 @@ const FEEDBACK_GOALS = [
 
 type RequestKind = 'TEXT' | 'AUDIO'
 type Destination = 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
-type SubmitPayload = { sessionGeneration: number; draft: CompositionDraft; audioFile?: File; audioBlob: Blob | null; edit?: boolean }
+type SubmitPayload = { sessionGeneration: number; draft: CompositionDraft; edit?: boolean }
 function belongsToCurrentAccount(payload: SubmitPayload) {
   const current = useAuthStore.getState()
   return !!current.accessToken && current.sessionGeneration === payload.sessionGeneration
@@ -50,6 +50,7 @@ export default function RequestPage() {
   const { data: currentUser } = useCurrentUser()
   const [pending, setPending] = useState<CompositionDraft | null>(null)
   const [draftReady, setDraftReady] = useState(false)
+  const [preparing, setPreparing] = useState(false)
   const [stage, setStage] = useState<'checking' | 'uploading' | 'saving'>('checking')
   const { t } = useI18n()
   const [step, setStep] = useState(0)
@@ -142,8 +143,8 @@ export default function RequestPage() {
         if (!isAxiosError(error) || error.response?.status !== 404) throw error
       }
       if (draft.input.kind === 'AUDIO' && !draft.uploaded) {
-        if (!payload.audioFile) throw new Error(t('request.noAudioFile'))
-        const file = payload.audioFile
+        const file = await compositionFile(draft)
+        requireSameAccount()
         setStage('uploading')
         const { data } = await recordingRequest((signal) => api.post<{ uploadUrl: string }>(
           `${path}/upload-url`, { contentType: file.type }, { signal },
@@ -167,7 +168,7 @@ export default function RequestPage() {
         if (result.type === 'unavailable') setError(t('compose.unavailable'))
         setStep(0); return
       }
-      if (payload.draft.input.kind === 'AUDIO') recorder.clearSaved(payload.audioBlob)
+      if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
@@ -189,28 +190,28 @@ export default function RequestPage() {
   }
 
   const handleSubmit = async (edit = false) => {
-    if (!currentUser || submitMutation.isPending) return
+    if (!currentUser || submitMutation.isPending || preparing) return
     const generation = useAuthStore.getState().sessionGeneration
     const requireSameAccount = captureAccountGuard()
+    setPreparing(true)
     try {
       const draft = pending ?? await createComposition(currentUser.id, {
         kind, destination, friendId: destination === 'FRIEND' ? selectedFriendId : null,
         title: destination === 'PERSONAL' ? t('study.personalDefault') : `${selectedFriend?.username ?? ''} ${t('study.practiceDefault')}`,
         contentText, context, audioTitle: t('request.audioCardTitle'), targetLanguage, targetVariant, goals: [...selectedGoals],
-      })
+      }, recorder.audioBlob ? { blob: recorder.audioBlob, duration: recorder.duration } : undefined)
       requireSameAccount()
       setPending(draft)
       submitMutation.mutate({
         sessionGeneration: generation, draft, edit,
-        audioFile: recorder.getFile('composition.webm') ?? undefined, audioBlob: recorder.audioBlob,
       })
     } catch (error) {
       if (generation === useAuthStore.getState().sessionGeneration)
         setError(t(error instanceof PendingCompositionError ? 'compose.otherPending' : 'compose.storageError'))
-    }
+    } finally { if (generation === useAuthStore.getState().sessionGeneration) setPreparing(false) }
   }
 
-  const isPending = submitMutation.isPending
+  const isPending = submitMutation.isPending || preparing
   const locked = isPending || !!pending
   const hasContent = kind === 'TEXT' ? !!contentText.trim() : recorder.state === 'stopped'
   const canSubmit = draftReady && !isPending && (!!pending || (

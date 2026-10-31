@@ -7,7 +7,7 @@ async function fixture(context: BrowserContext) {
     { name: 'tonebridge_ui_language', value: 'en', domain: '127.0.0.1', path: '/' },
   ])
   const state = { puts: 0, saves: [] as { id: string; body: Record<string, unknown> }[], fail: true,
-    lostResponse: false, failPut: false, completed: new Map<string, object>(), keys: [] as string[], cancelled: [] as string[] }
+    lostResponse: false, failPut: false, completed: new Map<string, object>(), keys: [] as string[], cancelled: [] as string[], bytes: [] as Buffer[] }
   await context.route('**/api/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname
     if (path.startsWith('/api/auth/')) return route.fulfill({ json: { accessToken: 'owner' } })
@@ -42,6 +42,7 @@ async function fixture(context: BrowserContext) {
   })
   await context.route('**/compose-put', route => {
     state.puts++
+    state.bytes.push(route.request().postDataBuffer() ?? Buffer.alloc(0))
     return route.fulfill({ status: state.failPut ? 503 : 200 })
   })
   return state
@@ -160,4 +161,34 @@ test('two tabs cannot overwrite the pending identity or create a duplicate', asy
   await expect(second).toHaveURL(/\/study\/saved-session\/cards\//)
   expect(new Set(state.saves.map(save => save.id)).size).toBe(1)
   expect(state.completed.size).toBe(1)
+})
+test('a newer compose recording cannot replace submitted bytes or be cleared by its success', async ({ page, context }) => {
+  const state = await fixture(context); state.failPut = true
+  await compose(page, 'PERSONAL', 'AUDIO')
+  await expect(page.locator('main').getByRole('alert')).toBeVisible()
+  const original = state.bytes[0]
+  // Model another tab persisting a NEW recording in the mutable compose scope.
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('tonebridge-recording-drafts')
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const db = open.result, tx = db.transaction('drafts', 'readwrite'), store = tx.objectStore('drafts')
+      const read = store.get(JSON.stringify(['owner', 'compose']))
+      read.onsuccess = () => store.put({ ...read.result, id: 'newer-recording', draft: { blob: new Blob(['newer separate recording'], { type: 'audio/webm' }), duration: 1 } })
+      tx.oncomplete = () => { db.close(); resolve() }; tx.onerror = () => reject(tx.error)
+    }
+  }))
+  await reload(page); state.failPut = false; state.fail = false
+  await page.getByRole('button', { name: 'Resume saving', exact: true }).click()
+  await expect(page).toHaveURL(/\/study\/saved-session\/cards\//)
+  expect(state.bytes[1].equals(original)).toBe(true)
+  const retained = await page.evaluate(() => new Promise<string>((resolve, reject) => {
+    const open = indexedDB.open('tonebridge-recording-drafts')
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const db = open.result, tx = db.transaction('drafts'), read = tx.objectStore('drafts').get(JSON.stringify(['owner', 'compose']))
+      read.onsuccess = async () => resolve(await read.result.draft.blob.text()); tx.oncomplete = () => db.close()
+    }
+  }))
+  expect(retained).toBe('newer separate recording')
 })
