@@ -190,7 +190,7 @@ public class StudyCardService implements
 
         requireMember(card.sessionId(), command.reviewerId());
 
-        LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score()));
+        LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score(), command.reviewerId(), java.time.Instant.now()));
 
         eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.FEEDBACK_SAVED,
                 command.reviewerId(), attempt.learnerId(), card.sessionId(), card.id(), attempt.id()));

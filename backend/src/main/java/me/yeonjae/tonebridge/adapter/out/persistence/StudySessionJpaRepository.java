@@ -8,6 +8,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface StudySessionJpaRepository extends JpaRepository<StudySessionEntity, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM StudySessionEntity s WHERE s.id = :id AND s.deletedAt IS NULL")
+    Optional<StudySessionEntity> lockActiveById(UUID id);
+
+    @Query("""
+            SELECT s.id FROM StudySessionEntity s WHERE s.deletedAt IS NULL
+            AND EXISTS (SELECT m FROM SessionMemberEntity m WHERE m.sessionId = s.id AND m.userId = :userId)
+            AND EXISTS (SELECT m FROM SessionMemberEntity m WHERE m.sessionId = s.id AND m.userId = :friendId)
+            ORDER BY s.id
+            """)
+    List<UUID> findSharedIds(UUID userId, UUID friendId);
+
 
     @Query("""
             SELECT DISTINCT s FROM StudySessionEntity s

@@ -70,8 +70,9 @@ public class FriendController {
     @DeleteMapping("/{friendId}")
     public ResponseEntity<Void> removeFriend(
             @AuthenticationPrincipal UUID userId,
-            @PathVariable UUID friendId) {
-        removeUseCase.remove(new RemoveFriendUseCase.Command(userId, friendId));
+            @PathVariable UUID friendId,
+            @RequestParam(defaultValue = "false") boolean closeShared) {
+        removeUseCase.remove(new RemoveFriendUseCase.Command(userId, friendId, closeShared));
         return ResponseEntity.noContent().build();
     }
 

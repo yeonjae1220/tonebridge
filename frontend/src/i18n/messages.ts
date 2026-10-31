@@ -1,3 +1,4 @@
+import { feedbackMessages, type FeedbackMessageKey } from './feedbackMessages'
 import { uxMessages, type UxMessageKey } from './uxMessages'
 
 export const SUPPORTED_UI_LANGUAGES = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
@@ -3523,7 +3524,7 @@ export function languageDisplayName(code: string, uiLanguage: UiLanguage) {
   }
 }
 
-type MessageKey = KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey
+type MessageKey = KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey | FeedbackMessageKey
 
 export type { MessageKey }
 
@@ -3663,3 +3664,5 @@ Object.assign(messages.ru, {
 })
 
 for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], uxMessages[language])
+
+for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], feedbackMessages[language])

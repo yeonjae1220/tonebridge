@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.adapter.in.web;
 
+import me.yeonjae.tonebridge.application.port.in.LeaveStudySessionUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
@@ -31,6 +32,13 @@ public class StudySessionController {
     private final GetStudyCardUseCase getCardUseCase;
     private final UpdateStudySessionUseCase updateUseCase;
     private final DeleteStudySessionUseCase deleteUseCase;
+    private final LeaveStudySessionUseCase leaveUseCase;
+
+    @DeleteMapping("/{sessionId}/membership")
+    public ResponseEntity<Void> leaveSession(@AuthenticationPrincipal UUID userId, @PathVariable UUID sessionId) {
+        leaveUseCase.leave(sessionId, userId);
+        return ResponseEntity.noContent().build();
+    }
 
     @PostMapping
     public ResponseEntity<StudySessionResponse> create(

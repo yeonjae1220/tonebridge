@@ -39,13 +39,16 @@ public class LearnerAttemptEntity {
     @Column(nullable = false, updatable = false)
     private Instant attemptedAt;
 
+    private UUID correctionAuthorId;
+    private Instant correctionUpdatedAt;
+
     @PrePersist
     void prePersist() {
         if (attemptedAt == null) attemptedAt = Instant.now();
     }
 
     public LearnerAttempt toDomain() {
-        return new LearnerAttempt(id, cardId, learnerId, audioUrl, correctionNote, score, attemptedAt);
+        return new LearnerAttempt(id, cardId, learnerId, audioUrl, correctionNote, score, attemptedAt, correctionAuthorId, correctionUpdatedAt);
     }
 
     public static LearnerAttemptEntity fromDomain(LearnerAttempt a) {
@@ -56,6 +59,8 @@ public class LearnerAttemptEntity {
                 .audioUrl(a.audioUrl())
                 .correctionNote(a.correctionNote())
                 .score(a.score())
+                .correctionAuthorId(a.correctionAuthorId())
+                .correctionUpdatedAt(a.correctionUpdatedAt())
                 .attemptedAt(a.attemptedAt())
                 .build();
     }

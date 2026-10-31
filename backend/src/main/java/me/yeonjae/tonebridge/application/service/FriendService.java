@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.application.service;
 
+import me.yeonjae.tonebridge.application.port.out.StudySessionPort;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.AcceptFriendRequestUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeclineFriendRequestUseCase;
@@ -33,6 +34,7 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
 
     private final FriendPort friendPort;
     private final UserPort userPort;
+    private final StudySessionPort sessionPort;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -118,6 +120,7 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
         FriendRequest relationship = friendPort.lockAcceptedBetween(command.requesterId(), command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
 
+        if (command.closeShared()) sessionPort.closeSharedBetween(command.requesterId(), command.friendId());
         friendPort.deleteById(relationship.id());
     }
 }

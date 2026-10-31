@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -21,6 +22,7 @@ export default function StudySessionPage() {
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
   const { language, t } = useI18n()
+  const [leaving, setLeaving] = useState(false)
   const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
   const [movingCard, setMovingCard] = useState<StudyCard | null>(null)
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
@@ -45,6 +47,18 @@ export default function StudySessionPage() {
     queryKey: ['sessions'],
     queryFn: () => api.get('/sessions').then((r) => r.data),
     enabled: !!accessToken,
+  })
+
+  const leaveMutation = useMutation({
+    mutationFn: () => api.delete(`/sessions/${sessionId}/membership`),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['sessions'] })
+      queryClient.removeQueries({ queryKey: ['cards'] })
+      queryClient.removeQueries({ queryKey: ['study-audio'] })
+      queryClient.removeQueries({ queryKey: ['practice-feedback'] })
+      router.replace('/study')
+    },
+    onError: () => {},
   })
 
   const updateCardMutation = useMutation({
@@ -123,6 +137,11 @@ export default function StudySessionPage() {
             {t('study.cards.add')}
           </button>
         </div>
+
+        {session && currentUser && !sessionError && (session.memberIds.length > 1 || session.createdBy !== currentUser.id) && <div className="mb-4 text-right">
+          <button type="button" onClick={() => { setLeaving(true); leaveMutation.reset() }}
+            className="min-h-11 px-3 text-sm text-gray-500">{t('sharing.leave')}</button>
+        </div>}
 
         {cardsError || sessionError ? (
           <QueryError onRetry={() => { void refetchCards(); void refetchSession() }} />
@@ -281,6 +300,16 @@ export default function StudySessionPage() {
           }}
         />
       )}
+      {leaving && <Dialog title={t('sharing.leave')} busy={leaveMutation.isPending} onClose={() => setLeaving(false)}>
+        <p className="text-sm text-gray-700">{t('sharing.leaveHelp')}</p>
+        <p className="mt-3 text-sm text-gray-500">{t('sharing.urls')}</p>
+        <Link href="/help" className="my-3 inline-block text-sm text-blue-600">{t('validation.help')}</Link>
+        {leaveMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{t('sharing.failed')}</p>}
+        <button type="button" disabled={leaveMutation.isPending} onClick={() => leaveMutation.mutate()}
+          className="min-h-11 w-full rounded-xl bg-action-record px-4 text-sm font-semibold text-white disabled:opacity-40">
+          {t(leaveMutation.isPending ? 'friends.processing' : 'sharing.leave')}
+        </button>
+      </Dialog>}
     </main>
   )
 }

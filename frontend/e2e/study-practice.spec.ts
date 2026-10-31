@@ -56,6 +56,7 @@ async function mockStudy(page: Page, userId = 'owner') {
       }
       return route.fulfill({ status: 201, json: {} })
     }
+    if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/users/me') { state.userReads++; return route.fulfill({ json: { id: state.activeUserId, username: state.activeUserId, onboardingCompleted: true, uiLanguage: 'ko', credits: 0, nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'] } }) }
     if (path === '/api/users/me/profile') return route.fulfill({ json: { username: userId, level: 'NATIVE', reputationScore: 0, streakDays: 0, badges: [], totalCorrections: 0, adoptedCorrections: 0, nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'] } })
     if (path === '/api/cards/card-1') return route.fulfill({ json: card })
@@ -283,12 +284,14 @@ test('non-owner can leave feedback without inventing a score; list refreshes aft
   const state = await mockStudy(page, 'friend')
   await page.goto('/study/session-1')
   await page.getByText('こんにちは', { exact: true }).click()
+  await page.getByRole('button', { name: '피드백 작성', exact: true }).click()
   const form = page.locator('form').filter({ has: page.getByPlaceholder('이 시도에 대한 피드백을 작성하세요...') })
   await expect(form.getByRole('combobox')).toHaveValue('')
   await form.getByRole('textbox').fill('첫 음절을 더 길게 말해보세요.')
   await form.getByRole('button', { name: '저장', exact: true }).click()
   await expect.poll(() => state.attempts[0].correctionNote).toBe('첫 음절을 더 길게 말해보세요.')
   expect(state.attempts[0].score).toBeNull()
+  await page.getByRole('button', { name: '피드백 수정', exact: true }).click()
   await form.getByRole('combobox').selectOption('5')
   await form.getByRole('button', { name: '저장', exact: true }).click()
   await expect.poll(() => state.attempts[0].score).toBe(5)

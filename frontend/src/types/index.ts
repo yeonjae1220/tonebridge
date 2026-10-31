@@ -164,6 +164,8 @@ export interface LearnerAttempt {
   correctionNote: string | null
   score: number | null
   attemptedAt: string
+  correctionAuthorId?: string | null
+  correctionUpdatedAt?: string | null
 }
 
 export interface StudyCard {
@@ -196,3 +198,18 @@ export interface CorrectionFeedPage {
   items: CorrectionRequest[]
   nextCursor: string | null
 }
+
+export interface PracticeFeedbackItem {
+  attemptId: string
+  cardId: string
+  sessionId: string
+  phrase: string
+  sessionTitle: string | null
+  correctionNote: string
+  score: number | null
+  attemptedAt: string
+  correctionAuthorId: string | null
+  correctionAuthorName: string | null
+  correctionUpdatedAt: string | null
+}
+export interface PracticeFeedbackPage { items: PracticeFeedbackItem[]; nextPage: number | null }

@@ -79,6 +79,31 @@ public class StudySessionJpaAdapter implements StudySessionPort {
     }
 
     @Override
+    public Optional<StudySession> findByIdForUpdate(UUID id) {
+        return sessionRepository.lockActiveById(id).map(StudySessionEntity::toDomain);
+    }
+
+    @Override
+    public void removeMember(UUID id, UUID userId) {
+        sessionRepository.lockActiveById(id).ifPresent(session ->
+                session.getMembers().removeIf(member -> member.getUserId().equals(userId)));
+    }
+
+    @Override
+    public void closeSharedBetween(UUID userId, UUID friendId) {
+        // FriendService holds the same friendship lock used by shared-session creation.
+        for (UUID id : sessionRepository.findSharedIds(userId, friendId)) {
+            sessionRepository.lockActiveById(id).ifPresent(session -> {
+                var members = session.getMembers();
+                if (members.stream().anyMatch(m -> m.getUserId().equals(userId))
+                        && members.stream().anyMatch(m -> m.getUserId().equals(friendId))) {
+                    members.removeIf(m -> m.getUserId().equals(userId) || m.getUserId().equals(friendId));
+                }
+            });
+        }
+    }
+
+    @Override
     public void softDelete(UUID id) {
         StudySessionEntity existing = sessionRepository.findByIdWithMembers(id)
                 .orElseThrow(() -> new IllegalStateException("Session not found for delete: id=" + id));

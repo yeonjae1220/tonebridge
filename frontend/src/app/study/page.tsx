@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import type { Friend, FriendRequest, StudySession, StudyCard } from '@/types'
+import type { Friend, FriendRequest, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PracticeFeedback } from '@/components/study/PracticeFeedback'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -146,7 +147,7 @@ export default function StudyPage() {
           </div>}
         </section>}
 
-        {!isError && friendSessions.length > 0 && currentUser && <RecentFeedback sessions={friendSessions} userId={currentUser.id} />}
+        {currentUser && <PracticeFeedback preview />}
 
         {!isError && sessions.length > 0 && <section className="mb-6 rounded-2xl border border-gray-100 bg-surface p-5">
           <h2 className="mb-3 text-base font-bold text-gray-900">{t('study.todayTitle')}</h2>
@@ -396,31 +397,4 @@ function SessionCard({ session, onOpen, onRename, onDelete }: SessionCardProps) 
       </div>
     </div>
   )
-}
-
-function RecentFeedback({ sessions, userId }: { sessions: StudySession[]; userId: string }) {
-  const { t } = useI18n()
-  // Bound home requests; these are recent practice summaries, not an unread inbox.
-  const recent = sessions.slice(0, 5)
-  const queries = useQueries({ queries: recent.map((session) => ({
-    queryKey: ['sessions', session.id, 'cards'],
-    queryFn: () => api.get<StudyCard[]>(`/sessions/${session.id}/cards`).then((response) => response.data),
-    refetchInterval: 30_000,
-  })) })
-  const failed = queries.some((query) => query.isError)
-  const loading = queries.some((query) => query.isLoading)
-  const feedback = queries.flatMap((query) => query.data ?? [])
-    .filter((card) => card.latestAttempt?.learnerId === userId && card.latestAttempt.correctionNote)
-    .sort((a, b) => b.latestAttempt!.attemptedAt.localeCompare(a.latestAttempt!.attemptedAt)).slice(0, 3)
-  return <section className="mb-5 rounded-2xl border border-gray-100 bg-surface p-5">
-    <h2 className="text-base font-bold text-gray-900">{t('study.recentFeedback')}</h2>
-    <p className="mt-1 mb-3 text-sm text-gray-500">{t('study.recentFeedbackScope')}</p>
-    {failed ? <QueryError onRetry={() => { queries.forEach((query) => void query.refetch()) }} /> : loading ? <p role="status">{t('common.loading')}</p> : feedback.length === 0 ? <p className="text-sm text-gray-500">{t('study.feedbackEmpty')}</p> : <div className="space-y-3">
-      {feedback.map((card) => <Link key={card.id} href={`/study/${card.sessionId}/cards/${card.id}`} className="block rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <p className="font-semibold text-gray-900">{card.phrase}</p>
-        <p className="mt-1 line-clamp-2 text-sm text-gray-600">{card.latestAttempt!.correctionNote}</p>
-        <p className="mt-3 text-sm font-semibold text-blue-700">{t('study.retryWithFeedback')} →</p>
-      </Link>)}
-    </div>}
-  </section>
 }
