@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface CardNativeAudioJpaRepository extends JpaRepository<CardNativeAudioEntity, UUID> {
+    java.util.Optional<CardNativeAudioEntity> findFirstByCardIdAndAudioKeyOrderByCreatedAtAsc(UUID cardId, String audioKey);
     List<CardNativeAudioEntity> findAllByCardIdOrderByCreatedAtAsc(UUID cardId);
     void deleteByIdAndCardId(UUID id, UUID cardId);
 }

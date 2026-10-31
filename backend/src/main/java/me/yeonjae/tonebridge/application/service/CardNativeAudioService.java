@@ -54,8 +54,11 @@ public class CardNativeAudioService implements
 
     @Override
     public CardNativeAudio confirm(AddCardNativeAudioUseCase.ConfirmCommand command) {
-        StudyCard card = requireCard(command.cardId());
+        StudyCard card = cardPort.findByIdForUpdate(command.cardId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
         requireMember(card.sessionId(), command.uploaderId());
+        var existing = nativeAudioPort.findByRecording(command.cardId(), command.audioKey());
+        if (existing.isPresent()) return existing.get();
         CardNativeAudio audio = new CardNativeAudio(null, command.cardId(), command.audioKey(), null, null);
         CardNativeAudio saved = nativeAudioPort.save(audio);
         eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.EXAMPLE_SAVED,

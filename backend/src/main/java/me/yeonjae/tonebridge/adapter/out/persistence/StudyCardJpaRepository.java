@@ -9,6 +9,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface StudyCardJpaRepository extends JpaRepository<StudyCardEntity, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM StudyCardEntity c WHERE c.id = :id AND c.deletedAt IS NULL")
+    Optional<StudyCardEntity> findActiveByIdForUpdate(@Param("id") UUID id);
+
     @Query("SELECT c FROM StudyCardEntity c WHERE c.id = :id AND c.deletedAt IS NULL")
     Optional<StudyCardEntity> findActiveById(@Param("id") UUID id);
 

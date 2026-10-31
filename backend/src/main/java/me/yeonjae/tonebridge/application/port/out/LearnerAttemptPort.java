@@ -11,6 +11,7 @@ import java.util.UUID;
 public interface LearnerAttemptPort {
     LearnerAttempt save(LearnerAttempt attempt);
     Optional<LearnerAttempt> findById(UUID id);
+    Optional<LearnerAttempt> findByRecording(UUID cardId, UUID learnerId, String audioKey);
     Optional<LearnerAttempt> findLatestByCardId(UUID cardId);
 
     /**

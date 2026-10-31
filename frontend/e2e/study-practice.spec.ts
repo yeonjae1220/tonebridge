@@ -89,6 +89,140 @@ async function recordAudio(page: Page) {
   await expect.poll(() => page.locator('#recording-panel audio').evaluate((audio: HTMLAudioElement) => audio.readyState)).toBeGreaterThan(0)
 }
 
+test('unsaved recording survives client navigation and browser back; reload is guarded', async ({ page }) => {
+  await mockStudy(page)
+  await page.goto('/study/session-1')
+  await page.getByText('こんにちは', { exact: true }).click()
+  await recordAudio(page)
+  const initial = await page.locator('#recording-panel audio').evaluate(async (audio: HTMLAudioElement) => {
+    const blob = await (await fetch(audio.src)).blob()
+    return { size: blob.size, duration: audio.duration }
+  })
+  expect(Number.isFinite(initial.duration)).toBe(true)
+  expect(initial.duration).toBeGreaterThan(0)
+  // Cancelling explicit navigation keeps the exact preview in place.
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: '←', exact: true }).click()
+  await expect(page).toHaveURL(/cards\/card-1$/)
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: '←', exact: true }).click()
+  await expect(page).toHaveURL(/\/study\/session-1$/)
+  await page.goBack()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(1)
+  expect(await page.locator('#recording-panel audio').evaluate(async (audio: HTMLAudioElement) => (await (await fetch(audio.src)).blob()).size)).toBe(initial.size)
+  const dialog = page.waitForEvent('dialog')
+  const reload = page.reload({ timeout: 1000 }).catch(() => null)
+  const warning = await dialog
+  expect(warning.type()).toBe('beforeunload')
+  await warning.dismiss()
+  await reload
+  await expect(page.locator('#recording-panel audio')).toHaveCount(1)
+  // Native browser back need not be monkey-patched: returning restores the draft.
+  await page.goBack()
+  await page.getByText('こんにちは', { exact: true }).click()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(1)
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(0)
+})
+
+test('example draft reopens in its original purpose after browser back', async ({ page }) => {
+  await mockStudy(page)
+  await page.goto('/study/session-1')
+  await page.getByText('こんにちは', { exact: true }).click()
+  await page.getByRole('button', { name: '예시 발음 추가', exact: true }).click()
+  await recordAudio(page)
+  await page.goBack()
+  await page.getByText('こんにちは', { exact: true }).click()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '예시 발음 추가', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('a late save after navigation cannot delete a newer draft', async ({ page }) => {
+  await mockStudy(page)
+  let finish!: () => void
+  const held = new Promise<void>((resolve) => { finish = resolve })
+  let started!: () => void
+  const saving = new Promise<void>((resolve) => { started = resolve })
+  await page.route('**/api/cards/card-1/attempts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    started(); await held
+    await route.fulfill({ status: 201, json: attempt })
+  })
+  await page.goto('/study/session-1')
+  await page.getByText('こんにちは', { exact: true }).click()
+  await recordAudio(page)
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await saving
+  await page.goBack()
+  await page.getByText('こんにちは', { exact: true }).click()
+  await page.locator('#recording-panel').getByRole('button', { name: '다시 녹음', exact: true }).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('dialog').getByRole('button', { name: '다시 녹음', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '녹음 시작', exact: true }).click()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: '녹음 중지', exact: true }).click()
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
+  const newer = await page.locator('#recording-panel audio').getAttribute('src')
+  const response = page.waitForResponse((r) => r.url().endsWith('/attempts') && r.request().method() === 'POST')
+  finish(); await response
+  await page.waitForTimeout(150)
+  await expect(page.locator('#recording-panel audio')).toHaveAttribute('src', newer!)
+})
+
+test('upload timeout explains the wait, preserves audio and retries the same key', async ({ page }) => {
+  const state = await mockStudy(page)
+  await page.goto('/study/session-1/cards/card-1')
+  await recordAudio(page)
+  const blobUrl = await page.locator('#recording-panel audio').getAttribute('src')
+  await page.clock.install()
+  let release!: () => void
+  let started = false
+  await page.route('**/test-audio-upload', async (route) => {
+    started = true
+    await new Promise<void>((resolve) => { release = resolve })
+    await route.fulfill({ status: 200, body: '' }).catch(() => {})
+  })
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await expect.poll(() => started).toBe(true)
+  await page.clock.fastForward(5100)
+  await expect(page.getByRole('status')).toContainText('연결이 지연')
+  await page.clock.fastForward(26_000)
+  await expect(page.getByRole('alert').filter({ hasText: '저장 응답이 지연' })).toBeVisible()
+  await expect(page.locator('#recording-panel audio')).toHaveAttribute('src', blobUrl!)
+  release()
+  await page.unroute('**/test-audio-upload')
+  await page.route('**/test-audio-upload', (route) => route.fulfill({ status: 200, body: '' }))
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(0)
+  expect(state.submitted.filter((entry) => entry.path.endsWith('/presigned-upload'))).toHaveLength(1)
+  expect(state.submitted.filter((entry) => entry.path.endsWith('/attempts'))).toHaveLength(1)
+})
+
+test('lost save response retries confirmation without uploading a second audio object', async ({ page }) => {
+  const state = await mockStudy(page)
+  await page.goto('/study/session-1/cards/card-1')
+  await recordAudio(page)
+  await page.clock.install()
+  let release!: () => void
+  let firstKey: unknown
+  await page.route('**/api/cards/card-1/attempts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    firstKey = route.request().postDataJSON().audioKey
+    await new Promise<void>((resolve) => { release = resolve })
+    await route.fulfill({ status: 201, json: attempt }).catch(() => {})
+  })
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await expect.poll(() => firstKey).toBe('recording.webm')
+  await page.clock.fastForward(31_000)
+  await expect(page.getByRole('alert').filter({ hasText: '저장 응답이 지연' })).toBeVisible()
+  release()
+  await page.unroute('**/api/cards/card-1/attempts')
+  await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
+  await expect(page.locator('#recording-panel audio')).toHaveCount(0)
+  expect(state.uploadTypes).toHaveLength(1)
+  expect(state.submitted.find((entry) => entry.path.endsWith('/attempts'))?.body.audioKey).toBe(firstKey)
+})
+
 for (const user of ['owner', 'friend']) {
   test(`${user} can save practice and then add an example`, async ({ page }) => {
     const state = await mockStudy(page, user)
@@ -272,6 +406,7 @@ test('upload finishing after logout never confirms a practice under another sess
   await recordAudio(page)
   await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
   await expect.poll(() => uploading).toBe(true)
+  page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('link', { name: '프로필', exact: true }).click()
   await page.getByRole('button', { name: '설정', exact: true }).click()
   await page.getByRole('button', { name: /로그아웃/ }).click()

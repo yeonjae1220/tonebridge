@@ -18,6 +18,11 @@ public class StudyCardJpaAdapter implements StudyCardPort {
     private final StudyCardJpaRepository repository;
 
     @Override
+    public Optional<StudyCard> findByIdForUpdate(UUID id) {
+        return repository.findActiveByIdForUpdate(id).map(StudyCardEntity::toDomain);
+    }
+
+    @Override
     public StudyCard save(StudyCard card) {
         return repository.save(StudyCardEntity.fromDomain(card)).toDomain();
     }

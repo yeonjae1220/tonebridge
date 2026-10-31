@@ -16,6 +16,11 @@ public class CardNativeAudioJpaAdapter implements CardNativeAudioPort {
     private final CardNativeAudioJpaRepository repository;
 
     @Override
+    public Optional<CardNativeAudio> findByRecording(UUID cardId, String audioKey) {
+        return repository.findFirstByCardIdAndAudioKeyOrderByCreatedAtAsc(cardId, audioKey).map(CardNativeAudioEntity::toDomain);
+    }
+
+    @Override
     public CardNativeAudio save(CardNativeAudio audio) {
         return repository.save(CardNativeAudioEntity.fromDomain(audio)).toDomain();
     }

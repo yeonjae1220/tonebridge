@@ -45,7 +45,7 @@ export function RecordedAudioPreview({
       </div>
       <button
         type="button"
-        onClick={onReset}
+        onClick={() => { if (window.confirm(t('recording.discard'))) onReset() }}
         className="mt-3 w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-surface transition-colors"
       >
         {t('request.recordAgain')}
@@ -88,8 +88,9 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
   }
 
   return (
-    <Dialog title={heading} onClose={close} busy={recorder.state === 'recording'}>
+    <Dialog title={heading} onClose={close} busy={recorder.state === 'recording' || recorder.state === 'processing'}>
       <div className="flex flex-col gap-5">
+        {recorder.state === 'processing' && <p role="status">{t('recording.processing')}</p>}
         <RecorderErrorMessage error={recorder.error} />
 
         {recorder.state === 'idle' && (

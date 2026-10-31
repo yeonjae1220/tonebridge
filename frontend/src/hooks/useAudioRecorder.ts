@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { reportDiagnostic } from '@/lib/validationDiagnostics'
+import { recordingDrafts } from '@/lib/recordingDrafts'
+import { finalizeRecording } from '@/lib/audioDuration'
 
-type RecorderState = 'idle' | 'recording' | 'stopped'
+type RecorderState = 'idle' | 'recording' | 'processing' | 'stopped'
 const AUDIO_FORMATS = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']
 
 /**
@@ -53,15 +55,18 @@ export function useAudioRecorder(scope = '') {
   const urlRef = useRef<string | null>(null)
   const startingRef = useRef(false)
   const generation = useRef(0)
+  const discardedRuns = useRef(new Set<number>())
+  const draftKey = `${sessionGeneration}:${scope}`
+  const startedAt = useRef(0)
 
-  const release = useCallback(() => {
+  const release = useCallback((preserve = false) => {
+    if (!preserve) discardedRuns.current.add(generation.current)
     generation.current++
     startingRef.current = false
     const recorder = recorderRef.current
     recorderRef.current = null
     if (recorder) {
-      recorder.onstop = null
-      recorder.ondataavailable = null
+      if (!preserve) { recorder.onstop = null; recorder.ondataavailable = null }
       recorder.onerror = null
       if (recorder.state !== 'inactive') recorder.stop()
     }
@@ -75,18 +80,39 @@ export function useAudioRecorder(scope = '') {
 
   const reset = useCallback(() => {
     release()
+    recordingDrafts.delete(draftKey)
     setAudioBlob(null)
     setAudioUrl(null)
     setDuration(0)
     setError(null)
     setStarting(false)
     setState('idle')
-  }, [release])
+  }, [release, draftKey])
 
   useEffect(() => {
-    reset()
-    return release
-  }, [sessionGeneration, scope, release, reset])
+    setState('idle'); setStarting(false); setError(null); setAudioBlob(null); setAudioUrl(null); setDuration(0)
+    let previousBlob: Blob | null = null
+    const restore = () => {
+      const draft = recordingDrafts.get(draftKey)
+      if (!draft) {
+        if (previousBlob) {
+          previousBlob = null
+          if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+          urlRef.current = null
+          setAudioBlob(null); setAudioUrl(null); setDuration(0); setState('idle')
+        }
+        return
+      }
+      if (draft.blob === previousBlob) return
+      previousBlob = draft.blob
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+      urlRef.current = URL.createObjectURL(draft.blob)
+      setAudioBlob(draft.blob); setAudioUrl(urlRef.current); setDuration(draft.duration); setState('stopped')
+    }
+    restore()
+    const unsubscribe = recordingDrafts.subscribe(restore)
+    return () => { unsubscribe(); release(true) }
+  }, [draftKey, release])
 
   const start = useCallback(async () => {
     if (startingRef.current || recorderRef.current?.state === 'recording') return
@@ -111,44 +137,49 @@ export function useAudioRecorder(scope = '') {
       }
       streamRef.current = stream
       const recorder = new MediaRecorder(stream, { mimeType })
+      const recordingStarted = performance.now()
       recorderRef.current = recorder
       const chunks: BlobPart[] = []
       recorder.ondataavailable = (event) => {
-        if (run === generation.current && event.data.size > 0) chunks.push(event.data)
+        if (!discardedRuns.current.has(run) && event.data.size > 0) chunks.push(event.data)
       }
       recorder.onerror = () => {
         if (run !== generation.current) return
         release()
+        recordingDrafts.delete(draftKey)
         setState('idle')
         setError('unknown')
         reportDiagnostic('RECORDING_FAILED')
       }
-      recorder.onstop = () => {
-        if (run !== generation.current) return
+      recorder.onstop = async () => {
+        if (discardedRuns.current.has(run) || sessionGeneration !== useAuthStore.getState().sessionGeneration) return
         stream?.getTracks().forEach((track) => track.stop())
-        streamRef.current = null
-        recorderRef.current = null
-        if (timerRef.current) clearInterval(timerRef.current)
-        timerRef.current = null
+        if (run === generation.current) {
+          streamRef.current = null
+          recorderRef.current = null
+          if (timerRef.current) clearInterval(timerRef.current)
+          timerRef.current = null
+        }
         // Keep the container type consistent with the upload signature and extension.
         const contentType = (recorder.mimeType || mimeType).split(';')[0].trim()
         const blob = new Blob(chunks, { type: contentType })
         if (!blob.size) {
-          setState('idle')
-          setError('unknown')
+          recordingDrafts.delete(draftKey)
+          if (run === generation.current) { setState('idle'); setError('unknown') }
           reportDiagnostic('RECORDING_FAILED')
           return
         }
-        const url = URL.createObjectURL(blob)
-        urlRef.current = url
-        setAudioBlob(blob)
-        setAudioUrl(url)
-        setState('stopped')
+        if (run === generation.current) setState('processing')
+        const draft = await finalizeRecording(blob, (performance.now() - recordingStarted) / 1000)
+        if (discardedRuns.current.has(run) || sessionGeneration !== useAuthStore.getState().sessionGeneration) return
+        recordingDrafts.set(draftKey, draft)
         reportDiagnostic('RECORDING_SUCCEEDED')
       }
       recorder.start(100)
+      startedAt.current = performance.now()
+      recordingDrafts.markActive(draftKey)
       setState('recording')
-      timerRef.current = setInterval(() => setDuration((value) => value + 1), 1000)
+      timerRef.current = setInterval(() => setDuration(Math.floor((performance.now() - startedAt.current) / 1000)), 250)
     } catch (cause) {
       stream?.getTracks().forEach((track) => track.stop())
       if (run !== generation.current) return
@@ -164,7 +195,7 @@ export function useAudioRecorder(scope = '') {
         setStarting(false)
       }
     }
-  }, [release, reset])
+  }, [release, reset, draftKey, sessionGeneration])
 
   const stop = useCallback(() => {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
@@ -177,5 +208,10 @@ export function useAudioRecorder(scope = '') {
     return new File([audioBlob], `${stem}.${extension}`, { type: audioBlob.type })
   }, [audioBlob])
 
-  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, getFile }
+  const clearSaved = useCallback((savedBlob: Blob | null) => {
+    // A save may finish after navigation and a newer recording in the same scope.
+    if (savedBlob && recordingDrafts.get(draftKey)?.blob === savedBlob) reset()
+  }, [draftKey, reset])
+
+  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, clearSaved, getFile }
 }

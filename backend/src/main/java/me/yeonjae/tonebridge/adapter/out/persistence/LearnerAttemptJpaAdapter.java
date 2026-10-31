@@ -21,6 +21,12 @@ public class LearnerAttemptJpaAdapter implements LearnerAttemptPort {
     private final LearnerAttemptJpaRepository repository;
 
     @Override
+    public Optional<LearnerAttempt> findByRecording(UUID cardId, UUID learnerId, String audioKey) {
+        return repository.findFirstByCardIdAndLearnerIdAndAudioUrlOrderByAttemptedAtAsc(cardId, learnerId, audioKey)
+                .map(LearnerAttemptEntity::toDomain);
+    }
+
+    @Override
     public LearnerAttempt save(LearnerAttempt attempt) {
         return repository.save(LearnerAttemptEntity.fromDomain(attempt)).toDomain();
     }

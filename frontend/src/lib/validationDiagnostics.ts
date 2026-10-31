@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
+import { recordingRequest } from '@/lib/recordingRequest'
 
 export type Diagnostic = 'RECORDING_ATTEMPT' | 'RECORDING_SUCCEEDED' | 'RECORDING_FAILED'
   | 'MICROPHONE_DENIED' | 'UPLOAD_ATTEMPT' | 'UPLOAD_SUCCEEDED' | 'UPLOAD_FAILED'
@@ -19,7 +20,7 @@ export async function uploadRecording(url: string, file: File) {
   const generation = useAuthStore.getState().sessionGeneration
   reportDiagnostic('UPLOAD_ATTEMPT', generation)
   try {
-    const response = await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+    const response = await recordingRequest((signal) => fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type }, signal }))
     if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
     reportDiagnostic('UPLOAD_SUCCEEDED', generation)
   } catch (error) {
