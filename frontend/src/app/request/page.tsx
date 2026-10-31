@@ -7,11 +7,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostics'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
-import { usePresignedUpload } from '@/hooks/usePresignedUpload'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { isAxiosError } from 'axios'
+import { clearComposition, compositionFile, createComposition, isCompositionSource, loadComposition, markCompositionUploaded, PendingCompositionError, type CompositionDraft } from '@/lib/compositionDraft'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
 import { useI18n } from '@/i18n/I18nProvider'
-import type { Friend, StudyCard, StudySession } from '@/types'
+import type { Friend, StudyCard } from '@/types'
 import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
@@ -29,32 +31,27 @@ const FEEDBACK_GOALS = [
 
 type RequestKind = 'TEXT' | 'AUDIO'
 type Destination = 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
-type SubmitPayload = {
-  sessionGeneration: number
-  kind: RequestKind
-  destination: Destination
-  selectedFriendId: string
-  selectedFriendName?: string
-  targetLanguage: string
-  targetVariant: string | null
-  contentText: string
-  context: string
-  selectedGoals: string[]
-  audioFile?: File
-}
+type SubmitPayload = { sessionGeneration: number; draft: CompositionDraft; edit?: boolean }
 function belongsToCurrentAccount(payload: SubmitPayload) {
   const current = useAuthStore.getState()
   return !!current.accessToken && current.sessionGeneration === payload.sessionGeneration
 }
 
 type SubmitResult =
-  | { type: 'community' }
+  | { type: 'community'; requestId: string }
+  | { type: 'edit' }
+  | { type: 'unavailable' }
   | { type: 'study'; sessionId: string; cardId: string }
 
 export default function RequestPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { accessToken } = useAuthStore()
+  const { data: currentUser } = useCurrentUser()
+  const [pending, setPending] = useState<CompositionDraft | null>(null)
+  const [draftReady, setDraftReady] = useState(false)
+  const [preparing, setPreparing] = useState(false)
+  const [stage, setStage] = useState<'checking' | 'uploading' | 'saving'>('checking')
   const { t } = useI18n()
   const [step, setStep] = useState(0)
   const [kind, setKind] = useState<RequestKind>('TEXT')
@@ -84,26 +81,36 @@ export default function RequestPage() {
     enabled: !!accessToken && !!sourceCardId,
   })
   useEffect(() => {
-    if (!source.data || appliedSource.current === source.data.id) return
+    if (pending || !source.data || appliedSource.current === source.data.id) return
     appliedSource.current = source.data.id
     setContentText(source.data.phrase)
     setContext(source.data.context ?? '')
-  }, [source.data])
+  }, [source.data, pending])
 
   const recorder = useAudioRecorder('compose')
-  useEffect(() => { if (recorder.audioBlob) setKind('AUDIO') }, [recorder.audioBlob])
+  useEffect(() => {
+    if (recorder.audioBlob && !pending && !contentText) setKind('AUDIO')
+  }, [recorder.audioBlob, pending, contentText])
   const navigate = useRecordingNavigation()
-  const { upload, uploading } = usePresignedUpload()
+  useEffect(() => {
+    if (!currentUser) return
+    try {
+      const draft = loadComposition(currentUser.id)
+      setPending(draft)
+      if (draft) {
+        setKind(draft.input.kind); setDestination(draft.input.destination)
+        setSelectedFriendId(draft.input.friendId ?? ''); setTargetLanguage(draft.input.targetLanguage)
+        setTargetVariant(draft.input.targetVariant); setContentText(draft.input.contentText)
+        setContext(draft.input.context); setSelectedGoals(draft.input.goals)
+        setStep(2); setRecordSheetOpen(false)
+      }
+      setDraftReady(true)
+    } catch { setError(t('compose.storageError')) }
+  }, [currentUser, t])
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
-
-  const { data: sessions = [] } = useQuery<StudySession[]>({
-    queryKey: ['sessions'],
-    queryFn: () => api.get('/sessions').then((r) => r.data),
-    enabled: !!accessToken,
-  })
 
   const { data: friends = [] } = useQuery<Friend[]>({
     queryKey: ['friends'],
@@ -119,56 +126,49 @@ export default function RequestPage() {
       if (!belongsToCurrentAccount(payload)) throw new Error('Account changed')
       requireSameAccount()
       setError('')
-      if (payload.destination === 'COMMUNITY') {
-        if (payload.kind === 'TEXT') {
-          await api.post('/correction-requests', {
-            targetLanguage: payload.targetLanguage,
-            targetVariant: payload.targetVariant ?? undefined,
-            contentText: payload.contentText,
-            context: payload.context,
-            feedbackGoals: payload.selectedGoals,
-          })
-          return { type: 'community' }
-        }
-        if (!payload.audioFile) throw new Error(t('request.noAudioFile'))
-        const audioKey = await upload(payload.audioFile)
+      const { draft } = payload
+      const path = `/compositions/${draft.operation}`
+      setStage('checking')
+      if (payload.edit) {
+        const { data, status } = await recordingRequest((signal) => api.post<SubmitResult>(`${path}/cancel`, {}, { signal }))
         requireSameAccount()
-        await api.post('/correction-requests/audio', {
-          targetLanguage: payload.targetLanguage,
-          targetVariant: payload.targetVariant ?? undefined,
-          audioKey,
-          context: payload.context,
-          feedbackGoals: payload.selectedGoals,
-        })
-        return { type: 'community' }
+        return status === 204 ? { type: 'edit' } : data
       }
-
-      const session = await ensureStudySession(payload)
-      requireSameAccount()
-      const card = await createStudyCard(session.id, payload)
-      requireSameAccount()
-
-      if (payload.kind === 'AUDIO') {
-        try {
-          await attachNativeAudio(card.id, payload.audioFile, requireSameAccount)
-        } catch (error) {
-          // Cleanup is a write too: never send it using a replacement account.
-          requireSameAccount()
-          // 보상 삭제 실패는 원래 예외를 가리면 안 되므로 다시 던지지 않는다.
-          // 다만 삼키면 고아 카드가 생겼다는 사실이 어디에도 안 남는다 — 로그는 반드시 남긴다
-          // (GLOBAL-PIT-108 ①: 실패는 최소한 흔적을 남긴다).
-          await api.delete(`/cards/${card.id}`).catch((cleanupError) => {
-            console.error(`[request] 보상 삭제 실패 — 고아 카드 잔존 가능 (cardId=${card.id})`, cleanupError)
-          })
-          throw error
-        }
+      try {
+        const { data } = await recordingRequest((signal) => api.get<SubmitResult>(path, { signal }))
+        requireSameAccount()
+        return data
+      } catch (error) {
+        requireSameAccount()
+        if (!isAxiosError(error) || error.response?.status !== 404) throw error
       }
-
-      return { type: 'study', sessionId: session.id, cardId: card.id }
+      if (draft.input.kind === 'AUDIO' && !draft.uploaded) {
+        const file = await compositionFile(draft)
+        requireSameAccount()
+        setStage('uploading')
+        const { data } = await recordingRequest((signal) => api.post<{ uploadUrl: string }>(
+          `${path}/upload-url`, { contentType: file.type }, { signal },
+        ))
+        requireSameAccount()
+        await uploadRecording(data.uploadUrl, file)
+        requireSameAccount()
+        markCompositionUploaded(draft)
+        setPending({ ...draft, uploaded: true })
+      }
+      setStage('saving')
+      const { data } = await recordingRequest((signal) => api.post<SubmitResult>(path, draft.input, { signal }))
+      requireSameAccount()
+      return data
     },
     onSuccess: (result, payload) => {
       if (!belongsToCurrentAccount(payload)) return
-      recorder.clearSaved(recorder.audioBlob)
+      clearComposition(payload.draft)
+      setPending(null)
+      if (result.type === 'edit' || result.type === 'unavailable') {
+        if (result.type === 'unavailable') setError(t('compose.unavailable'))
+        setStep(0); return
+      }
+      if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
@@ -183,83 +183,42 @@ export default function RequestPage() {
     },
   })
 
-  const ensureStudySession = async (payload: SubmitPayload) => {
-    if (payload.destination === 'PERSONAL') {
-      const existing = sessions.find((session) => session.memberIds.length === 1)
-      if (existing) return existing
-      const { data } = await api.post<StudySession>('/sessions', { title: t('study.personalDefault') })
-      return data
-    }
-
-    if (!payload.selectedFriendId) throw new Error('NO_FRIEND')
-    const existing = sessions.find((session) =>
-      session.memberIds.length > 1 &&
-      session.memberIds.includes(payload.selectedFriendId),
-    )
-    if (existing) return existing
-    const { data } = await api.post<StudySession>('/sessions', {
-      friendId: payload.selectedFriendId,
-      title: payload.selectedFriendName ? `${payload.selectedFriendName} ${t('study.practiceDefault')}` : null,
-    })
-    return data
-  }
-
-  const createStudyCard = async (sessionId: string, payload: SubmitPayload) => {
-    const phrase = payload.kind === 'TEXT'
-      ? payload.contentText.trim()
-      : payload.context.trim() || t('request.audioCardTitle')
-    const { data } = await api.post<StudyCard>(`/sessions/${sessionId}/cards`, {
-      phrase,
-      context: payload.context.trim() || null,
-      tags: payload.selectedGoals,
-    })
-    return data
-  }
-
-  const attachNativeAudio = async (cardId: string, file: File | undefined, requireSameAccount: () => void) => {
-    if (!file) throw new Error(t('request.noAudioFile'))
-    requireSameAccount()
-    const { data } = await recordingRequest((signal) => api.post<{ uploadUrl: string; audioKey: string }>(
-      `/cards/${cardId}/native-audios/upload-url`,
-      { fileName: file.name }, { signal },
-    ))
-    requireSameAccount()
-    await uploadRecording(data.uploadUrl, file)
-    requireSameAccount()
-    await api.post(`/cards/${cardId}/native-audios`, { audioKey: data.audioKey })
-  }
-
   const toggleGoal = (goal: string) => {
     setSelectedGoals((prev) =>
       prev.includes(goal) ? prev.filter((g) => g !== goal) : [...prev, goal]
     )
   }
 
-  const handleSubmit = () => {
-    const audioFile = kind === 'AUDIO' ? recorder.getFile(`audio_${Date.now()}.webm`) ?? undefined : undefined
-    submitMutation.mutate({
-      sessionGeneration: useAuthStore.getState().sessionGeneration,
-      kind,
-      destination,
-      selectedFriendId,
-      selectedFriendName: selectedFriend?.username,
-      targetLanguage,
-      targetVariant,
-      contentText,
-      context,
-      selectedGoals: [...selectedGoals],
-      audioFile,
-    })
+  const handleSubmit = async (edit = false) => {
+    if (!currentUser || submitMutation.isPending || preparing) return
+    const generation = useAuthStore.getState().sessionGeneration
+    const requireSameAccount = captureAccountGuard()
+    setPreparing(true)
+    try {
+      const draft = pending ?? await createComposition(currentUser.id, {
+        kind, destination, friendId: destination === 'FRIEND' ? selectedFriendId : null,
+        title: destination === 'PERSONAL' ? t('study.personalDefault') : `${selectedFriend?.username ?? ''} ${t('study.practiceDefault')}`,
+        contentText, context, audioTitle: t('request.audioCardTitle'), targetLanguage, targetVariant, goals: [...selectedGoals],
+      }, recorder.audioBlob ? { blob: recorder.audioBlob, duration: recorder.duration } : undefined)
+      requireSameAccount()
+      setPending(draft)
+      submitMutation.mutate({
+        sessionGeneration: generation, draft, edit,
+      })
+    } catch (error) {
+      if (generation === useAuthStore.getState().sessionGeneration)
+        setError(t(error instanceof PendingCompositionError ? 'compose.otherPending' : 'compose.storageError'))
+    } finally { if (generation === useAuthStore.getState().sessionGeneration) setPreparing(false) }
   }
 
-  const isPending = submitMutation.isPending || uploading
+  const isPending = submitMutation.isPending || preparing
+  const locked = isPending || !!pending
   const hasContent = kind === 'TEXT' ? !!contentText.trim() : recorder.state === 'stopped'
-  const canSubmit =
+  const canSubmit = draftReady && !isPending && (!!pending || (
     hasContent &&
     (destination !== 'FRIEND' || !!selectedFriendId) &&
     (destination !== 'COMMUNITY' || !!targetLanguage) &&
-    !isPending && (!sourceCardId || (source.isSuccess && !source.isError))
-
+    (!sourceCardId || (source.isSuccess && !source.isError))))
   const stepReady = useMemo(() => {
     if (step === 0) return hasContent
     if (step === 1) return destination !== 'FRIEND' || !!selectedFriendId
@@ -288,7 +247,7 @@ export default function RequestPage() {
         </div>
 
         {sourceCardId && <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-relaxed text-blue-800">{t('request.sourceNotice')}</p>}
-        {sourceCardId && source.isError ? <QueryError onRetry={() => void source.refetch()} /> : sourceCardId && source.isLoading ? <p role="status">{t('common.loading')}</p> : <section className="rounded-2xl border border-gray-100 bg-surface p-5">
+        {!pending && sourceCardId && source.isError ? <QueryError onRetry={() => void source.refetch()} /> : !pending && sourceCardId && source.isLoading ? <p role="status">{t('common.loading')}</p> : <section className="rounded-2xl border border-gray-100 bg-surface p-5"><fieldset disabled={locked} className="min-w-0">
           {step === 0 && (
             <div className="flex flex-col gap-5">
               <div>
@@ -298,7 +257,7 @@ export default function RequestPage() {
                     <button
                       key={nextKind}
                     onClick={() => { setKind(nextKind); setError('') }}
-                    disabled={isPending}
+                    disabled={locked}
                       className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
                         kind === nextKind ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                       }`}
@@ -313,6 +272,7 @@ export default function RequestPage() {
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-gray-700">{t('request.contentLabel')}</span>
                   <textarea
+                    maxLength={destination === 'COMMUNITY' ? 10000 : 500}
                     value={contentText}
                     onChange={(e) => setContentText(e.target.value)}
                     placeholder={t('request.contentPlaceholder')}
@@ -328,7 +288,7 @@ export default function RequestPage() {
                     <button
                       type="button"
                       onClick={() => setRecordSheetOpen(true)}
-                      disabled={isPending}
+                      disabled={locked}
                       className="w-full rounded-xl bg-action-record py-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-action-record-hover"
                     >
                       {t('request.startRecording')}
@@ -367,7 +327,7 @@ export default function RequestPage() {
                   key={value}
                   type="button"
                   onClick={() => setDestination(value)}
-                  disabled={isPending}
+                  disabled={locked}
                   className={`rounded-2xl border p-4 text-left transition-colors ${
                     destination === value ? 'border-blue-300 bg-blue-50' : 'border-gray-100 bg-surface hover:border-blue-200'
                   }`}
@@ -383,7 +343,7 @@ export default function RequestPage() {
                   <select
                     value={selectedFriendId}
                     onChange={(e) => setSelectedFriendId(e.target.value)}
-                    disabled={isPending}
+                    disabled={locked}
                     className="w-full rounded-xl border border-gray-200 bg-surface px-3 py-2.5 text-sm"
                   >
                     <option value="">{t('study.selectFriend')}</option>
@@ -416,6 +376,7 @@ export default function RequestPage() {
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold text-gray-700">{t('request.context')}</span>
                 <input
+                  maxLength={kind === 'AUDIO' && destination !== 'COMMUNITY' ? 500 : 10000}
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
                   placeholder={kind === 'TEXT' ? t('request.contextTextPlaceholder') : t('request.contextAudioPlaceholder')}
@@ -431,7 +392,7 @@ export default function RequestPage() {
                       key={goal.key}
                       type="button"
                       onClick={() => toggleGoal(goal.value)}
-                      disabled={isPending}
+                      disabled={locked}
                       className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                         selectedGoals.includes(goal.value)
                           ? 'border-blue-300 bg-blue-100 text-blue-700'
@@ -447,6 +408,11 @@ export default function RequestPage() {
             </div>
           )}
 
+          </fieldset>
+          {pending && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+            <p>{isPending ? t(stage === 'uploading' ? 'recording.uploading' : stage === 'saving' ? 'compose.saving' : 'compose.checking') : t('compose.pending')}</p>
+            {!isPending && <button type="button" onClick={() => handleSubmit(true)} className="mt-2 min-h-11 font-semibold underline">{t('compose.edit')}</button>}
+          </div>}
           {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
           {error && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
@@ -455,7 +421,7 @@ export default function RequestPage() {
               <button
                 type="button"
                 onClick={() => setStep((prev) => prev - 1)}
-                disabled={isPending}
+                disabled={locked}
                 className="rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50"
               >
                 {t('common.cancel')}
@@ -472,17 +438,17 @@ export default function RequestPage() {
               </button>
             ) : (
               <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 disabled={!canSubmit}
                 className="flex-1 rounded-xl bg-action-primary py-3 font-semibold text-white transition-colors hover:bg-action-primary-hover disabled:opacity-40"
               >
-                {isPending ? t('request.submitting') : t(destination === 'COMMUNITY' ? 'request.submit' : destination === 'FRIEND' ? 'request.destinationFriend' : 'common.save')}
+                {isPending ? t('request.submitting') : pending ? t('compose.resume') : t(destination === 'COMMUNITY' ? 'request.submit' : destination === 'FRIEND' ? 'request.destinationFriend' : 'common.save')}
               </button>
             )}
           </div>
         </section>}
       </div>
-      {recordSheetOpen && (
+      {recordSheetOpen && !pending && (
         <RecorderModal
           recorder={recorder}
           onClose={() => setRecordSheetOpen(false)}

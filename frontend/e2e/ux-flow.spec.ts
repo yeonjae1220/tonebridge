@@ -34,8 +34,10 @@ async function app(page: Page) {
       state.writes.push({ path, body })
       if (path === '/api/cards/card-1') state.card = { ...state.card, ...body }
       if (path === '/api/sessions') return ok(session)
+      if (path.startsWith('/api/compositions/')) return ok({ type: 'community', requestId: 'composed' })
       return ok({ ...state.card, ...body })
     }
+    if (path.startsWith('/api/compositions/')) return route.fulfill({ status: 404, json: {} })
     if (path === '/api/practice-feedback') return ok({ items: state.empty ? [] : [{ ...attempt, attemptId: attempt.id, sessionId: session.id, sessionTitle: session.title, phrase: state.card.phrase, correctionAuthorId: null, correctionAuthorName: null, correctionUpdatedAt: null }], nextPage: null })
     if (path === '/api/users/me') return ok({ id: 'me', username: 'learner', uiLanguage: 'ko', nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'], onboardingCompleted: true, credits: 0 })
     if (path === '/api/sessions') return ok(state.empty ? [] : [session])
@@ -139,7 +141,7 @@ test('community action copies only reviewed text and preserves the public destin
   await page.getByRole('button', { name: /日本語|일본어/ }).first().click()
   await page.getByRole('button', { name: '교정 요청하기', exact: true }).click()
   await expect(page).toHaveURL(/\/community$/)
-  const request = state.writes.find((write) => write.path === '/api/correction-requests')!
+  const request = state.writes.find((write) => write.path.startsWith('/api/compositions/'))!
   expect(request.body.contentText).toBe('こんにちは')
   expect(request.body).not.toHaveProperty('audioKey')
   expect(JSON.stringify(request.body)).not.toContain('private note')

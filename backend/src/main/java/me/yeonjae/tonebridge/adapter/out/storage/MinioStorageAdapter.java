@@ -26,6 +26,11 @@ public class MinioStorageAdapter implements StoragePort {
     @Override
     public PresignedUpload generatePresignedUploadUrl(String fileName, String contentType, Duration expiry) {
         String audioKey = "audio/" + UUID.randomUUID() + "/" + sanitize(fileName);
+        return presignUploadKey(audioKey, contentType, expiry);
+    }
+
+    @Override
+    public PresignedUpload presignUploadKey(String audioKey, String contentType, Duration expiry) {
         String bucket = properties.getStorage().getBucket();
 
         PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -42,6 +47,19 @@ public class MinioStorageAdapter implements StoragePort {
         ).url().toString();
 
         return new PresignedUpload(uploadUrl, audioKey);
+    }
+
+    @Override
+    public boolean hasValidAudio(String audioKey, String contentType) {
+        try {
+            var metadata = s3Client.headObject(request -> request.bucket(properties.getStorage().getBucket())
+                    .key(audioKey).overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(10))));
+            return metadata.contentLength() > 0 && metadata.contentLength() <= 50L * 1024 * 1024
+                    && contentType.equals(metadata.contentType());
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception exception) {
+            if (exception.statusCode() == 404) return false;
+            throw exception;
+        }
     }
 
     @Override
