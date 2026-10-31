@@ -46,6 +46,7 @@ for (const first of ['login', 'signup'] as const) {
           const token = (req.headers().cookie ?? '').match(/refresh_token=([^;]+)/)?.[1]
           return route.fulfill({ status: token ? 200 : 401, json: { accessToken: token ?? 'none' } })
         }
+        if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })
         if (path === '/api/users/me') {
           const id = req.headers().authorization?.replace('Bearer ', '') ?? ''
           reads.push(id)
@@ -89,6 +90,7 @@ for (const switching of [true, false]) {
         if (path === '/api/auth/refresh') return route.fulfill({ json: { accessToken: active } })
         if (path === '/api/auth/login') { active = 'friend'; return route.fulfill({ json: { accessToken: active } }) }
         if (path === '/api/auth/logout') return route.fulfill({ json: {} })
+        if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })
         if (path === '/api/users/me') return route.fulfill({ json: user(active) })
         if (path === '/api/users/me/profile') return route.fulfill({ json: {
           username: active, level: 'NATIVE', reputationScore: 0, streakDays: 0, badges: [], totalCorrections: 0,

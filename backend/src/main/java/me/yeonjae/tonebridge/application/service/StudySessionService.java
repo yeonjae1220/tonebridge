@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.application.service;
 
+import me.yeonjae.tonebridge.application.port.in.LeaveStudySessionUseCase;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.in.CreateStudySessionUseCase;
 import me.yeonjae.tonebridge.application.port.in.DeleteStudySessionUseCase;
@@ -27,7 +28,8 @@ public class StudySessionService implements
         GetStudySessionsUseCase,
         EndStudySessionUseCase,
         UpdateStudySessionUseCase,
-        DeleteStudySessionUseCase {
+        DeleteStudySessionUseCase,
+        LeaveStudySessionUseCase {
 
     private final StudySessionPort sessionPort;
     private final UserPort userPort;
@@ -120,7 +122,16 @@ public class StudySessionService implements
         sessionPort.softDelete(sessionId);
     }
 
+    @Override
+    public void leave(UUID sessionId, UUID requesterId) {
+        StudySession session = sessionPort.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.SESSION_NOT_FOUND));
+        if (!session.hasMember(requesterId)) throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
+        sessionPort.removeMember(sessionId, requesterId);
+    }
+
     private void requireCreator(StudySession session, UUID requesterId) {
+        if (!session.hasMember(requesterId)) throw new ToneBridgeException(ErrorCode.NOT_SESSION_MEMBER);
         if (!session.createdBy().equals(requesterId)) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }

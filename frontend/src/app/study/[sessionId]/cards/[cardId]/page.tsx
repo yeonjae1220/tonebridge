@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -18,7 +18,7 @@ import { formatDate } from '@/lib/dateUtils'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { useI18n } from '@/i18n/I18nProvider'
 import { RecorderModal } from '@/components/recorder/RecorderModal'
-import { StudyScore } from '@/components/study/StudyScore'
+import { PracticeHistory } from '@/components/study/PracticeHistory'
 import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
 
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
@@ -28,59 +28,6 @@ function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
     <p className="mt-2 text-xs text-gray-500">{formatDate(audio.createdAt, language)}</p>
     {audio.note && <p className="mt-2 text-sm text-gray-600">{audio.note}</p>}
   </div>
-}
-
-function AttemptNoteForm({
-  attempt,
-  disabled,
-  onSubmit,
-}: {
-  attempt: LearnerAttempt
-  disabled: boolean
-  onSubmit: (payload: { attemptId: string; correctionNote: string; score: number | null }) => void
-}) {
-  const { t } = useI18n()
-  const [note, setNote] = useState(attempt.correctionNote ?? '')
-  const [score, setScore] = useState<number | null>(attempt.score ?? null)
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!note.trim()) return
-    onSubmit({ attemptId: attempt.id, correctionNote: note.trim(), score })
-  }
-
-  return (
-    <form onSubmit={submit} className="mt-3 flex flex-col gap-2">
-      <textarea
-        aria-label={t('study.cardDetail.notePlaceholder')}
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        rows={2}
-        placeholder={t('study.cardDetail.notePlaceholder')}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none"
-      />
-      <div className="flex gap-2">
-        <select
-          aria-label={t('study.cardDetail.scoreLabel')}
-          value={score ?? ''}
-          onChange={(event) => setScore(event.target.value === '' ? null : Number(event.target.value))}
-          className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
-        >
-          <option value="">{t('study.cardDetail.noScore')}</option>
-          {[1, 2, 3, 4, 5].map((value) => (
-            <option key={value} value={value}>{value}/5</option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          disabled={disabled || !note.trim()}
-          className="flex-1 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40"
-        >
-          {t('common.save')}
-        </button>
-      </div>
-    </form>
-  )
 }
 
 export default function StudyCardDetailPage() {
@@ -121,6 +68,8 @@ export default function StudyCardDetailPage() {
   const { data: attempts = [], isLoading: attemptsLoading, isError: attemptsError, refetch: refetchAttempts } = useQuery<LearnerAttempt[]>({
     queryKey: ['cards', cardId, 'attempts'],
     queryFn: () => api.get(`/cards/${cardId}/attempts`).then((r) => r.data),
+    // A feedback link may return to a card still inside the default cache freshness window.
+    refetchOnMount: 'always',
     enabled: !!accessToken && !!cardId,
   })
 
@@ -144,6 +93,7 @@ export default function StudyCardDetailPage() {
     onSuccess: () => {
       setNotice(t('common.saved'))
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
+      queryClient.invalidateQueries({ queryKey: ['practice-feedback'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
       attemptRecorder.clearSaved(attemptRecorder.audioBlob)
     },
@@ -186,9 +136,10 @@ export default function StudyCardDetailPage() {
     onSuccess: () => {
       setNotice(t('common.saved'))
       queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
+      queryClient.invalidateQueries({ queryKey: ['practice-feedback'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
     },
-    onError: () => setActionError(t('study.cardDetail.feedbackSaveFailed')),
+    onError: () => {}, // The expanded editor displays its error and retains the draft.
   })
 
   if (!accessToken) return null
@@ -347,36 +298,11 @@ export default function StudyCardDetailPage() {
               </section>
             )}
 
-            <section className="bg-surface rounded-2xl border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.attempts')}</h2>
-              <div className="mt-3 flex flex-col gap-3">
-                {attemptsError ? <QueryError onRetry={() => void refetchAttempts()} /> : attemptsLoading ? <p role="status">{t('common.loading')}</p> : attempts.length === 0 ? (
-                  <p className="text-sm text-gray-400">{t('study.cardDetail.noAttempts')}</p>
-                ) : [...attempts].sort((a, b) => b.attemptedAt.localeCompare(a.attemptedAt)).map((attempt) => (
-                  <div key={attempt.id} className="rounded-xl border border-gray-100 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">{formatDate(attempt.attemptedAt, language)}</span>
-                      <StudyScore score={attempt.score} />
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {t(attempt.learnerId === currentUser?.id ? 'study.cardDetail.myAttempt' : 'study.cardDetail.partnerAttempt')}
-                    </p>
-                    <div className="mt-3"><StudyAudioPlayer attemptId={attempt.audioUrl ? attempt.id : undefined} label={t(attempt.learnerId === currentUser?.id ? 'study.cardDetail.myAttempt' : 'study.cardDetail.partnerAttempt')} /></div>
-                    {attempt.correctionNote && <p className="mt-2 text-sm text-gray-700">{attempt.correctionNote}</p>}
-                    {attempt.learnerId === currentUser?.id && attempt.correctionNote && <button type="button"
-                      disabled={recordingBusy} onClick={() => { setRecordingPurpose('practice'); setAttemptModalOpen(true) }}
-                      className="mt-3 min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">{t('study.retryWithFeedback')}</button>}
-                    {permissionReady && (
-                      <AttemptNoteForm
-                        attempt={attempt}
-                        disabled={addAttemptNoteMutation.isPending}
-                        onSubmit={(payload) => addAttemptNoteMutation.mutate(payload)}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
+            <PracticeHistory key={cardId} attempts={attempts} userId={currentUser?.id}
+              loading={attemptsLoading} failed={attemptsError} onRetry={() => void refetchAttempts()}
+              recordingBusy={recordingBusy} canEdit={permissionReady}
+              onPractice={() => { setRecordingPurpose('practice'); setAttemptModalOpen(true) }}
+              onSave={payload => addAttemptNoteMutation.mutateAsync(payload)} />
             <details id="card-note" className="bg-surface rounded-2xl border border-gray-100 p-5">
               <summary className="cursor-pointer text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</summary>
               <textarea

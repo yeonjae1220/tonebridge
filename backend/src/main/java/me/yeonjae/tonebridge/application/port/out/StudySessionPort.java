@@ -12,4 +12,7 @@ public interface StudySessionPort {
     List<StudySession> findByMemberId(UUID userId);
     StudySession updateTitle(UUID id, String title);
     void softDelete(UUID id);
+    Optional<StudySession> findByIdForUpdate(UUID id);
+    void removeMember(UUID id, UUID userId);
+    void closeSharedBetween(UUID userId, UUID friendId);
 }

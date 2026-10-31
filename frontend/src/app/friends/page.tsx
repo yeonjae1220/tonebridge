@@ -11,6 +11,7 @@ import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useDebounce } from '@/hooks/useDebounce'
 import type { Friend, FriendRequest, UserSearchResult, StudySession } from '@/types'
 import { useI18n } from '@/i18n/I18nProvider'
+import { Dialog } from '@/components/ui/Dialog'
 import { formatDate } from '@/lib/dateUtils'
 
 function langLabel(code: string) {
@@ -38,7 +39,8 @@ export default function FriendsPage() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [decliningId, setDecliningId] = useState<string | null>(null)
-  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [removingFriend, setRemovingFriend] = useState<Friend | null>(null)
+  const [closeShared, setCloseShared] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const debouncedQuery = useDebounce(searchQuery, 300)
 
@@ -125,10 +127,21 @@ export default function FriendsPage() {
   })
 
   const removeMutation = useMutation({
-    mutationFn: (friendId: string) => api.delete(`/friends/${friendId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends'] }),
-    onError: () => setSendError(t('friends.requestFailed')),
-    onSettled: () => setRemovingId(null),
+    mutationFn: ({ friendId, closeShared }: { friendId: string; closeShared: boolean }) =>
+      api.delete(`/friends/${friendId}`, { params: { closeShared } }),
+    onSuccess: (_response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] })
+      // Do not retain readable client snapshots after explicitly revoking sharing.
+      if (variables.closeShared) {
+        queryClient.removeQueries({ queryKey: ['sessions'] })
+        queryClient.removeQueries({ queryKey: ['cards'] })
+        queryClient.removeQueries({ queryKey: ['study-audio'] })
+        queryClient.removeQueries({ queryKey: ['practice-feedback'] })
+      }
+      setNotice(t(variables.closeShared ? 'sharing.closed' : 'sharing.removed'))
+      setRemovingFriend(null)
+    },
+    onError: () => {}, // Keep the confirmation and its selected option for an explicit retry.
   })
 
   const practiceMutation = useMutation({
@@ -325,13 +338,8 @@ export default function FriendsPage() {
                     className="ml-auto px-3 py-2 text-xs font-semibold text-blue-600 disabled:opacity-40"
                   >{t('study.openCards')}</button>
                   <button
-                    onClick={() => {
-                      if (window.confirm(formatMessage(t('friends.removeConfirm'), { name: friend.username }))) {
-                        setRemovingId(friend.id)
-                        removeMutation.mutate(friend.id)
-                      }
-                    }}
-                    disabled={removingId === friend.id}
+                    onClick={() => { setRemovingFriend(friend); setCloseShared(false); removeMutation.reset() }}
+                    disabled={removeMutation.isPending}
                     className="p-2 text-gray-400 hover:text-red-400 transition-colors disabled:opacity-40"
                     aria-label={t('friends.remove')}
                   >
@@ -349,6 +357,23 @@ export default function FriendsPage() {
           )}
         </section>
       </div>
+      {removingFriend && <Dialog title={t('friends.remove') + ' · ' + removingFriend.username}
+        busy={removeMutation.isPending} onClose={() => setRemovingFriend(null)}>
+        <label className="flex items-start gap-3 text-sm font-semibold">
+          <input type="checkbox" checked={closeShared} disabled={removeMutation.isPending}
+            onChange={event => setCloseShared(event.target.checked)} className="mt-1 h-5 w-5 shrink-0" />
+          {t('sharing.closeCheck')}
+        </label>
+        <p className="mt-4 text-sm text-gray-600">{t(closeShared ? 'sharing.closeHelp' : 'sharing.keepHelp')}</p>
+        {closeShared && <p className="mt-3 text-sm text-gray-500">{t('sharing.urls')}</p>}
+        <Link href="/help" className="my-3 inline-block text-sm text-blue-600">{t('validation.help')}</Link>
+        {removeMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{t('sharing.failed')}</p>}
+        <button type="button" disabled={removeMutation.isPending}
+          onClick={() => removeMutation.mutate({ friendId: removingFriend.id, closeShared })}
+          className="min-h-11 w-full rounded-xl bg-action-record px-4 text-sm font-semibold text-white disabled:opacity-40">
+          {t(removeMutation.isPending ? 'friends.processing' : 'friends.remove')}
+        </button>
+      </Dialog>}
     </main>
   )
 }

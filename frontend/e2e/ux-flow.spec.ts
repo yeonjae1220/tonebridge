@@ -36,6 +36,7 @@ async function app(page: Page) {
       if (path === '/api/sessions') return ok(session)
       return ok({ ...state.card, ...body })
     }
+    if (path === '/api/practice-feedback') return ok({ items: state.empty ? [] : [{ ...attempt, attemptId: attempt.id, sessionId: session.id, sessionTitle: session.title, phrase: state.card.phrase, correctionAuthorId: null, correctionAuthorName: null, correctionUpdatedAt: null }], nextPage: null })
     if (path === '/api/users/me') return ok({ id: 'me', username: 'learner', uiLanguage: 'ko', nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'], onboardingCompleted: true, credits: 0 })
     if (path === '/api/sessions') return ok(state.empty ? [] : [session])
     if (path === '/api/sessions/shared') return ok(session)
@@ -147,7 +148,7 @@ test('community action copies only reviewed text and preserves the public destin
 test('home links start writing or recording directly and friend creation opens in view', async ({ page }, info) => {
   await app(page)
   await page.goto('/study')
-  await expect(page.getByText('최근 연습 피드백', { exact: true })).toBeVisible()
+  await expect(page.getByText('내 연습에 달린 피드백', { exact: true })).toBeVisible()
   await expect(page.getByText('첫 음절을 조금 길게 말해보세요.', { exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('home.png'), fullPage: true })
   await page.getByRole('button', { name: '친구와 시작하기', exact: true }).click()

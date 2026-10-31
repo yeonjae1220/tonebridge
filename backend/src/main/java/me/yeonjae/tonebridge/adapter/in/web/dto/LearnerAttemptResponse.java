@@ -12,10 +12,12 @@ public record LearnerAttemptResponse(
         String audioUrl,
         String correctionNote,
         Integer score,
-        Instant attemptedAt
+        Instant attemptedAt,
+        UUID correctionAuthorId,
+        Instant correctionUpdatedAt
 ) {
     public static LearnerAttemptResponse from(LearnerAttempt a) {
         return new LearnerAttemptResponse(a.id(), a.cardId(), a.learnerId(),
-                a.audioUrl(), a.correctionNote(), a.score(), a.attemptedAt());
+                a.audioUrl(), a.correctionNote(), a.score(), a.attemptedAt(), a.correctionAuthorId(), a.correctionUpdatedAt());
     }
 }

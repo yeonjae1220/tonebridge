@@ -22,6 +22,7 @@ async function mockApp(page: Page, loggedIn = true, onboarded = true, partnerUse
       if (path === '/api/users/me/onboarding') state.onboarded = true
       return route.fulfill({ status: 200, json: {} })
     }
+    if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/users/me') return route.fulfill({ json: {
       id: 'me', username: 'learner', uiLanguage: 'en', credits: 0, nativeLanguage: 'ko',
       fluentLanguages: [], learningLanguages: ['en'], onboardingCompleted: state.onboarded,

@@ -4,7 +4,9 @@ import java.util.UUID;
 
 public interface RemoveFriendUseCase {
 
-    record Command(UUID requesterId, UUID friendId) {}
+    record Command(UUID requesterId, UUID friendId, boolean closeShared) {
+        public Command(UUID requesterId, UUID friendId) { this(requesterId, friendId, false); }
+    }
 
     /** Removes an existing friendship (accepted request) between the requester and friend. */
     void remove(Command command);
