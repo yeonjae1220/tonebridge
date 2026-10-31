@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostics'
 import { recordingRequest } from '@/lib/recordingRequest'
 import { useAuthStore } from '@/stores/authStore'
+import { recordingDrafts } from '@/lib/recordingDrafts'
 
 type Upload = { audioKey: string; uploadUrl: string; createdAt: number; uploaded: boolean }
 // The blob is retained with the draft; re-entry and timeout retries reuse its uploaded key.
@@ -20,6 +21,8 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
     let entries = checkpoints.get(blob)
     if (!entries) { entries = new Map(); checkpoints.set(blob, entries) }
     let checkpoint = entries.get(key)
+    const recovered = recordingDrafts.getUpload(blob)
+    if (!checkpoint && recovered) { checkpoint = { ...recovered, uploadUrl: '' }; entries.set(key, checkpoint) }
     const extension = blob.type === 'audio/mp4' ? 'm4a' : blob.type === 'audio/ogg' ? 'ogg' : 'webm'
     const file = new File([blob], `recording.${extension}`, { type: blob.type })
     // A lost PUT response is safe to repeat. Never replace a key after confirm was attempted.
@@ -39,6 +42,8 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
       requireSameAccount()
       checkpoint.uploaded = true
     }
+    await recordingDrafts.saveUpload(blob, { audioKey: checkpoint.audioKey, createdAt: checkpoint.createdAt, uploaded: true })
+    requireSameAccount()
     setStage('saving')
     requireSameAccount()
     const response = await recordingRequest((signal) => api.post(

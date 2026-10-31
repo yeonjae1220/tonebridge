@@ -5,6 +5,7 @@ import { useAudioRecorder, type RecorderError } from '@/hooks/useAudioRecorder'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Dialog } from '@/components/ui/Dialog'
+import { RecordingDraftNotice } from './RecordingDraftNotice'
 
 export function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
@@ -92,12 +93,13 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
       <div className="flex flex-col gap-5">
         {recorder.state === 'processing' && <p role="status">{t('recording.processing')}</p>}
         <RecorderErrorMessage error={recorder.error} />
+        <RecordingDraftNotice recorder={recorder} />
 
         {recorder.state === 'idle' && (
           <button
             type="button"
             onClick={() => void recorder.start()}
-            disabled={recorder.starting}
+            disabled={recorder.starting || recorder.draftStatus === 'loading'}
             className="mx-auto w-20 h-20 rounded-full bg-action-record text-white flex items-center justify-center shadow-lg shadow-red-200 hover:bg-action-record-hover transition-colors"
             aria-label={t('request.startRecording')}
           >

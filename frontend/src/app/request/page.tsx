@@ -16,6 +16,7 @@ import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
 import { recordingRequest, RecordingTimeoutError } from '@/lib/recordingRequest'
+import { RecordingDraftNotice } from '@/components/recorder/RecordingDraftNotice'
 
 const FEEDBACK_GOALS = [
   { key: 'goal.pronunciation', value: '발음' },
@@ -90,6 +91,7 @@ export default function RequestPage() {
   }, [source.data])
 
   const recorder = useAudioRecorder('compose')
+  useEffect(() => { if (recorder.audioBlob) setKind('AUDIO') }, [recorder.audioBlob])
   const navigate = useRecordingNavigation()
   const { upload, uploading } = usePresignedUpload()
 
@@ -321,6 +323,7 @@ export default function RequestPage() {
               ) : (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm font-semibold text-gray-700">{t('request.recordingLabel')}</p>
+                  <RecordingDraftNotice recorder={recorder} />
                   {recorder.state === 'idle' && (
                     <button
                       type="button"
