@@ -43,7 +43,12 @@ class MvpValidationIntegrationTest extends PostgresIntegrationTest {
 
     @BeforeEach void setUp() {
         mvc=MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        a=user(); b=user(); outsider=user(); session=UUID.randomUUID(); card=UUID.randomUUID();
+        a=user(); b=user(); outsider=user();
+        for (UUID id : List.of(a,b)) jdbc.update("""
+                INSERT INTO validation_participants (user_id,notice_version,acknowledged_at,starts_at,ends_at)
+                VALUES (?,'pilot-v1',now()-interval '1 day',now()-interval '1 day',now()+interval '14 days')
+                """,id);
+        session=UUID.randomUUID(); card=UUID.randomUUID();
         jdbc.update("INSERT INTO study_sessions (id, created_by) VALUES (?,?)",session,a);
         jdbc.update("INSERT INTO session_members (session_id,user_id) VALUES (?,?),(?,?)",session,a,session,b);
         jdbc.update("INSERT INTO study_cards (id,session_id,created_by_user_id,phrase) VALUES (?,?,?,'private phrase')",card,session,a);
