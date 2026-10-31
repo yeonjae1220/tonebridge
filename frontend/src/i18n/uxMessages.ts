@@ -1,9 +1,8 @@
+import { recordingMessages } from './recordingMessages'
 // Columns follow the supported UI languages: ko, en, ja, zh, es, fr, de, pt, ru.
 const languages = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
 type Translations = readonly [string, string, string, string, string, string, string, string, string]
 const rows = {
-  'recording.leave': ['저장하지 않은 녹음이 있습니다. 이동할까요? 이 탭에서 돌아오면 이어서 저장할 수 있지만 새로고침하거나 탭을 닫으면 사라집니다.', 'Leave with an unsaved recording? Return in this tab to save it. Reloading or closing the tab loses the draft.', '未保存の録音があります。移動しますか？このタブに戻ると保存できますが、再読み込みやタブを閉じると消えます。', '录音尚未保存。确定离开？返回此标签页可继续保存，刷新或关闭标签页将丢失草稿。', '¿Salir sin guardar? Puedes volver en esta pestaña. Recargar o cerrarla elimina el borrador.', 'Quitter sans enregistrer ? Revenez dans cet onglet pour sauvegarder. Recharger ou fermer efface le brouillon.', 'Mit ungespeicherter Aufnahme verlassen? Kehre in diesem Tab zurück. Neuladen oder Schließen löscht den Entwurf.', 'Sair sem salvar? Volte nesta aba para salvar. Recarregar ou fechar apaga o rascunho.', 'Уйти без сохранения записи? Вернитесь в этой вкладке. Обновление или закрытие удалит черновик.'],
-  'recording.draft': ['아직 저장하지 않은 녹음입니다. 이 탭에서만 임시 보관됩니다.', 'Unsaved recording, kept only in this tab.', '未保存の録音です。このタブでのみ一時保管されます。', '未保存的录音，仅临时保留在此标签页中。', 'Grabación sin guardar, conservada solo en esta pestaña.', 'Enregistrement non sauvegardé, conservé uniquement dans cet onglet.', 'Ungespeicherte Aufnahme, nur in diesem Tab verfügbar.', 'Gravação não salva, mantida apenas nesta aba.', 'Несохранённая запись хранится только в этой вкладке.'],
   'recording.discard': ['이 녹음을 버리고 다시 녹음할까요?', 'Discard this recording and record again?', 'この録音を破棄して録り直しますか？', '丢弃此录音并重新录制？', '¿Descartar esta grabación y grabar de nuevo?', 'Supprimer cet enregistrement et recommencer ?', 'Diese Aufnahme verwerfen und neu aufnehmen?', 'Descartar esta gravação e gravar novamente?', 'Удалить эту запись и записать заново?'],
   'recording.processing': ['녹음을 준비하고 있습니다…', 'Preparing your recording…', '録音を準備しています…', '正在准备录音…', 'Preparando la grabación…', 'Préparation de l’enregistrement…', 'Aufnahme wird vorbereitet…', 'Preparando a gravação…', 'Подготовка записи…'],
   'recording.preparing': ['저장 연결을 준비하고 있습니다…', 'Preparing to save…', '保存を準備しています…', '正在准备保存…', 'Preparando el guardado…', 'Préparation de la sauvegarde…', 'Speichern wird vorbereitet…', 'Preparando para salvar…', 'Подготовка к сохранению…'],
@@ -34,7 +33,7 @@ const rows = {
   'landing.previewHelp': ['친구의 표현과 설명을 보고, 내 목소리로 연습한 뒤 피드백을 받아 다시 시도하세요. 아래는 설명을 위한 예시입니다.', 'Learn from a friend’s expression, record your attempt, and try again with feedback. The examples below are illustrative.', '友達の表現や説明を見て録音し、フィードバックを参考に再挑戦しましょう。以下は説明用の例です。', '参考朋友的表达和解释，录下自己的练习，再根据反馈重试。以下为演示示例。', 'Aprende de una expresión, graba tu intento y repite con comentarios. Los ejemplos son ilustrativos.', 'Découvrez une expression, enregistrez un essai et recommencez avec les retours. Ces exemples sont illustratifs.', 'Lerne einen Ausdruck, nimm deinen Versuch auf und übe mit Feedback weiter. Die Beispiele dienen zur Veranschaulichung.', 'Aprenda uma expressão, grave sua tentativa e pratique com o feedback. Os exemplos são ilustrativos.', 'Изучите фразу, запишите попытку и повторите с учётом отзыва. Ниже приведены демонстрационные примеры.'],
 } as const satisfies Record<string, Translations>
 
-export type UxMessageKey = keyof typeof rows
+export type UxMessageKey = keyof typeof rows | keyof typeof recordingMessages
 export const uxMessages = Object.fromEntries(languages.map((language, index) => [language,
-  Object.fromEntries(Object.entries(rows).map(([key, translations]) => [key, translations[index]])),
+  Object.fromEntries(Object.entries({ ...rows, ...recordingMessages }).map(([key, translations]) => [key, translations[index]])),
 ])) as Record<typeof languages[number], Record<UxMessageKey, string>>

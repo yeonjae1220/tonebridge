@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { recordingDrafts } from '@/lib/recordingDrafts'
 
 // _retry 필드를 Axios 타입에 병합 — AxiosRequestConfig에 없는 필드를 안전하게 사용
 declare module 'axios' {
@@ -71,6 +72,7 @@ function expireSession(generation: number | undefined) {
 api.interceptors.response.use(
   (res) => {
     requireSession(res.config._sessionGeneration)
+    if (res.config.url === '/users/me' && typeof res.data?.id === 'string') recordingDrafts.bindOwner(res.data.id)
     return res
   },
   async (error) => {
@@ -168,6 +170,7 @@ export async function logout(): Promise<void> {
       // Local access has already been cleared, even if cookie deletion fails.
     }
     await clearOfflineCaches()
+    await recordingDrafts.settled()
   })()
   logoutFlight = flight
   try {

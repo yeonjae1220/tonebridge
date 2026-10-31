@@ -5,13 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { RecordingTimeoutError } from '@/lib/recordingRequest'
-import { recordingDrafts } from '@/lib/recordingDrafts'
 import { useAuthStore } from '@/stores/authStore'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { useStudyRecordingSave } from '@/hooks/useStudyRecordingSave'
 import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
 import { RecordingSaveStatus } from '@/components/recorder/RecordingSaveStatus'
+import { RecordingDraftNotice } from '@/components/recorder/RecordingDraftNotice'
 import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
 import { QueryError } from '@/components/ui/QueryError'
 import { formatDate } from '@/lib/dateUtils'
@@ -50,10 +50,8 @@ export default function StudyCardDetailPage() {
   const [recordingPurpose, setRecordingPurpose] = useState<'practice' | 'example'>('practice')
 
   useEffect(() => {
-    const generation = useAuthStore.getState().sessionGeneration
-    setRecordingPurpose(recordingDrafts.get(`${generation}:example:${cardId}`)
-      && !recordingDrafts.get(`${generation}:practice:${cardId}`) ? 'example' : 'practice')
-  }, [cardId])
+    if (nativeRecorder.audioBlob && !attemptRecorder.audioBlob) setRecordingPurpose('example')
+  }, [cardId, nativeRecorder.restored, nativeRecorder.audioBlob, attemptRecorder.audioBlob])
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -221,6 +219,7 @@ export default function StudyCardDetailPage() {
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.nativeAudioHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
+                  <RecordingDraftNotice recorder={nativeRecorder} />
                   {nativeRecorder.state === 'idle' && (
                     <button
                       type="button"
@@ -242,7 +241,7 @@ export default function StudyCardDetailPage() {
                     </button>
                   )}
                   {nativeRecorder.state === 'stopped' && nativeRecorder.audioUrl && (
-                    <><p className="text-xs text-gray-500">{t('recording.draft')}</p><audio controls src={nativeRecorder.audioUrl} className="w-full h-9" /></>
+                    <audio controls src={nativeRecorder.audioUrl} className="w-full h-9" />
                   )}
                   {nativeRecorder.state === 'stopped' && (
                     <button
@@ -261,6 +260,7 @@ export default function StudyCardDetailPage() {
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.practiceRecording')}</h2>
                 <p className="mt-1 text-xs text-gray-400">{t('study.cardDetail.practiceHelp')}</p>
                 <div className="mt-3 flex flex-col gap-3">
+                  <RecordingDraftNotice recorder={attemptRecorder} />
                   {attemptRecorder.state === 'idle' && (
                     <button
                       type="button"
@@ -282,7 +282,7 @@ export default function StudyCardDetailPage() {
                     </button>
                   )}
                   {attemptRecorder.state === 'stopped' && attemptRecorder.audioUrl && (
-                    <><p className="text-xs text-gray-500">{t('recording.draft')}</p><audio controls src={attemptRecorder.audioUrl} className="w-full h-9" /></>
+                    <audio controls src={attemptRecorder.audioUrl} className="w-full h-9" />
                   )}
                   {attemptRecorder.state === 'stopped' && (
                     <button

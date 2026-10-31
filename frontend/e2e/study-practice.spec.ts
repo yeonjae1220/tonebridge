@@ -186,7 +186,7 @@ test('upload timeout explains the wait, preserves audio and retries the same key
   await page.getByRole('button', { name: '연습 녹음 저장', exact: true }).click()
   await expect.poll(() => started).toBe(true)
   await page.clock.fastForward(5100)
-  await expect(page.getByRole('status')).toContainText('연결이 지연')
+  await expect(page.getByRole('status').filter({ hasText: '연결이 지연' })).toBeVisible()
   await page.clock.fastForward(26_000)
   await expect(page.getByRole('alert').filter({ hasText: '저장 응답이 지연' })).toBeVisible()
   await expect(page.locator('#recording-panel audio')).toHaveAttribute('src', blobUrl!)

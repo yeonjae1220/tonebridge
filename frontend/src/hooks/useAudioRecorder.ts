@@ -3,6 +3,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { reportDiagnostic } from '@/lib/validationDiagnostics'
 import { recordingDrafts } from '@/lib/recordingDrafts'
 import { finalizeRecording } from '@/lib/audioDuration'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import type { DraftStatus } from '@/lib/recordingDrafts'
 
 type RecorderState = 'idle' | 'recording' | 'processing' | 'stopped'
 const AUDIO_FORMATS = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']
@@ -43,6 +45,11 @@ export function classifyRecorderError(e: unknown): RecorderError {
 
 export function useAudioRecorder(scope = '') {
   const sessionGeneration = useAuthStore((s) => s.sessionGeneration)
+  const { data: currentUser } = useCurrentUser()
+  const owner = currentUser?.id
+  const [draftStatus, setDraftStatus] = useState<DraftStatus>('loading')
+  const [restored, setRestored] = useState(false)
+  const [interrupted, setInterrupted] = useState(false)
   const [state, setState] = useState<RecorderState>('idle')
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<RecorderError | null>(null)
@@ -93,6 +100,11 @@ export function useAudioRecorder(scope = '') {
     setState('idle'); setStarting(false); setError(null); setAudioBlob(null); setAudioUrl(null); setDuration(0)
     let previousBlob: Blob | null = null
     const restore = () => {
+      const info = recordingDrafts.info(draftKey)
+      setDraftStatus(info?.status ?? 'loading')
+      setRestored(info?.restored ?? false)
+      setInterrupted(info?.draft?.interrupted ?? false)
+      if (recordingDrafts.isActive(draftKey)) return
       const draft = recordingDrafts.get(draftKey)
       if (!draft) {
         if (previousBlob) {
@@ -111,11 +123,12 @@ export function useAudioRecorder(scope = '') {
     }
     restore()
     const unsubscribe = recordingDrafts.subscribe(restore)
+    if (owner) void recordingDrafts.load(draftKey, owner, scope)
     return () => { unsubscribe(); release(true) }
-  }, [draftKey, release])
+  }, [draftKey, release, owner, scope])
 
   const start = useCallback(async () => {
-    if (startingRef.current || recorderRef.current?.state === 'recording') return
+    if (startingRef.current || recorderRef.current?.state === 'recording' || !owner || draftStatus === 'loading') return
     reset()
     const run = generation.current
     startingRef.current = true
@@ -140,8 +153,16 @@ export function useAudioRecorder(scope = '') {
       const recordingStarted = performance.now()
       recorderRef.current = recorder
       const chunks: BlobPart[] = []
+      let lastCheckpoint = recordingStarted
       recorder.ondataavailable = (event) => {
-        if (!discardedRuns.current.has(run) && event.data.size > 0) chunks.push(event.data)
+        if (discardedRuns.current.has(run) || sessionGeneration !== useAuthStore.getState().sessionGeneration || !event.data.size) return
+        chunks.push(event.data)
+        // Persist while recording, not in beforeunload (transactions may be aborted there).
+        if (performance.now() - lastCheckpoint >= 1000 && recorder.state === 'recording') {
+          lastCheckpoint = performance.now()
+          recordingDrafts.set(draftKey, { blob: new Blob(chunks, { type: (recorder.mimeType || mimeType).split(';')[0] }),
+            duration: (lastCheckpoint - recordingStarted) / 1000, interrupted: true }, true)
+        }
       }
       recorder.onerror = () => {
         if (run !== generation.current) return
@@ -195,7 +216,7 @@ export function useAudioRecorder(scope = '') {
         setStarting(false)
       }
     }
-  }, [release, reset, draftKey, sessionGeneration])
+  }, [release, reset, draftKey, sessionGeneration, owner, draftStatus])
 
   const stop = useCallback(() => {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
@@ -213,5 +234,7 @@ export function useAudioRecorder(scope = '') {
     if (savedBlob && recordingDrafts.get(draftKey)?.blob === savedBlob) reset()
   }, [draftKey, reset])
 
-  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, clearSaved, getFile }
+  const retryDraft = useCallback(() => { void recordingDrafts.retry(draftKey) }, [draftKey])
+  return { state, starting, error, audioBlob, audioUrl, duration, start, stop, reset, clearSaved, getFile,
+    draftStatus, restored, interrupted, retryDraft }
 }
