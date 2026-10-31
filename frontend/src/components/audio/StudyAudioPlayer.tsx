@@ -58,6 +58,7 @@ export function StudyAudioPlayer({ attemptId, exampleId, label }: {
         else setNeedsDuration(true)
       }}
       src={query.data} onError={() => setMediaFailed(true)} className="h-11 w-full" />
-    {duration !== null && <p className="mt-1 text-xs text-gray-500">{t('recording.total')} {formatDuration(Math.round(duration))}</p>}
+    {/* Match native media controls and the recorder preview: display completed seconds. */}
+    {duration !== null && <p className="mt-1 text-xs text-gray-500">{t('recording.total')} {formatDuration(Math.floor(duration))}</p>}
   </>
 }
