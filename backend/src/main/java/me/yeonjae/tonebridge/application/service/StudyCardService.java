@@ -94,9 +94,15 @@ public class StudyCardService implements
                 command.phrase(), command.context(), null, null, command.tags(), nextPosition, null, null, null);
         StudyCard saved = cardPort.save(card);
 
-        session.memberIds().stream()
+        Runnable notifyMembers = () -> session.memberIds().stream()
                 .filter(id -> !id.equals(command.creatorId()))
                 .forEach(memberId -> fcmNotificationPort.sendNewStudyCard(memberId, session.id(), saved.phrase()));
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { notifyMembers.run(); }
+                    });
+        } else { notifyMembers.run(); }
 
         return saved;
     }

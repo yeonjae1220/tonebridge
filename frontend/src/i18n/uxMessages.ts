@@ -1,4 +1,5 @@
 import { recordingMessages } from './recordingMessages'
+import { compositionMessages } from './compositionMessages'
 // Columns follow the supported UI languages: ko, en, ja, zh, es, fr, de, pt, ru.
 const languages = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
 type Translations = readonly [string, string, string, string, string, string, string, string, string]
@@ -33,7 +34,7 @@ const rows = {
   'landing.previewHelp': ['친구의 표현과 설명을 보고, 내 목소리로 연습한 뒤 피드백을 받아 다시 시도하세요. 아래는 설명을 위한 예시입니다.', 'Learn from a friend’s expression, record your attempt, and try again with feedback. The examples below are illustrative.', '友達の表現や説明を見て録音し、フィードバックを参考に再挑戦しましょう。以下は説明用の例です。', '参考朋友的表达和解释，录下自己的练习，再根据反馈重试。以下为演示示例。', 'Aprende de una expresión, graba tu intento y repite con comentarios. Los ejemplos son ilustrativos.', 'Découvrez une expression, enregistrez un essai et recommencez avec les retours. Ces exemples sont illustratifs.', 'Lerne einen Ausdruck, nimm deinen Versuch auf und übe mit Feedback weiter. Die Beispiele dienen zur Veranschaulichung.', 'Aprenda uma expressão, grave sua tentativa e pratique com o feedback. Os exemplos são ilustrativos.', 'Изучите фразу, запишите попытку и повторите с учётом отзыва. Ниже приведены демонстрационные примеры.'],
 } as const satisfies Record<string, Translations>
 
-export type UxMessageKey = keyof typeof rows | keyof typeof recordingMessages
+export type UxMessageKey = keyof typeof rows | keyof typeof recordingMessages | keyof typeof compositionMessages
 export const uxMessages = Object.fromEntries(languages.map((language, index) => [language,
-  Object.fromEntries(Object.entries({ ...rows, ...recordingMessages }).map(([key, translations]) => [key, translations[index]])),
+  Object.fromEntries(Object.entries({ ...rows, ...recordingMessages, ...compositionMessages }).map(([key, translations]) => [key, translations[index]])),
 ])) as Record<typeof languages[number], Record<UxMessageKey, string>>

@@ -79,7 +79,7 @@ for (const first of ['login', 'signup'] as const) {
 
 for (const switching of [true, false]) {
   for (const fails of [false, true]) {
-    test(`request upload ${fails ? 'failure' : 'success'} ${switching ? 'after account switch has no writes or navigation' : 'in same account preserves save or cleanup'}`, async ({ page }) => {
+    test(`request upload ${fails ? 'failure' : 'success'} ${switching ? 'after account switch has no writes or navigation' : 'in same account preserves atomic save or retry'}`, async ({ page }) => {
       await cookies(page)
       let active = 'owner'
       const started = gate(), release = gate(), completed = gate()
@@ -101,6 +101,9 @@ for (const switching of [true, false]) {
         if (path === '/api/sessions/shared') return route.fulfill({ json: session })
         if (path === '/api/sessions/shared/cards') return route.fulfill({ json: req.method() === 'POST' ? card : [] })
         if (path === '/api/cards/created-card') return route.fulfill({ json: card })
+        if (/^\/api\/compositions\/[^/]+$/.test(path)) return route.fulfill({
+          status: req.method() === 'GET' ? 404 : 200, json: { type: 'study', sessionId: 'shared', cardId: 'created-card' },
+        })
         if (path.endsWith('/upload-url')) return route.fulfill({ json: {
           uploadUrl: 'http://127.0.0.1:3100/held-put', audioKey: 'owner-recording.webm',
         } })
@@ -138,7 +141,7 @@ for (const switching of [true, false]) {
       const writesBeforeRelease = writes.length
       release.release(); await completed.promise
       await page.waitForTimeout(250)
-      const confirms = writes.filter((w) => w.path === '/api/cards/created-card/native-audios')
+      const confirms = writes.filter((w) => /^\/api\/compositions\/[^/]+$/.test(w.path))
       const deletes = writes.filter((w) => w.method === 'DELETE')
       if (switching) {
         expect(writes.slice(writesBeforeRelease)).toEqual([])
@@ -147,11 +150,11 @@ for (const switching of [true, false]) {
         await expect(page).toHaveURL(/\/study$/)
       } else if (fails) {
         expect(confirms).toEqual([])
-        expect(deletes).toEqual([{ path: '/api/cards/created-card', method: 'DELETE', authorization: 'Bearer owner' }])
+        expect(deletes).toEqual([])
         await expect(page).toHaveURL(/\/request\?destination=COMMUNITY$/)
-        await expect(page.getByRole('button', { name: 'Send to a friend', exact: true })).toBeEnabled()
+        await expect(page.getByRole('button', { name: 'Resume saving', exact: true })).toBeEnabled()
       } else {
-        expect(confirms).toEqual([{ path: '/api/cards/created-card/native-audios', method: 'POST', authorization: 'Bearer owner' }])
+        expect(confirms).toEqual([{ path: expect.stringMatching(/^\/api\/compositions\/[^/]+$/), method: 'POST', authorization: 'Bearer owner' }])
         expect(deletes).toEqual([])
         await expect(page).toHaveURL(/\/study\/shared\/cards\/created-card$/)
       }
