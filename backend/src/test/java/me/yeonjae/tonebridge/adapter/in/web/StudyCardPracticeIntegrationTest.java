@@ -92,6 +92,20 @@ class StudyCardPracticeIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void registeredParticipantStillDoesNotCollectWhileGlobalSwitchIsOff() throws Exception {
+        jdbc.update("""
+                INSERT INTO validation_participants (user_id,notice_version,acknowledged_at,starts_at,ends_at)
+                VALUES (?,'pilot-v1',now()-interval '1 day',now()-interval '1 day',now()+interval '14 days')
+                """,owner);
+        Long before=jdbc.queryForObject("SELECT COALESCE(sum(total),0) FROM validation_diagnostic_daily",Long.class);
+        submit(owner,"practice/disabled.webm");
+        mvc.perform(post("/api/validation/diagnostics").with(as(owner)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"event\":\"UPLOAD_SUCCEEDED\"}")).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM learning_activity WHERE card_id=?",Long.class,cardId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COALESCE(sum(total),0) FROM validation_diagnostic_daily",Long.class)).isEqualTo(before);
+    }
+
+    @Test
     void creatorCanPractisePersonalCardRepeatedlyUsingExistingPayload() throws Exception {
         submit(owner, "practice/first.m4a");
         submit(owner, "practice/retry.webm");
