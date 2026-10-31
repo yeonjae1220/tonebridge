@@ -75,6 +75,9 @@ spec:
                   name: tonebridge-secret
                   key: GOOGLE_IOS_CLIENT_ID
                   optional: true
+            # Explicit kill switch; registration alone does not enable collection.
+            - name: TONEBRIDGE_VALIDATION_ENABLED
+              value: "false"
             - name: AI_ENABLED
               value: "false"
             - name: CLAUDE_API_KEY
