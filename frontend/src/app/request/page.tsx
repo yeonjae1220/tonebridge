@@ -18,6 +18,9 @@ import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { useRecordingNavigation } from '@/hooks/useRecordingNavigation'
 import { recordingRequest, RecordingTimeoutError } from '@/lib/recordingRequest'
+import { useComposeEditor } from '@/hooks/useComposeEditor'
+import { draftStorageIssue, type DraftStorageIssue } from '@/lib/draftStorageError'
+import { EditorDraftNotice } from '@/components/recorder/EditorDraftNotice'
 import { RecordingDraftNotice } from '@/components/recorder/RecordingDraftNotice'
 
 const FEEDBACK_GOALS = [
@@ -46,7 +49,8 @@ type SubmitResult =
 export default function RequestPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { accessToken } = useAuthStore()
+  const { accessToken, sessionGeneration } = useAuthStore()
+  const authenticated = !!accessToken
   const { data: currentUser } = useCurrentUser()
   const [pending, setPending] = useState<CompositionDraft | null>(null)
   const [draftReady, setDraftReady] = useState(false)
@@ -63,6 +67,10 @@ export default function RequestPage() {
   const [context, setContext] = useState('')
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
   const [error, setError] = useState('')
+  const [storageIssue, setStorageIssue] = useState<DraftStorageIssue | null>(null)
+  const [readyAccount, setReadyAccount] = useState('')
+  const [editorRestored, setEditorRestored] = useState(false)
+  const accountKey = `${sessionGeneration}:${currentUser?.id ?? ''}`
   const [recordSheetOpen, setRecordSheetOpen] = useState(false)
   const [sourceCardId, setSourceCardId] = useState<string | null>(null)
   const appliedSource = useRef<string | null>(null)
@@ -75,25 +83,46 @@ export default function RequestPage() {
     if (intent === 'COMMUNITY' || intent === 'FRIEND' || intent === 'PERSONAL') setDestination(intent)
   }, [])
 
+  const editorValue = useMemo(() => ({ kind, destination, selectedFriendId, targetLanguage, targetVariant,
+    contentText, context, selectedGoals, step, sourceCardId }),
+  [kind, destination, selectedFriendId, targetLanguage, targetVariant, contentText, context, selectedGoals, step, sourceCardId])
+  const editor = useComposeEditor(currentUser?.id, editorValue,
+    authenticated && draftReady && readyAccount === accountKey && !pending && !preparing)
+  const initializeEditor = editor.initialize
+
   const source = useQuery<StudyCard>({
     queryKey: ['cards', sourceCardId],
     queryFn: () => api.get(`/cards/${encodeURIComponent(sourceCardId!)}`).then((response) => response.data),
     enabled: !!accessToken && !!sourceCardId,
   })
   useEffect(() => {
-    if (pending || !source.data || appliedSource.current === source.data.id) return
+    if (!draftReady || editorRestored || pending || !source.data || appliedSource.current === source.data.id) return
     appliedSource.current = source.data.id
     setContentText(source.data.phrase)
     setContext(source.data.context ?? '')
-  }, [source.data, pending])
+  }, [source.data, pending, draftReady, editorRestored])
 
   const recorder = useAudioRecorder('compose')
   useEffect(() => {
-    if (recorder.audioBlob && !pending && !contentText) setKind('AUDIO')
-  }, [recorder.audioBlob, pending, contentText])
+    if (recorder.audioBlob && !pending && !contentText && !editorRestored) setKind('AUDIO')
+  }, [recorder.audioBlob, pending, contentText, editorRestored])
   const navigate = useRecordingNavigation()
   useEffect(() => {
-    if (!currentUser) return
+    if (!authenticated || !currentUser?.id) return
+    const local = initializeEditor(currentUser.id)
+    setStorageIssue(null); setError(''); setEditorRestored(!!local)
+    // Clear all old account fields before restoring a server-owned pending save
+    // or this account's editable draft. Do not reinitialize on user-data refetch.
+    const params = new URLSearchParams(window.location.search)
+    setKind(local?.kind ?? (params.get('kind') === 'AUDIO' ? 'AUDIO' : 'TEXT'))
+    const intent = params.get('destination')
+    setDestination(local?.destination ?? (intent === 'FRIEND' || intent === 'COMMUNITY' ? intent : 'PERSONAL'))
+    setSelectedFriendId(local?.selectedFriendId ?? ''); setTargetLanguage(local?.targetLanguage ?? '')
+    setTargetVariant(local?.targetVariant ?? null); setContentText(local?.contentText ?? '')
+    setContext(local?.context ?? ''); setSelectedGoals(local?.selectedGoals ?? []); setStep(local?.step ?? 0)
+    setSourceCardId(local ? local.sourceCardId : params.get('sourceCard'))
+    appliedSource.current = local?.sourceCardId ?? null
+    if (local) setRecordSheetOpen(params.get('kind') === 'AUDIO' && local.kind === 'AUDIO' && local.step === 0)
     try {
       const draft = loadComposition(currentUser.id)
       setPending(draft)
@@ -104,9 +133,9 @@ export default function RequestPage() {
         setContext(draft.input.context); setSelectedGoals(draft.input.goals)
         setStep(2); setRecordSheetOpen(false)
       }
-      setDraftReady(true)
-    } catch { setError(t('compose.storageError')) }
-  }, [currentUser, t])
+    } catch (e) { setPending(null); setStorageIssue(draftStorageIssue(e)) }
+    setReadyAccount(accountKey); setDraftReady(true)
+  }, [currentUser?.id, accountKey, initializeEditor, authenticated])
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -166,7 +195,7 @@ export default function RequestPage() {
       setPending(null)
       if (result.type === 'edit' || result.type === 'unavailable') {
         if (result.type === 'unavailable') setError(t('compose.unavailable'))
-        setStep(0); return
+        editor.resume(); setEditorRestored(true); setStep(0); return
       }
       if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -193,28 +222,33 @@ export default function RequestPage() {
     if (!currentUser || submitMutation.isPending || preparing) return
     const generation = useAuthStore.getState().sessionGeneration
     const requireSameAccount = captureAccountGuard()
-    setPreparing(true)
+    setPreparing(true); setStorageIssue(null)
     try {
+      await editor.pause()
       const draft = pending ?? await createComposition(currentUser.id, {
         kind, destination, friendId: destination === 'FRIEND' ? selectedFriendId : null,
         title: destination === 'PERSONAL' ? t('study.personalDefault') : `${selectedFriend?.username ?? ''} ${t('study.practiceDefault')}`,
         contentText, context, audioTitle: t('request.audioCardTitle'), targetLanguage, targetVariant, goals: [...selectedGoals],
       }, recorder.audioBlob ? { blob: recorder.audioBlob, duration: recorder.duration } : undefined)
       requireSameAccount()
+      if (!pending) await editor.submitted()
       setPending(draft)
       submitMutation.mutate({
         sessionGeneration: generation, draft, edit,
       })
     } catch (error) {
-      if (generation === useAuthStore.getState().sessionGeneration)
-        setError(t(error instanceof PendingCompositionError ? 'compose.otherPending' : 'compose.storageError'))
+      if (generation === useAuthStore.getState().sessionGeneration) {
+        editor.resume()
+        if (error instanceof PendingCompositionError) setError(t('compose.otherPending'))
+        else { setError(t('compose.storageError')); setStorageIssue(draftStorageIssue(error)) }
+      }
     } finally { if (generation === useAuthStore.getState().sessionGeneration) setPreparing(false) }
   }
 
   const isPending = submitMutation.isPending || preparing
-  const locked = isPending || !!pending
+  const locked = isPending || !!pending || readyAccount !== accountKey
   const hasContent = kind === 'TEXT' ? !!contentText.trim() : recorder.state === 'stopped'
-  const canSubmit = draftReady && !isPending && (!!pending || (
+  const canSubmit = draftReady && readyAccount === accountKey && !isPending && (!!pending || (
     hasContent &&
     (destination !== 'FRIEND' || !!selectedFriendId) &&
     (destination !== 'COMMUNITY' || !!targetLanguage) &&
@@ -231,10 +265,20 @@ export default function RequestPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto flex max-w-lg flex-col gap-5 px-4 py-8">
         <div>
-          <button type="button" onClick={() => navigate(() => router.back())} className="mb-3 min-h-11 text-sm font-semibold text-blue-600">← {t('common.back')}</button>
+          <button type="button" onClick={() => { if (editor.confirmLeave()) navigate(() => router.back()) }} className="mb-3 min-h-11 text-sm font-semibold text-blue-600">← {t('common.back')}</button>
           <h1 className="text-2xl font-bold text-gray-900">{t('request.composeTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('request.composeHelp')}</p>
         </div>
+
+        {readyAccount === accountKey && <EditorDraftNotice value={editorValue}
+          status={pending ? 'empty' : editor.status} restored={editor.restored}
+          issue={storageIssue ?? (!pending ? editor.issue : null)} audioUrl={recorder.audioUrl} audioType={recorder.audioBlob?.type}
+          disabled={isPending} onRetry={() => {
+            const issue = storageIssue ?? editor.issue
+            if ((issue === 'conflict' || issue === 'corrupt') && !window.confirm(t('editor.replaceConfirm'))) return
+            setStorageIssue(null); setError('')
+            void editor.retry(issue === 'conflict' || issue === 'corrupt')
+          }} />}
 
         <div className="grid grid-cols-3 gap-2">
           {[t('request.stepContent'), t('request.stepDestination'), t('request.stepFeedback')].map((label, index) => (
@@ -414,7 +458,7 @@ export default function RequestPage() {
             {!isPending && <button type="button" onClick={() => handleSubmit(true)} className="mt-2 min-h-11 font-semibold underline">{t('compose.edit')}</button>}
           </div>}
           {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
-          {error && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
+          {error && !storageIssue && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
           <div className="mt-5 flex gap-2">
             {step > 0 && (

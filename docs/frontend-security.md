@@ -103,3 +103,12 @@ GET 음성 URL 발급은 서버가 접근 권한을 검사하며, 이미 발급�
 
 /health/live는 웹 프로세스, /health/ready는 백엔드 연결을 확인한다.
 health 성공은 학습 저장·음성 재생 성공의 증거가 아니므로 전용 계정 리허설을 함께 실행한다.
+
+### 제출 전 편집 초안
+
+`tonebridge-compose-editor:<owner>`에는 텍스트/설정만 저장한다(음성은 기존 IndexedDB).
+인증 API의 계정 ID와 세션 generation·revocation에 묶고 7일 TTL·스키마/길이를 검증한다.
+Web Locks 안에서 revision 비교 후 쓰며 stale 탭은 자동 덮어쓰지 않는다. 제출 tombstone은
+과거 탭의 초안 부활을 막으며, 새로운 다른 탭의 초안은 삭제하지 않는다. 로그아웃 정리 실패도
+기존 계정 revocation으로 복구를 거부한다. 손상 데이터 교체는 사용자 확인 후에만 허용한다.
+저장소 오류는 개인정보/예외 원문 대신 분류된 안내를 출력하며 텍스트 내보내기는 text/plain이다.

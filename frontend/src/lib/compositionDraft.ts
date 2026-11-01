@@ -1,3 +1,4 @@
+import { DraftStorageError } from './draftStorageError'
 import { useAuthStore } from '@/stores/authStore'
 import { recordingDrafts, type RecordingDraft } from '@/lib/recordingDrafts'
 
@@ -46,7 +47,7 @@ export async function createComposition(owner: string, input: CompositionInput, 
         const key = await audioKey(draft)
         recordingDrafts.set(key, recording)
         await recordingDrafts.settled()
-        if (recordingDrafts.info(key)?.status !== 'saved') throw new Error('Audio snapshot not persisted')
+        if (recordingDrafts.info(key)?.status !== 'saved') throw new DraftStorageError(recordingDrafts.info(key)?.issue ?? 'unavailable')
       }
       if (generation !== useAuthStore.getState().sessionGeneration) throw new Error('Account changed')
       localStorage.setItem(prefix + owner, JSON.stringify(draft))

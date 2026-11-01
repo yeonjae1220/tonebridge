@@ -1,3 +1,4 @@
+import { DraftStorageError, draftStorageIssue, type DraftStorageIssue } from './draftStorageError'
 import { useAuthStore } from '@/stores/authStore'
 import { finalizeRecording } from '@/lib/audioDuration'
 
@@ -10,7 +11,7 @@ type Row = {
 }
 type Entry = {
   owner: string; scope: string; epoch: string; revocation: string; id: string; expectedId: string | undefined
-  draft?: RecordingDraft; status: DraftStatus; restored: boolean; upload?: SavedUpload
+  issue?: DraftStorageIssue; draft?: RecordingDraft; status: DraftStatus; restored: boolean; upload?: SavedUpload
 }
 const entries = new Map<string, Entry>()
 const active = new Set<string>()
@@ -125,12 +126,13 @@ useAuthStore.subscribe((state, previous) => {
 })
 
 async function persist(key: string, entry: Entry): Promise<boolean> {
-  entry.status = 'saving'; emit()
+  entry.status = 'saving'; entry.issue = undefined; emit()
   const draft = entry.draft, upload = entry.upload, id = entry.id
+  let failure: DraftStorageIssue | undefined
   try {
     await serial(async () => {
-      if (!current(key) || entries.get(key) !== entry || entry.id !== id) throw new Error('Draft changed')
-      if (draft && draft.blob.size > MAX_BYTES) throw new Error('Draft too large')
+      if (!current(key) || entries.get(key) !== entry || entry.id !== id) throw new DraftStorageError('conflict')
+      if (draft && draft.blob.size > MAX_BYTES) throw new DraftStorageError('quota')
       await transaction<void>((rows, owners, done) => {
         const epochRequest = owners.get(entry.owner)
         epochRequest.onsuccess = () => {
@@ -138,7 +140,7 @@ async function persist(key: string, entry: Entry): Promise<boolean> {
           const request = rows.get(JSON.stringify([entry.owner, entry.scope]))
           request.onsuccess = () => {
             const previous = request.result as Row | undefined
-            if (previous?.id !== entry.expectedId) { rows.transaction.abort(); return }
+            if (previous?.id !== entry.expectedId) { failure = 'conflict'; rows.transaction.abort(); return }
             let bytes = draft?.blob.size ?? 0
             const cursor = rows.openCursor()
             cursor.onsuccess = () => {
@@ -147,12 +149,13 @@ async function persist(key: string, entry: Entry): Promise<boolean> {
                 if (row.key !== previous?.key) bytes += row.draft?.blob.size ?? 0
                 cursor.result.continue(); return
               }
-              if (bytes > 100 * 1024 * 1024 || entry.id !== id || !current(key)) { rows.transaction.abort(); return }
+              if (bytes > 100 * 1024 * 1024) { failure = 'quota'; rows.transaction.abort(); return }
+              if (entry.id !== id || !current(key)) { failure = 'conflict'; rows.transaction.abort(); return }
               try {
                 rows.put({ key: JSON.stringify([entry.owner, entry.scope]), owner: entry.owner, scope: entry.scope,
                   id, epoch: entry.epoch, revocation: entry.revocation, updatedAt: Date.now(), draft: draft ?? null, upload } satisfies Row)
                 done()
-              } catch { rows.transaction.abort() }
+              } catch (e) { failure = draftStorageIssue(e); rows.transaction.abort() }
             }
           }
         }
@@ -164,8 +167,8 @@ async function persist(key: string, entry: Entry): Promise<boolean> {
       emit()
     }
     return true
-  } catch {
-    if (entries.get(key) === entry && current(key) && entry.id === id) { entry.status = 'error'; emit() }
+  } catch (e) {
+    if (entries.get(key) === entry && current(key) && entry.id === id) { entry.status = 'error'; entry.issue = failure ?? draftStorageIssue(e); emit() }
     return false
   }
 }
@@ -208,7 +211,7 @@ export const recordingDrafts = {
         entry.id = restored.row.id; entry.draft = restored.row.draft; entry.upload = restored.row.upload; entry.restored = true
       }
       entry.status = entry.draft ? 'saved' : 'empty'
-    } catch { if (current(key) && entries.get(key) === entry) entry.status = 'error' }
+    } catch (e) { if (current(key) && entries.get(key) === entry) { entry.status = 'error'; entry.issue = draftStorageIssue(e) } }
     emit()
   },
   set(key: string, draft: RecordingDraft, checkpoint = false) {
