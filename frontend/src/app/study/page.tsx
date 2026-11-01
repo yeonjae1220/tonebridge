@@ -106,6 +106,7 @@ export default function StudyPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">{t('study.title')}</h1>
             <p className="mt-2 text-sm leading-relaxed text-gray-500">{t('study.subtitle')}</p>
+            <Link href="/drafts" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-blue-500 underline">{t('drafts.title')}</Link>
           </div>
           <button onClick={() => { setShowNewSession(true); setCreateError(null) }}
             className="min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white hover:bg-action-primary-hover">

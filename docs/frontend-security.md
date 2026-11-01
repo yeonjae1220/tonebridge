@@ -112,3 +112,11 @@ Web Locks 안에서 revision 비교 후 쓰며 stale 탭은 자동 덮어쓰지 
 과거 탭의 초안 부활을 막으며, 새로운 다른 탭의 초안은 삭제하지 않는다. 로그아웃 정리 실패도
 기존 계정 revocation으로 복구를 거부한다. 손상 데이터 교체는 사용자 확인 후에만 허용한다.
 저장소 오류는 개인정보/예외 원문 대신 분류된 안내를 출력하며 텍스트 내보내기는 text/plain이다.
+
+### 초안 목록과 선택 폐기
+
+`/drafts`는 인증 API의 현재 owner에 한정해 기존 편집·제출·녹음 저장소를 조회한다. UI 상태를 generation/owner로
+격리하고 늦은 읽기 결과는 폐기한다. 녹음 목록은 owner epoch/revocation/TTL을 검사하며 제출 전용 음성 사본을 중복 노출하지 않는다.
+녹음 폐기는 IndexedDB 트랜잭션 안에서 owner epoch·id·updatedAt을 비교해 진행 중인 새 checkpoint도 보호한다.
+성공한 삭제는 tombstone과 기존 BroadcastChannel로 전달한다. 편집 폐기는 기존 Web Locks/revision 계약을 사용한다.
+제출 영수증은 목록에서 삭제하지 않고 기존 서버 취소/결과 조회 흐름을 유지한다. 내보내기에 토큰·서명 URL·친구 UUID를 넣지 않는다.

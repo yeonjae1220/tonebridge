@@ -136,6 +136,7 @@ test('explicit discard stays discarded after reload and clears another open tab'
   await page.goto(cardPath); await record(page)
   const second = await context.newPage(); await second.goto(cardPath)
   await expect(second.locator('#recording-panel audio')).toHaveCount(1)
+  await page.getByTestId('draft-notice').locator('summary').click()
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '임시 녹음 버리기', exact: true }).click()
   await expect.poll(() => rows(page)).toEqual([])
