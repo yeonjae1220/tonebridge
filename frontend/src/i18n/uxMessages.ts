@@ -1,3 +1,4 @@
+import { draftManagerMessages } from './draftManagerMessages'
 import { editorMessages } from './editorMessages'
 import { recordingMessages } from './recordingMessages'
 import { compositionMessages } from './compositionMessages'
@@ -5,6 +6,7 @@ import { compositionMessages } from './compositionMessages'
 const languages = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
 type Translations = readonly [string, string, string, string, string, string, string, string, string]
 const rows = {
+  ...draftManagerMessages,
   'recording.discard': ['이 녹음을 버리고 다시 녹음할까요?', 'Discard this recording and record again?', 'この録音を破棄して録り直しますか？', '丢弃此录音并重新录制？', '¿Descartar esta grabación y grabar de nuevo?', 'Supprimer cet enregistrement et recommencer ?', 'Diese Aufnahme verwerfen und neu aufnehmen?', 'Descartar esta gravação e gravar novamente?', 'Удалить эту запись и записать заново?'],
   'recording.processing': ['녹음을 준비하고 있습니다…', 'Preparing your recording…', '録音を準備しています…', '正在准备录音…', 'Preparando la grabación…', 'Préparation de l’enregistrement…', 'Aufnahme wird vorbereitet…', 'Preparando a gravação…', 'Подготовка записи…'],
   'recording.preparing': ['저장 연결을 준비하고 있습니다…', 'Preparing to save…', '保存を準備しています…', '正在准备保存…', 'Preparando el guardado…', 'Préparation de la sauvegarde…', 'Speichern wird vorbereitet…', 'Preparando para salvar…', 'Подготовка к сохранению…'],

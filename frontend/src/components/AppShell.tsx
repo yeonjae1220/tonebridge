@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/ui/BottomNav'
 const NAV_PATHS = [
   '/',
   '/study',
+  '/drafts',
   '/community',
   '/feed',
   '/friends',

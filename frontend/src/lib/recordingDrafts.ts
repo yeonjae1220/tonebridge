@@ -9,6 +9,7 @@ type Row = {
   key: string; owner: string; scope: string; id: string; epoch: string; revocation: string; updatedAt: number
   draft: RecordingDraft | null; upload?: SavedUpload
 }
+export type RecordingDraftSnapshot = Pick<Row, 'owner' | 'scope' | 'id' | 'epoch' | 'revocation' | 'updatedAt'> & { draft: RecordingDraft }
 type Entry = {
   owner: string; scope: string; epoch: string; revocation: string; id: string; expectedId: string | undefined
   issue?: DraftStorageIssue; draft?: RecordingDraft; status: DraftStatus; restored: boolean; upload?: SavedUpload
@@ -174,6 +175,63 @@ async function persist(key: string, entry: Entry): Promise<boolean> {
 }
 
 export const recordingDrafts = {
+  async list(owner: string): Promise<RecordingDraftSnapshot[]> {
+    const generation = useAuthStore.getState().sessionGeneration
+    const token = revocation(owner)
+    const allowed = () => !!useAuthStore.getState().accessToken && authenticatedOwner === owner
+      && useAuthStore.getState().sessionGeneration === generation && revocation(owner) === token
+    if (!allowed()) throw new DraftStorageError('conflict')
+    const result = await serial(() => transaction<RecordingDraftSnapshot[]>((rows, owners, done) => {
+      const epoch = owners.get(owner)
+      epoch.onsuccess = () => {
+        const found: RecordingDraftSnapshot[] = []
+        const cursor = rows.openCursor()
+        cursor.onsuccess = () => {
+          const item = cursor.result
+          if (!item) { done(found); return }
+          const row = item.value as Row
+          if (row.owner === owner && row.epoch === epoch.result && row.revocation === token
+            && Date.now() - row.updatedAt <= MAX_AGE && row.draft
+            && (row.scope === 'compose' || /^(practice|example):[^:]+$/.test(row.scope))) {
+            found.push({ owner, scope: row.scope, id: row.id, epoch: row.epoch, revocation: row.revocation, updatedAt: row.updatedAt, draft: row.draft })
+          }
+          item.continue()
+        }
+      }
+    }))
+    if (!allowed()) throw new DraftStorageError('conflict')
+    return result.sort((a, b) => b.updatedAt - a.updatedAt)
+  },
+  async discardSnapshot(snapshot: RecordingDraftSnapshot) {
+    const generation = useAuthStore.getState().sessionGeneration
+    const allowed = () => !!useAuthStore.getState().accessToken && authenticatedOwner === snapshot.owner
+      && useAuthStore.getState().sessionGeneration === generation && revocation(snapshot.owner) === snapshot.revocation
+    if (!allowed()) throw new DraftStorageError('conflict')
+    const revision = crypto.randomUUID()
+    await serial(() => transaction<void>((rows, owners, done) => {
+      const epoch = owners.get(snapshot.owner)
+      epoch.onsuccess = () => {
+        const request = rows.get(JSON.stringify([snapshot.owner, snapshot.scope]))
+        request.onsuccess = () => {
+          const row = request.result as Row | undefined
+          if (!allowed() || epoch.result !== snapshot.epoch || row?.id !== snapshot.id || row.updatedAt !== snapshot.updatedAt) {
+            rows.transaction.abort(); return
+          }
+          rows.put({ ...row, id: revision, updatedAt: Date.now(), draft: null, upload: undefined })
+          done()
+        }
+      }
+    }))
+    if (!allowed()) return
+    for (const [key, entry] of entries) {
+      if (entry.owner === snapshot.owner && entry.scope === snapshot.scope && entry.id === snapshot.id) {
+        entry.draft = undefined; entry.upload = undefined; entry.status = 'empty'; entry.restored = false
+        entry.id = revision; entry.expectedId = revision; active.delete(key)
+      }
+    }
+    channel?.postMessage({ type: 'removed', owner: snapshot.owner, scope: snapshot.scope, id: snapshot.id, revision })
+    emit()
+  },
   bindOwner(owner: string) { authenticatedOwner = owner; connect() },
   settled: () => queue,
   get: (key: string) => entries.get(key)?.draft,

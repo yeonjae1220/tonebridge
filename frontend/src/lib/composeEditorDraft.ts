@@ -40,6 +40,13 @@ export function openEditor(owner: string, replace = false): { handle: EditorHand
     || value.selectedGoals.length || value.sourceCardId || value.kind !== 'TEXT' || value.destination !== 'PERSONAL' || value.step > 0)
   return { handle: { owner, generation: useAuthStore.getState().sessionGeneration, revocation: marker(owner), revision: row?.revision }, value: meaningful ? value : undefined }
 }
+// Snapshot metadata is only exposed for the authenticated account supplied by /users/me.
+export function editorSnapshot(owner: string) {
+  const opened = openEditor(owner)
+  guard(opened.handle)
+  const row = read(owner)
+  return opened.value && row ? { ...opened, value: opened.value, updatedAt: row.updatedAt } : null
+}
 function guard(handle: EditorHandle) {
   const auth = useAuthStore.getState()
   if (!auth.accessToken || auth.sessionGeneration !== handle.generation || marker(handle.owner) !== handle.revocation)
