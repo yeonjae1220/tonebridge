@@ -1,5 +1,6 @@
 'use client'
 
+import { InstallBanner } from '@/components/ui/InstallBanner'
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -278,6 +279,7 @@ export default function ProfilePage() {
             </button>
             <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
+          <InstallBanner persistent className="mb-5" />
 
           <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4">
@@ -392,6 +394,7 @@ export default function ProfilePage() {
           </button>
         </div>
 
+        <InstallBanner persistent className="mb-5" />
         {profileLoading && (
           <div className="flex flex-col gap-4">
             {[1, 2, 3].map((i) => (

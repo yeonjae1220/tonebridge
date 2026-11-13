@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { PracticePreview } from './PracticePreview'
 import { useI18n } from '@/i18n/I18nProvider'
 import { languageDisplayName } from '@/i18n/messages'
 import { InstallBanner } from '@/components/ui/InstallBanner'
@@ -100,6 +101,7 @@ export default function LandingPage() {
               {t('landing.browseFeed')} →
             </Link>
           </div>
+          <Link href="/login?redirect=%2Frequest%3Fdestination%3DPERSONAL%26kind%3DTEXT" className="mt-4 inline-block min-h-11 py-3 text-sm font-semibold text-blue-600 underline">{t('access.solo')}</Link>
           <InstallBanner className="mt-6 text-left max-w-sm mx-auto" />
         </div>
       </section>
@@ -127,6 +129,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 text-center mb-4">{t('landing.examplesTitle')}</h2>
           <p className="mx-auto mb-8 max-w-lg text-center text-sm leading-relaxed text-gray-500">{t('landing.previewHelp')}</p>
+          <PracticePreview />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {EXAMPLES.map((ex) => (
               <div

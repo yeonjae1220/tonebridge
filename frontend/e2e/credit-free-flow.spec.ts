@@ -31,6 +31,7 @@ async function mockApp(page: Page, loggedIn = true, onboarded = true, partnerUse
       state.searches.push(new URL(req.url()).searchParams.get('q') ?? '')
       return route.fulfill({ json: [{ id: 'friend', username: partnerUsername, nativeLanguage: 'en' }] })
     }
+    if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/friends') return route.fulfill({ json: [] })
     if (path === '/api/sessions') return route.fulfill({ json: [session] })
     if (path === '/api/sessions/shared') return route.fulfill({ json: session })
@@ -59,6 +60,8 @@ test('signup keeps invitation through onboarding before asking to connect', asyn
   const state = await mockApp(page, false, false)
   await page.goto('/friends?invite=partner')
   await page.getByRole('link', { name: 'Sign up', exact: true }).click()
+  await expect(page).toHaveURL(/signup$/)
+  await expect(page.getByRole('button', { name: 'Sign up', exact: true })).toBeVisible()
   await page.getByLabel('Email', { exact: true }).fill('new@example.com')
   await page.getByRole('textbox', { name: /^Username/ }).fill('new_learner')
   await page.getByLabel(/^Password/).fill('Password1!')

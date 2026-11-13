@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     locale: 'ko_KR',
     url: BASE_URL,
     siteName: 'ToneBridge',
-    title: 'ToneBridge — 언어 교정 교환 커뮤니티',
+    title: 'ToneBridge — 친구와 함께 배우는 언어',
     description: '친구와 표현과 음성을 나누고 서로의 피드백으로 다시 연습하는 무료 언어 학습 공간.',
     images: [
       {
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ToneBridge — 언어 교정 교환 커뮤니티',
+    title: 'ToneBridge — 친구와 함께 배우는 언어',
     description: '친구와 함께하는 무료 상호 언어 학습.',
     images: ['/icons/og-image.png'],
   },
@@ -92,7 +92,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={initialLanguage} suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className={inter.variable} data-nonce={nonce}>
         <Providers initialLanguage={initialLanguage}>

@@ -12,6 +12,7 @@ async function fixture(context: BrowserContext) {
     const req = route.request(), path = new URL(req.url()).pathname
     if (path.startsWith('/api/auth/')) return route.fulfill({ json: { accessToken: 'owner' } })
     if (path === '/api/users/me') return route.fulfill({ json: { id: 'owner', username: 'Owner', uiLanguage: 'en', onboardingCompleted: true, nativeLanguage: 'ko', learningLanguages: ['en'], fluentLanguages: [] } })
+    if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/friends') return route.fulfill({ json: [{ id: 'friend', username: 'Partner', nativeLanguage: 'en' }] })
     if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })
     const match = path.match(/^\/api\/compositions\/([^/]+)(.*)$/)

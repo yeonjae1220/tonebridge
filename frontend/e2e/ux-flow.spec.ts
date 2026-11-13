@@ -48,6 +48,7 @@ async function app(page: Page) {
     if (path === '/api/cards/card-1/native-audios') return ok([{ id: 'example-1', cardId: 'card-1', createdAt: session.createdAt }])
     if (path === '/api/attempts/attempt-1/download-url') { state.audioKeys.push(path); return ok({ downloadUrl: 'http://127.0.0.1:3100/ux-audio.wav' }) }
     if (path === '/api/native-audios/example-1/download-url') return ok({ downloadUrl: 'http://127.0.0.1:3100/ux-audio.wav' })
+    if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/friends') return ok(state.empty ? [] : [{ id: 'friend', username: 'Mina', nativeLanguage: 'ja' }])
     if (path === '/api/languages/variants') return ok({})
     if (path === '/api/correction-requests/feed/page') return ok({ items: [], nextCursor: null })

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "next typegen && tsc --noEmit --incremental false",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:pwa": "node --test ../scripts/tests/pwa-worker.test.cjs"
   },
   "dependencies": {
     "@fix-webm-duration/fix": "1.0.1",

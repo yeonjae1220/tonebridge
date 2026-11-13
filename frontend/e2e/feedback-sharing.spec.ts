@@ -48,6 +48,7 @@ async function app(page: Page) {
     if (path === '/api/cards/card') return ok(card)
     if (path === '/api/cards/card/attempts') return ok(state.attempts)
     if (path.endsWith('/download-url')) return ok({ downloadUrl: 'http://127.0.0.1:3100/fixture.wav' })
+    if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/friends') return ok(state.removed ? [] : [{ id: 'friend', username: 'Mina', nativeLanguage: 'ja' }])
     if (path === '/api/practice-feedback') {
       if (state.left) return ok({ items: [], nextPage: null })

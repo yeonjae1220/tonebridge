@@ -1,5 +1,7 @@
 'use client'
 
+import { InstallBanner } from '@/components/ui/InstallBanner'
+import { usePWAInstall } from '@/hooks/usePWAInstall'
 import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -21,6 +23,7 @@ type CreateSessionPayload = {
 
 export default function StudyPage() {
   const router = useRouter()
+  const { suggested, dismissSuggestion } = usePWAInstall()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
@@ -51,6 +54,7 @@ export default function StudyPage() {
   const { data: pendingRequests = [], isError: pendingError, isLoading: pendingLoading, refetch: refetchPending } = useQuery<FriendRequest[]>({
     queryKey: ['friends', 'pending'],
     queryFn: () => api.get('/friends/pending').then((r) => r.data),
+    refetchInterval: 15_000,
     enabled: !!accessToken,
   })
 
@@ -289,6 +293,7 @@ export default function StudyPage() {
 
           </details>
         )}
+        {suggested && <InstallBanner className="mt-5" onDismiss={dismissSuggestion} />}
         <p className="mt-6 text-sm"><Link href="/help" className="text-blue-600">{t('validation.help')}</Link></p>
       </div>
       {renamingSession && (

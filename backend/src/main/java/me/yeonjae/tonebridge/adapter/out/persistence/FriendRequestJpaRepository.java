@@ -17,6 +17,9 @@ public interface FriendRequestJpaRepository extends JpaRepository<FriendRequestE
             """)
     List<FriendRequestEntity> findByUserIdAndStatus(UUID userId, FriendStatus status);
 
+    org.springframework.data.domain.Slice<FriendRequestEntity> findBySenderIdAndStatusOrderByCreatedAtDescIdDesc(
+            UUID senderId, FriendStatus status, org.springframework.data.domain.Pageable pageable);
+
     List<FriendRequestEntity> findByReceiverIdAndStatus(UUID receiverId, FriendStatus status);
 
     Optional<FriendRequestEntity> findBySenderIdAndReceiverId(UUID senderId, UUID receiverId);

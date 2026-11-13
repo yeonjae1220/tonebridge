@@ -54,6 +54,36 @@ class MvpValidationIntegrationTest extends PostgresIntegrationTest {
         jdbc.update("INSERT INTO study_cards (id,session_id,created_by_user_id,phrase) VALUES (?,?,?,'private phrase')",card,session,a);
     }
 
+    @Test void sentRequestsAreAuthenticatedSenderScopedAndDisappearAfterAcceptance() throws Exception {
+        UUID request=UUID.randomUUID();
+        jdbc.update("INSERT INTO friend_requests (id,sender_id,receiver_id,status) VALUES (?,?,?,'PENDING')",request,a,b);
+        mvc.perform(get("/api/friends/sent")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/friends/sent").with(as(outsider))).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/friends/sent").with(as(b))).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/friends/sent").with(as(a)))
+                .andExpect(jsonPath("$.items[0].id").value(request.toString()))
+                .andExpect(jsonPath("$.items[0].receiverUsername").isString())
+                .andExpect(jsonPath("$.items[0].email").doesNotExist())
+                .andExpect(jsonPath("$.nextPage").isEmpty());
+        mvc.perform(post("/api/friends/{id}/accept",request).with(as(b))).andExpect(status().isOk());
+        mvc.perform(get("/api/friends/sent").with(as(a))).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/friends/sent?page=-1").with(as(a))).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/friends/sent?page=10001").with(as(a))).andExpect(status().isBadRequest());
+    }
+
+    @Test void sentRequestsHaveBoundedStablePages() throws Exception {
+        for (int i=0; i<21; i++) jdbc.update("INSERT INTO friend_requests (id,sender_id,receiver_id,status) VALUES (?,?,?,'PENDING')",UUID.randomUUID(),a,user());
+        var first=mvc.perform(get("/api/friends/sent").with(as(a))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(20)).andExpect(jsonPath("$.nextPage").value(1))
+                .andReturn().getResponse().getContentAsString();
+        var second=mvc.perform(get("/api/friends/sent?page=1").with(as(a))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.nextPage").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+        var json=tools.jackson.databind.json.JsonMapper.builder().build();
+        String lastId=json.readTree(second).get("items").get(0).get("id").asText();
+        assertThat(first).doesNotContain(lastId);
+    }
+
     @Test void acceptingFriendRequestRecordsOnlySuccessfulAcceptance() throws Exception {
         UUID request=UUID.randomUUID();
         jdbc.update("INSERT INTO friend_requests (id,sender_id,receiver_id,status) VALUES (?,?,?,'PENDING')",request,a,b);
