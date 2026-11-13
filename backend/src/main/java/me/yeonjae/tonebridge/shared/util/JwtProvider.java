@@ -46,11 +46,16 @@ public class JwtProvider {
     }
 
     public String generateAccessToken(UUID userId, boolean isAdmin) {
+        return generateAccessToken(userId, isAdmin, 0);
+    }
+
+    public String generateAccessToken(UUID userId, boolean isAdmin, long credentialsVersion) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
                 .claim(ADMIN_CLAIM, isAdmin)
+                .claim("credentials_version", credentialsVersion)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(jwtProperties.getAccessTokenTtlMinutes() * 60)))
                 .signWith(signingKey())
@@ -58,10 +63,14 @@ public class JwtProvider {
     }
 
     public String generateRefreshToken(UUID userId) {
-        return buildToken(userId.toString(), jwtProperties.getRefreshTokenTtlMinutes(), REFRESH_TOKEN_TYPE);
+        return generateRefreshToken(userId, 0);
     }
 
-    public record AccessClaims(UUID userId, boolean isAdmin) {}
+    public String generateRefreshToken(UUID userId, long credentialsVersion) {
+        return buildToken(userId.toString(), jwtProperties.getRefreshTokenTtlMinutes(), REFRESH_TOKEN_TYPE, credentialsVersion);
+    }
+
+    public record AccessClaims(UUID userId, boolean isAdmin, long credentialsVersion) {}
 
     /**
      * Parses an access token once and returns both userId and admin flag.
@@ -72,13 +81,24 @@ public class JwtProvider {
         validateTokenType(claims, ACCESS_TOKEN_TYPE);
         UUID userId = UUID.fromString(claims.getSubject());
         boolean isAdmin = Boolean.TRUE.equals(claims.get(ADMIN_CLAIM, Boolean.class));
-        return new AccessClaims(userId, isAdmin);
+        return new AccessClaims(userId, isAdmin, credentialsVersion(claims));
     }
 
     public UUID extractRefreshUserId(String token) {
         Claims claims = parseClaims(token);
         validateTokenType(claims, REFRESH_TOKEN_TYPE);
         return UUID.fromString(claims.getSubject());
+    }
+
+    public long extractRefreshCredentialsVersion(String token) {
+        Claims claims = parseClaims(token);
+        validateTokenType(claims, REFRESH_TOKEN_TYPE);
+        return credentialsVersion(claims);
+    }
+
+    private long credentialsVersion(Claims claims) {
+        Number version = claims.get("credentials_version", Number.class);
+        return version == null ? 0 : version.longValue();
     }
 
     public boolean isValid(String token) {
@@ -90,10 +110,12 @@ public class JwtProvider {
         }
     }
 
-    private String buildToken(String subject, long ttlMinutes, String tokenType) {
+    private String buildToken(String subject, long ttlMinutes, String tokenType, long credentialsVersion) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(subject)
+                .id(UUID.randomUUID().toString())
+                .claim("credentials_version", credentialsVersion)
                 .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlMinutes * 60)))

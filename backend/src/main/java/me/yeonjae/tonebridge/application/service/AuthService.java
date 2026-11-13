@@ -102,7 +102,7 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
         // 계정 미존재/비-LOCAL 경로에서도 더미 해시로 BCrypt 비교를 수행해 두 경로의
         // 응답 시간을 맞춘다 — 그렇지 않으면 비교를 건너뛰는 쪽이 더 빨리 응답해
         // 타이밍으로 이메일 존재 여부가 드러난다.
-        Optional<User> localUser = userPort.findByEmail(normalizeEmail(email)).filter(User::isLocalAccount);
+        Optional<User> localUser = userPort.findByEmailForUpdate(normalizeEmail(email)).filter(User::isLocalAccount);
         String hashToCompare = localUser.map(User::passwordHash).orElse(dummyPasswordHash);
         boolean passwordMatches = passwordHasherPort.matches(rawPassword, hashToCompare);
         if (localUser.isEmpty() || !passwordMatches) {
@@ -121,6 +121,10 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
             throw new ToneBridgeException(ErrorCode.INVALID_TOKEN);
         }
 
+        userPort.findByIdForUpdate(userId).orElseThrow(() -> new ToneBridgeException(ErrorCode.INVALID_TOKEN));
+        if (jwtProvider.extractRefreshCredentialsVersion(refreshToken) != userPort.credentialsVersion(userId)) {
+            throw new ToneBridgeException(ErrorCode.INVALID_TOKEN);
+        }
         refreshTokenPort.delete(refreshToken);
         return issueTokens(userId);
     }
@@ -154,9 +158,11 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
     }
 
     private TokenResponse issueTokens(UUID userId) {
-        boolean isAdmin = userPort.findById(userId).map(User::isAdmin).orElse(false);
-        String accessToken = jwtProvider.generateAccessToken(userId, isAdmin);
-        String refreshToken = jwtProvider.generateRefreshToken(userId);
+        boolean isAdmin = userPort.findByIdForUpdate(userId).orElseThrow(() ->
+                new ToneBridgeException(ErrorCode.INVALID_TOKEN)).isAdmin();
+        long version = userPort.credentialsVersion(userId);
+        String accessToken = jwtProvider.generateAccessToken(userId, isAdmin, version);
+        String refreshToken = jwtProvider.generateRefreshToken(userId, version);
         long ttlSeconds = jwtProperties.getRefreshTokenTtlMinutes() * 60;
         refreshTokenPort.save(refreshToken, userId, ttlSeconds);
         return new TokenResponse(accessToken, refreshToken);

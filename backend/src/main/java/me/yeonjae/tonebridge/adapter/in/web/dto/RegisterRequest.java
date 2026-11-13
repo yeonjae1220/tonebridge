@@ -15,9 +15,9 @@ public record RegisterRequest(
         String username,
 
         @NotBlank
-        @Size(min = 8, max = 100, message = "비밀번호는 8자 이상 100자 이하여야 합니다")
+        @Size(min = 8, max = 72, message = "비밀번호는 8자 이상 72자 이하여야 합니다")
         @Pattern(
-                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&_#^()\\-])[A-Za-z\\d@$!%*?&_#^()\\-]{8,100}$",
+                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&_#^()\\-])[A-Za-z\\d@$!%*?&_#^()\\-]{8,72}$",
                 message = "비밀번호는 대문자, 소문자, 숫자, 특수문자(@$!%*?&_#^()-)를 각각 1자 이상 포함해야 합니다"
         )
         String password

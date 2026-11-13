@@ -131,6 +131,43 @@ spec:
                 secretKeyRef:
                   name: tonebridge-secret
                   key: LAB_FEEDBACK_TOKEN
+            # Operator-managed SMTP Secret; disabled when absent, preserved by normal CI.
+            - name: PASSWORD_RESET_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: PASSWORD_RESET_ENABLED
+                  optional: true
+            - name: MAIL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: MAIL_HOST
+                  optional: true
+            - name: MAIL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: MAIL_PORT
+                  optional: true
+            - name: MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: MAIL_USERNAME
+                  optional: true
+            - name: MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: MAIL_PASSWORD
+                  optional: true
+            - name: MAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: MAIL_FROM
+                  optional: true
             - name: FRONTEND_URL
               value: https://tonebridge.mungji.com
             - name: GOOGLE_REDIRECT_URI

@@ -11,6 +11,17 @@ import java.util.UUID;
 
 public interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByEmail(String email);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserEntity u WHERE u.email = :email")
+    Optional<UserEntity> findByEmailForUpdate(String email);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserEntity u WHERE u.id = :id")
+    Optional<UserEntity> findByIdForUpdate(UUID id);
+
+    @Query("SELECT u.credentialsVersion FROM UserEntity u WHERE u.id = :id")
+    Optional<Long> credentialsVersion(UUID id);
     Optional<UserEntity> findByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);

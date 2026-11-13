@@ -15,6 +15,10 @@ public interface UserPort {
     Optional<User> findById(UUID id);
     List<User> findAllByIds(Collection<UUID> ids);
     List<User> searchByUsernamePrefix(String prefix, int limit);
+    Optional<User> findByEmailForUpdate(String email);
+    Optional<User> findByIdForUpdate(UUID id);
+    long credentialsVersion(UUID id);
+    void resetPassword(UUID id, String passwordHash);
     User save(User user);
     void deleteById(UUID id);
 }

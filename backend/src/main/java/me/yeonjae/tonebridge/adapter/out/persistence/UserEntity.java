@@ -104,6 +104,10 @@ public class UserEntity {
     @Column(name = "password_hash", length = 60)
     private String passwordHash;
 
+    /** Separate from the optimistic-lock version: increment only when credentials change. */
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long credentialsVersion;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
