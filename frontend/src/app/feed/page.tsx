@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FormEvent, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -10,6 +10,9 @@ import { CorrectionFeedPage, CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
+import { QueryError } from '@/components/ui/QueryError'
+import { RequestEditDialog } from '@/components/community/RequestEditDialog'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { localizedLabel } from '@/lib/localizedLabels'
 
 type TFunction = ReturnType<typeof useI18n>['t']
@@ -112,6 +115,7 @@ export default function FeedPage() {
       feedbackGoals: payload.feedbackGoals,
     }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+    onError: () => {}, // The dialog keeps the error beside the retained input.
   })
 
   const deleteRequestMutation = useMutation({
@@ -178,10 +182,10 @@ export default function FeedPage() {
             <div className="grid grid-cols-3 gap-2 text-center">
               <CommunityMetric
                 label={t('feed.helpRequests')}
-                value={`${feedItems?.length ?? 0}${feedQuery.hasNextPage ? '+' : ''}`}
+                value={feedQuery.isError || feedQuery.isPending ? '—' : `${feedItems?.length ?? 0}${feedQuery.hasNextPage ? '+' : ''}`}
               />
-              <CommunityMetric label={t('feed.myRequests')} value={pendingMine.length} />
-              <CommunityMetric label={t('feed.doneRequests')} value={completedMine.length} />
+              <CommunityMetric label={t('feed.myRequests')} value={myRequestsQuery.isError || myRequestsQuery.isPending ? '—' : pendingMine.length} />
+              <CommunityMetric label={t('feed.doneRequests')} value={myRequestsQuery.isError || myRequestsQuery.isPending ? '—' : completedMine.length} />
             </div>
           </section>
         )}
@@ -207,7 +211,10 @@ export default function FeedPage() {
           </div>
         )}
 
-        {isGuest ? <Link href="/#practice-preview" className="block py-4 text-sm font-semibold text-blue-600">{t('landing.browseFeed')} →</Link> : tab === 'help' ? (
+        {isGuest ? <Link href="/#practice-preview" className="block py-4 text-sm font-semibold text-blue-600">{t('landing.browseFeed')} →</Link> : (tab === 'help' ? feedQuery.isError && !feedQuery.isFetchNextPageError : myRequestsQuery.isError) ? (
+          <QueryError retrying={tab === 'help' ? feedQuery.isFetching : myRequestsQuery.isFetching}
+            onRetry={() => { void (tab === 'help' ? feedQuery.refetch() : myRequestsQuery.refetch()) }} />
+        ) : tab === 'help' ? (
           <>
             <RequestList
               requests={feedItems}
@@ -234,7 +241,7 @@ export default function FeedPage() {
             variantLabel={variantLabel}
             onCardClick={(req) => router.push(`/result/${req.id}`)}
             mine
-            onEdit={(req) => setEditingRequest(req)}
+            onEdit={(req) => { updateRequestMutation.reset(); setEditingRequest(req) }}
             onDelete={handleDelete}
           />
         ) : (
@@ -251,9 +258,10 @@ export default function FeedPage() {
         )}
       </div>
       {editingRequest && (
-        <RequestEditSheet
+        <RequestEditDialog
           request={editingRequest}
           pending={updateRequestMutation.isPending}
+          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t('error.unexpected')) : null}
           onClose={() => setEditingRequest(null)}
           onSubmit={(payload) => {
             updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
@@ -512,64 +520,4 @@ function statusLabel(status: CorrectionRequest['status'], t: TFunction) {
   if (status === 'COMPLETED' || status === 'AI_COMPLETED') return t('feed.statusCompleted')
   if (status === 'EXPIRED') return t('feed.statusExpired')
   return status
-}
-
-function RequestEditSheet({
-  request,
-  pending,
-  onClose,
-  onSubmit,
-}: {
-  request: CorrectionRequest
-  pending: boolean
-  onClose: () => void
-  onSubmit: (payload: Partial<CorrectionRequest>) => void
-}) {
-  const [contentText, setContentText] = useState(request.contentText ?? '')
-  const [context, setContext] = useState(request.context ?? '')
-  const { t } = useI18n()
-  const isAudio = request.type === 'AUDIO'
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    onSubmit({
-      contentText: isAudio ? request.contentText : contentText.trim(),
-      context: context.trim() || undefined,
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">{t('request.editTitle')}</h2>
-          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
-        </div>
-        {!isAudio && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-gray-500">{t('request.contentLabel')}</span>
-            <textarea
-              value={contentText}
-              onChange={(e) => setContentText(e.target.value)}
-              rows={4}
-              autoFocus
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </label>
-        )}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-gray-500">{t('request.context')}</span>
-          <textarea
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            rows={3}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-        </label>
-        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
-          {pending ? t('common.saving') : t('common.save')}
-        </button>
-      </form>
-    </div>
-  )
 }

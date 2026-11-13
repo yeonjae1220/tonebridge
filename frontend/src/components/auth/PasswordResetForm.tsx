@@ -22,17 +22,27 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
   const tokenGeneration = useRef(0)
   const alive = useRef(true)
   const requestInFlight = useRef(false)
+  const submission = useRef<AbortController | null>(null)
+  const [availabilityAttempt, setAvailabilityAttempt] = useState(0)
   useEffect(() => {
-    alive.current = true
+    let active = true
     const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15_000)
+    setAvailable(null)
     fetch('/api/auth/password-reset/status', { signal: controller.signal, cache: 'no-store', credentials: 'omit' })
       .then(async response => { if (!response.ok) throw new Error('unavailable'); return response.json() })
-      .then(data => { if (alive.current) setAvailable(data.enabled === true) })
-      .catch(() => { if (!controller.signal.aborted && alive.current) setAvailable(false) })
+      .then(data => { if (active) setAvailable(data.enabled === true) })
+      .catch(() => { if (active) setAvailable(false) })
+      .finally(() => clearTimeout(timer))
+    return () => { active = false; clearTimeout(timer); controller.abort() }
+  }, [availabilityAttempt])
+  useEffect(() => {
+    alive.current = true
     const consumeToken = () => {
       if (mode !== 'confirm' || (!window.location.hash && readToken.current)) return
       readToken.current = true
       tokenGeneration.current++
+      submission.current?.abort()
       const raw = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? ''
       setToken(/^[A-Za-z0-9_-]{43}$/.test(raw) ? raw : '')
       setDone(false); setError(null); setField(null); setPassword(''); setConfirmation('')
@@ -40,7 +50,7 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
     }
     consumeToken()
     window.addEventListener('hashchange', consumeToken)
-    return () => { alive.current = false; controller.abort(); window.removeEventListener('hashchange', consumeToken) }
+    return () => { alive.current = false; submission.current?.abort(); window.removeEventListener('hashchange', consumeToken) }
   }, [mode])
 
   function invalid(form: HTMLFormElement, name: 'email' | 'password' | 'confirmation', key: MessageKey) {
@@ -61,14 +71,18 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
     }
     const generation = tokenGeneration.current
     requestInFlight.current = true; setPending(true)
+    const controller = new AbortController()
+    submission.current = controller
+    const timer = setTimeout(() => controller.abort(), 30_000)
     try {
       const response = await fetch('/api/auth/password-reset' + (mode === 'confirm' ? '/confirm' : ''), {
-        method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', signal: controller.signal, credentials: 'omit', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mode === 'request' ? { email: email.trim() } : { token, password }),
       })
       if (!alive.current || generation !== tokenGeneration.current) return
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
+        if (!alive.current || generation !== tokenGeneration.current) return
         setError(response.status === 429 ? 'common.retryLater' : body.code === 'AUTH_007' ? 'reset.invalid' : response.status === 503 ? 'reset.unavailable' : 'reset.failure')
         return
       }
@@ -78,15 +92,15 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
         useAuthStore.getState().logout()
         void fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
       }
-    } catch { if (alive.current && generation === tokenGeneration.current) setError('reset.failure') }
-    finally { requestInFlight.current = false; if (alive.current) setPending(false) }
+    } catch { if (alive.current && generation === tokenGeneration.current) setError(mode === 'confirm' ? 'reset.confirmUncertain' : 'reset.failure') }
+    finally { clearTimeout(timer); submission.current = null; requestInFlight.current = false; if (alive.current) setPending(false) }
   }
   const missingToken = mode === 'confirm' && token === ''
   return <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 px-5 py-10">
     <section className="space-y-5 rounded-2xl border border-gray-200 bg-surface p-6">
       <h1 className="text-2xl font-bold">{t(done ? mode === 'request' ? 'reset.sent' : 'reset.success' : 'reset.title')}</h1>
       {done ? <p role="status" className="text-sm leading-relaxed">{t(mode === 'request' ? 'reset.sentDetail' : 'reset.successDetail')}</p> : <>
-        {available === null ? <p role="status">{t('common.loading')}</p> : !available ? <p role="alert">{t('reset.unavailable')}</p> : missingToken ? <p role="alert">{t('reset.invalid')}</p> :
+        {missingToken ? <p role="alert">{t('reset.invalid')}</p> : available === null ? <p role="status">{t('common.loading')}</p> : !available ? <p role="alert">{t('reset.unavailable')}</p> :
           <form noValidate onSubmit={submit} className="space-y-4">
             {mode === 'request' ? <label className="flex flex-col gap-2 text-sm">{t('login.email')}
               <input aria-label={t('login.email')} name="email" type="email" autoComplete="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} aria-invalid={field === 'email'} aria-describedby={field === 'email' ? 'reset-error' : undefined} className="rounded-xl border border-gray-200 px-3 py-3 text-gray-900" />
@@ -105,7 +119,7 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
         {error && <p id="reset-error" role="alert" className="text-sm text-red-500">{t(error)}</p>}
       </>}
       {mode === 'request' && done && <button type="button" onClick={() => setDone(false)} className="min-h-11 text-blue-600">{t('reset.again')}</button>}
-      {available === false && <button type="button" onClick={() => window.location.reload()} className="min-h-11 text-blue-600">{t('common.retry')}</button>}
+      {available === false && <button type="button" onClick={() => setAvailabilityAttempt(n => n + 1)} className="min-h-11 text-blue-600">{t('common.retry')}</button>}
       {mode === 'request' && <p className="text-sm text-gray-500">{t('reset.google')}</p>}
       {mode === 'confirm' && !done && <Link className="block min-h-11 py-2 text-blue-600" href="/forgot-password">{t('reset.again')}</Link>}
       <Link className="block min-h-11 py-2 text-blue-600" href="/login">{t('login.submit')}</Link>

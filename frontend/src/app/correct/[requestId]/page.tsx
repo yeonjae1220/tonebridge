@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { QueryError } from '@/components/ui/QueryError'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -17,6 +19,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
 import { formatMessage } from '@/i18n/messages'
 import { localizedLabel } from '@/lib/localizedLabels'
+import { captureAccountGuard } from '@/lib/validationDiagnostics'
 import { getApiErrorMessage } from '@/lib/apiError'
 
 const COMMON_TAGS = [
@@ -53,6 +56,7 @@ function ScoreSlider({
       </div>
       <input
         type="range"
+        aria-label={label}
         min={1}
         max={10}
         value={value}
@@ -70,9 +74,16 @@ function formatTime(seconds: number) {
 }
 
 export default function CorrectPage() {
-  const router = useRouter()
   const params = useParams()
-  const requestId = params.requestId as string
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <CorrectionEditor key={`${generation}:${params.requestId}`} requestId={params.requestId as string} />
+}
+
+function CorrectionEditor({ requestId }: { requestId: string }) {
+  const router = useRouter()
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const uploadedReference = useRef<{ blob: Blob; key: string } | null>(null)
   const { accessToken } = useAuthStore()
   const { t } = useI18n()
 
@@ -90,7 +101,7 @@ export default function CorrectPage() {
 
   const waveContainerRef = useRef<HTMLDivElement>(null)
 
-  const refRecorder = useAudioRecorder()
+  const refRecorder = useAudioRecorder(`correction-reference:${requestId}`)
   const { upload: uploadRef, uploading: uploadingRef } = usePresignedUpload()
 
   useEffect(() => {
@@ -106,18 +117,27 @@ export default function CorrectPage() {
 
   const request = requestQuery.data
 
-  const originalAudio = usePresignedDownloadUrl(request?.type === 'AUDIO' ? request.audioUrl : null)
+  const originalAudio = usePresignedDownloadUrl(!requestQuery.isError && request?.type === 'AUDIO' ? request.audioUrl : null)
   const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const requireSameAccount = captureAccountGuard()
+      const savedBlob = refRecorder.audioBlob
       let referenceAudioUrl: string | undefined
       if (request?.type === 'AUDIO' && refRecorder.state === 'stopped') {
         const file = refRecorder.getFile(`ref_${Date.now()}.webm`)
-        if (file) referenceAudioUrl = await uploadRef(file)
+        if (file && savedBlob) {
+          if (uploadedReference.current?.blob === savedBlob) referenceAudioUrl = uploadedReference.current.key
+          else {
+            referenceAudioUrl = await uploadRef(file)
+            uploadedReference.current = { blob: savedBlob, key: referenceAudioUrl }
+          }
+        }
       }
 
-      return api.post('/corrections', {
+      requireSameAccount()
+      await api.post('/corrections', {
         requestId,
         correctedText: correctedText || undefined,
         explanation,
@@ -130,8 +150,15 @@ export default function CorrectPage() {
           referenceAudioUrl,
         }),
       })
+      requireSameAccount()
+      return savedBlob
     },
-    onSuccess: () => router.push('/community'),
+    onSuccess: savedBlob => {
+      if (!mounted.current) return
+      refRecorder.clearSaved(savedBlob)
+      router.push('/community')
+    },
+    onMutate: () => setError(''),
     onError: (e: unknown) => setError(getApiErrorMessage(e, t('correct.submitFailed'))),
   })
 
@@ -142,7 +169,7 @@ export default function CorrectPage() {
   }
 
   const addTimestampComment = () => {
-    if (!pendingComment.trim()) return
+    if (!pendingComment.trim() || !ws.ready || mutation.isPending) return
     const start = ws.currentTime
     setTimestampComments((prev) => [
       ...prev,
@@ -156,32 +183,25 @@ export default function CorrectPage() {
   }
 
   const isAudio = request?.type === 'AUDIO'
-  const isValid = explanation.trim().length >= 20
+  const recordingBusy = refRecorder.starting || refRecorder.state === 'recording' || refRecorder.state === 'processing'
+  const isValid = !!request && !requestQuery.isError && explanation.trim().length >= 20 && !recordingBusy
 
   if (!accessToken) return null
+  if (requestQuery.isError || !request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
+    <h1 className="text-xl font-bold">{t('correct.title')}</h1>
+    {requestQuery.isError ? <QueryError retrying={requestQuery.isFetching} onRetry={() => void requestQuery.refetch()} /> : <p role="status">{t('common.loading')}</p>}
+    <Link href="/community" className="block py-3 text-blue-600">{t('nav.feed')}</Link>
+  </main>
 
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
+          <button aria-label={t('nav.feed')} onClick={() => router.push('/community')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{t('correct.title')}</h1>
           </div>
         </div>
-
-        {requestQuery.isError && (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 p-4 flex items-center justify-between gap-3">
-            <p className="text-sm text-red-700">{t('correct.requestLoadFailed')}</p>
-            <button
-              type="button"
-              onClick={() => void requestQuery.refetch()}
-              className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
-            >
-              {t('common.retry')}
-            </button>
-          </div>
-        )}
 
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
@@ -193,7 +213,7 @@ export default function CorrectPage() {
           </div>
           {isAudio ? (
             <div>
-              <AudioLoadFailed failed={originalAudio.failed} onRetry={originalAudio.retry} />
+              <AudioLoadFailed failed={originalAudio.failed || ws.failed} onRetry={() => { originalAudio.retry(); ws.retry() }} />
               <div ref={waveContainerRef} className="w-full min-h-[64px] bg-amber-100 rounded-xl overflow-hidden" />
               <div className="flex items-center justify-between mt-3">
                 <button
@@ -223,6 +243,7 @@ export default function CorrectPage() {
           )}
         </div>
 
+        <fieldset disabled={mutation.isPending || uploadingRef} className="flex min-w-0 flex-col gap-5">
         {/* Timestamp comments */}
         {isAudio && (
           <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
@@ -230,6 +251,7 @@ export default function CorrectPage() {
             <p className="text-xs text-gray-400">{t('correct.timestampHelp')}</p>
             <div className="flex gap-2">
               <select
+                aria-label={t('correct.timestampTitle')}
                 value={pendingCategory}
                 onChange={(e) => setPendingCategory(e.target.value)}
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -239,11 +261,15 @@ export default function CorrectPage() {
                 ))}
               </select>
               <input
+                aria-label={t('correct.commentPlaceholder')}
                 value={pendingComment}
                 onChange={(e) => setPendingComment(e.target.value)}
                 placeholder={t('correct.commentPlaceholder')}
-                onKeyDown={(e) => e.key === 'Enter' && addTimestampComment()}
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                  if (e.key === 'Enter') { e.preventDefault(); addTimestampComment() }
+                }}
+                className="min-w-0 flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               <button
                 onClick={addTimestampComment}
@@ -291,9 +317,11 @@ export default function CorrectPage() {
             </div>
             <p className="text-xs text-gray-400">{t('correct.referenceHelp')}</p>
             <RecorderErrorMessage error={refRecorder.error} />
+            {(refRecorder.starting || refRecorder.state === 'processing') && <p role="status" className="text-sm">{t('common.loading')}</p>}
             <div className="flex items-center gap-3">
               {refRecorder.state === 'idle' && (
                 <button
+                  disabled={refRecorder.starting || refRecorder.draftStatus === 'loading'}
                   onClick={() => void refRecorder.start()}
                   className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition-colors"
                 >
@@ -311,7 +339,7 @@ export default function CorrectPage() {
               {refRecorder.state === 'stopped' && refRecorder.audioUrl && (
                 <div className="flex-1 flex gap-2 items-center">
                   <audio controls src={refRecorder.audioUrl} className="flex-1 h-8" />
-                  <button onClick={refRecorder.reset} className="text-xs text-gray-400 hover:text-gray-600">{t('correct.recordAgainShort')}</button>
+                  <button onClick={() => { if (window.confirm(t('recording.discard'))) refRecorder.reset() }} className="text-xs text-gray-400 hover:text-gray-600">{t('correct.recordAgainShort')}</button>
                 </div>
               )}
             </div>
@@ -323,6 +351,7 @@ export default function CorrectPage() {
           <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <label className="text-sm font-semibold text-gray-700">{t('result.correctedText')}</label>
             <textarea
+              aria-label={t('result.correctedText')}
               value={correctedText}
               onChange={(e) => setCorrectedText(e.target.value)}
               placeholder={t('correct.correctedTextPlaceholder')}
@@ -341,6 +370,7 @@ export default function CorrectPage() {
             </span>
           </div>
           <textarea
+            aria-label={t('result.explanation')}
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
             placeholder={isAudio ? t('correct.explanationAudioPlaceholder') : t('correct.explanationTextPlaceholder')}
@@ -369,7 +399,7 @@ export default function CorrectPage() {
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-sm px-1">{error}</p>}
+        {error && <p role="alert" className="text-red-500 text-sm px-1">{error}</p>}
 
         <button
           onClick={() => mutation.mutate()}
@@ -378,6 +408,7 @@ export default function CorrectPage() {
         >
           {mutation.isPending || uploadingRef ? t('correct.submitting') : t('correct.submit')}
         </button>
+        </fieldset>
       </div>
     </main>
   )

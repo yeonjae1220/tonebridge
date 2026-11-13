@@ -9,6 +9,8 @@ import { api, logout as logoutSession } from '@/lib/api'
 import type { UserProfile, User } from '@/types'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { ALL_LANG_LABELS, UI_LANGUAGES } from '@/constants/languages'
+import Link from 'next/link'
+import { QueryError } from '@/components/ui/QueryError'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMessage, languageDisplayName } from '@/i18n/messages'
 import { type ThemePreference, useTheme } from '@/components/theme/ThemeProvider'
@@ -78,17 +80,20 @@ export default function ProfilePage() {
     setShowSettings(pathname === '/profile/settings')
   }, [pathname])
 
-  const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
+  const profileQuery = useQuery<UserProfile>({
     queryKey: ['profile'],
     queryFn: () => api.get('/users/me/profile').then((r) => r.data),
     enabled: !!accessToken,
   })
 
-  const { data: me } = useQuery<User>({
+  const meQuery = useQuery<User>({
     queryKey: ['me'],
     queryFn: () => api.get('/users/me').then((r) => r.data),
     enabled: !!accessToken,
   })
+
+  const { data: profile, isLoading: profileLoading } = profileQuery
+  const { data: me } = meQuery
 
   useEffect(() => {
     if (me && editingLanguages) {
@@ -176,6 +181,7 @@ export default function ProfilePage() {
   }
 
   const handleNicknameSave = () => {
+    if (updateNicknameMutation.isPending) return
     const trimmed = nicknameInput.trim()
     if (!/^[a-zA-Z0-9_]{2,20}$/.test(trimmed)) {
       setNicknameError(t('profile.nicknameInvalid'))
@@ -205,6 +211,11 @@ export default function ProfilePage() {
   const levelMeta = profile ? (LEVEL_META[profile.correctorLevel] ?? LEVEL_META.NATIVE) : null
   const langLabel = (code: string) => languageDisplayName(code, language) || fallbackLangLabel(code)
 
+  if (editingLanguages && (meQuery.isError || !me)) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
+    <h1 className="text-xl font-bold">{t('profile.languageSettingsTitle')}</h1>
+    {meQuery.isError ? <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} /> : <p role="status">{t('common.loading')}</p>}
+    <Link href="/profile" className="block py-3 text-blue-600">{t('profile.title')}</Link>
+  </main>
   if (editingLanguages) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -280,6 +291,7 @@ export default function ProfilePage() {
             <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
           <InstallBanner persistent className="mb-5" />
+          {meQuery.isError && <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} />}
 
           <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4">
@@ -395,6 +407,7 @@ export default function ProfilePage() {
         </div>
 
         <InstallBanner persistent className="mb-5" />
+        {profileQuery.isError && <QueryError retrying={profileQuery.isFetching} onRetry={() => void profileQuery.refetch()} />}
         {profileLoading && (
           <div className="flex flex-col gap-4">
             {[1, 2, 3].map((i) => (
@@ -403,7 +416,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {profile && (
+        {profile && !profileQuery.isError && (
           <div className="flex flex-col gap-4">
             {/* 기본 정보 */}
             <div className="bg-surface rounded-2xl border border-gray-100 p-5">
@@ -421,7 +434,10 @@ export default function ProfilePage() {
                           maxLength={20}
                           placeholder={t('profile.nicknamePlaceholder')}
                           className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
-                          onKeyDown={(e) => e.key === 'Enter' && handleNicknameSave()}
+                          onKeyDown={(e) => {
+                            if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                            if (e.key === 'Enter') { e.preventDefault(); handleNicknameSave() }
+                          }}
                           autoFocus
                         />
                         <button

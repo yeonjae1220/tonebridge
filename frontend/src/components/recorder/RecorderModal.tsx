@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { useAudioRecorder, type RecorderError } from '@/hooks/useAudioRecorder'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useI18n } from '@/i18n/I18nProvider'
+import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
 import { Dialog } from '@/components/ui/Dialog'
 import { RecordingDraftNotice } from './RecordingDraftNotice'
 
@@ -21,11 +22,12 @@ export function RecordedAudioPreview({
   onReset: () => void
 }) {
   const waveformRef = useRef<HTMLDivElement | null>(null)
-  const { playing, currentTime, duration, ready, togglePlay } = useWaveSurfer(waveformRef, audioUrl)
+  const { playing, currentTime, duration, ready, failed, retry, togglePlay } = useWaveSurfer(waveformRef, audioUrl)
   const { t } = useI18n()
 
   return (
     <div className="w-full rounded-2xl bg-gray-50 border border-gray-100 p-4">
+      <AudioLoadFailed failed={failed} onRetry={retry} />
       <div className="flex items-center gap-3">
         <button
           type="button"

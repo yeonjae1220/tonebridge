@@ -86,3 +86,67 @@ test('missing and rejected links provide a new request path without auto-submiss
   await page.getByRole('link',{name:'새 재설정 메일 요청',exact:true}).click()
   await expect(page).toHaveURL(/forgot-password$/)
 })
+
+
+test('status timeout retries in place without losing the reset token', async ({ page }) => {
+  const calls = await mockReset(page)
+  await page.clock.install()
+  let lookups = 0
+  await page.route('**/api/auth/password-reset/status', async route => {
+    lookups++
+    if (lookups === 1) return // Keep the first network request pending until the client aborts it.
+    await route.fulfill({ json: { enabled: true } })
+  })
+  await page.goto('/reset-password#token=' + token)
+  await expect.poll(() => lookups).toBe(1)
+  await expect(page).toHaveURL(/reset-password$/)
+  await page.clock.fastForward(15_001)
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('사용할 수 없습니다')
+  await page.getByRole('button', { name: '다시 시도', exact: true }).click()
+  await page.getByLabel('비밀번호', { exact: true }).fill('NewPass2!')
+  await page.getByLabel('새 비밀번호 확인', { exact: true }).fill('NewPass2!')
+  await page.getByRole('button', { name: '새 비밀번호 저장', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '비밀번호가 변경되었습니다' })).toBeVisible()
+  expect(calls[0].body).toEqual({ token, password: 'NewPass2!' })
+  expect(lookups).toBe(2)
+})
+
+test('submit timeout unlocks the form and preserves input without automatically resending', async ({ page }) => {
+  await mockReset(page)
+  await page.clock.install()
+  let posts = 0
+  await page.route('**/api/auth/password-reset', route => {
+    posts++
+    if (posts === 1) return
+    return route.fulfill({ status: 202 })
+  })
+  await page.goto('/forgot-password')
+  await page.getByLabel('이메일', { exact: true }).fill('learner@example.test')
+  const submit = page.getByRole('button', { name: '재설정 메일 요청', exact: true })
+  await submit.click(); await expect.poll(() => posts).toBe(1)
+  await page.clock.fastForward(30_001)
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('입력은 유지')
+  await expect(page.getByLabel('이메일', { exact: true })).toHaveValue('learner@example.test')
+  expect(posts).toBe(1)
+  await submit.click()
+  await expect(page.getByRole('status')).toContainText('계정이 있다면')
+  expect(posts).toBe(2)
+})
+
+
+test('lost password confirmation explains uncertainty and never automatically repeats the write', async ({ page }) => {
+  await mockReset(page); await page.clock.install()
+  let posts = 0
+  await page.route('**/api/auth/password-reset/confirm', () => { posts++ })
+  await page.goto('/reset-password#token=' + token)
+  await page.getByLabel('비밀번호', { exact: true }).fill('NewPass2!')
+  await page.getByLabel('새 비밀번호 확인', { exact: true }).fill('NewPass2!')
+  await page.getByRole('button', { name: '새 비밀번호 저장', exact: true }).click()
+  await expect.poll(() => posts).toBe(1)
+  await page.clock.fastForward(30_001)
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('변경 완료 여부를 확인하지 못했습니다')
+  await expect(page.getByLabel('비밀번호', { exact: true })).toHaveValue('NewPass2!')
+  await expect(page.getByRole('link', { name: '로그인', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: '새 재설정 메일 요청', exact: true })).toBeVisible()
+  expect(posts).toBe(1)
+})
