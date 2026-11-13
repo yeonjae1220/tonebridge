@@ -1,3 +1,4 @@
+import { usePWAInstall } from '@/hooks/usePWAInstall'
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostics'
@@ -13,6 +14,7 @@ useAuthStore.subscribe((current, previous) => {
 })
 
 export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'example') {
+  const { suggestInstall } = usePWAInstall()
   const [stage, setStage] = useState<'preparing' | 'uploading' | 'saving'>('preparing')
   const save = async (blob: Blob) => {
     const generation = useAuthStore.getState().sessionGeneration
@@ -51,6 +53,7 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
       { audioKey: checkpoint!.audioKey }, { signal },
     ))
     requireSameAccount()
+    suggestInstall()
     return response
   }
   return { save, stage }

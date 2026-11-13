@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface FriendPort {
+    record PendingSentPage(List<FriendRequest> items, boolean hasNext) {}
+    PendingSentPage findPendingBySenderId(UUID senderId, int page);
     FriendRequest save(FriendRequest request);
     Optional<FriendRequest> findById(UUID id);
     List<FriendRequest> findAcceptedByUserId(UUID userId);

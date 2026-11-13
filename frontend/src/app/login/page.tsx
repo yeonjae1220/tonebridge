@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { loginWithPassword } from '@/lib/api'
 import { isSafeRedirect, resolvePostAuthPath } from '@/lib/authNavigate'
 import axios from 'axios'
+import { validateAuth, type AuthErrors } from '@/lib/authValidation'
 import { useAuthStore } from '@/stores/authStore'
 import { getApiErrorStatus } from '@/lib/apiError'
 
@@ -17,6 +18,7 @@ function LoginInner() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<AuthErrors>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const pendingAuth = useRef<AbortController | null>(null)
@@ -38,6 +40,12 @@ function LoginInner() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting) return
+    const invalid = validateAuth(email, password)
+    setFieldErrors(invalid)
+    if (Object.keys(invalid).length) {
+      e.currentTarget.querySelector<HTMLInputElement>(`[name="${Object.keys(invalid)[0]}"]`)?.focus()
+      return
+    }
     setError(null)
     setSubmitting(true)
     const controller = new AbortController()
@@ -75,10 +83,16 @@ function LoginInner() {
               type="email"
               autoComplete="email"
               required
+              name="email"
+              aria-label={t('login.email')}
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+              onBlur={() => setFieldErrors((previous) => ({ ...previous, email: validateAuth(email, password).email }))}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })) } }
               className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
             />
+            {fieldErrors.email && <span id="email-error" role="alert" className="text-sm text-red-500">{t(fieldErrors.email!)}</span>}
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
@@ -87,10 +101,16 @@ function LoginInner() {
               type="password"
               autoComplete="current-password"
               required
+              name="password"
+              aria-label={t('login.password')}
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+              onBlur={() => setFieldErrors((previous) => ({ ...previous, password: validateAuth(email, password).password }))}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setFieldErrors((previous) => ({ ...previous, password: undefined })) } }
               className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
             />
+            {fieldErrors.password && <span id="password-error" role="alert" className="text-sm text-red-500">{t(fieldErrors.password!)}</span>}
           </label>
 
           {error && (
@@ -107,6 +127,7 @@ function LoginInner() {
             {t('login.submit')}
           </button>
         </form>
+        <Link href="/help#account-access" className="text-center text-sm text-blue-600 underline">{t('access.accountHelp')}</Link>
 
         <div className="flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-gray-100" />

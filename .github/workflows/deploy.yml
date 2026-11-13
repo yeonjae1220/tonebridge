@@ -76,6 +76,10 @@ jobs:
         working-directory: frontend
         run: npm run type-check
 
+      - name: Test PWA cache boundaries
+        working-directory: frontend
+        run: npm run test:pwa
+
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium

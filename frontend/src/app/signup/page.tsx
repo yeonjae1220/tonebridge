@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { registerWithPassword } from '@/lib/api'
 import { resolvePostAuthPath } from '@/lib/authNavigate'
 import axios from 'axios'
+import { validateAuth, type AuthErrors } from '@/lib/authValidation'
 import { useAuthStore } from '@/stores/authStore'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 
@@ -17,6 +18,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<AuthErrors>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const pendingAuth = useRef<AbortController | null>(null)
@@ -25,6 +27,12 @@ export default function SignupPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting) return
+    const invalid = validateAuth(email, password, username)
+    setFieldErrors(invalid)
+    if (Object.keys(invalid).length) {
+      e.currentTarget.querySelector<HTMLInputElement>(`[name="${Object.keys(invalid)[0]}"]`)?.focus()
+      return
+    }
     setError(null)
     setSubmitting(true)
     const controller = new AbortController()
@@ -61,10 +69,16 @@ export default function SignupPage() {
               type="email"
               autoComplete="email"
               required
+              name="email"
+              aria-label={t('signup.email')}
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+              onBlur={() => setFieldErrors((previous) => ({ ...previous, email: validateAuth(email, password, username).email }))}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })) } }
               className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
             />
+            {fieldErrors.email && <span id="email-error" role="alert" className="text-sm text-red-500">{t(fieldErrors.email!)}</span>}
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
@@ -75,10 +89,16 @@ export default function SignupPage() {
               required
               minLength={2}
               maxLength={20}
+              name="username"
+              aria-label={t('signup.username')}
+              aria-invalid={!!fieldErrors.username}
+              aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+              onBlur={() => setFieldErrors((previous) => ({ ...previous, username: validateAuth(email, password, username).username }))}
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => { setUsername(e.target.value); setFieldErrors((previous) => ({ ...previous, username: undefined })) } }
               className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
             />
+            {fieldErrors.username && <span id="username-error" role="alert" className="text-sm text-red-500">{t(fieldErrors.username!)}</span>}
             <span className="text-xs text-gray-400">{t('signup.usernameHint')}</span>
           </label>
 
@@ -90,11 +110,17 @@ export default function SignupPage() {
               required
               minLength={8}
               maxLength={100}
+              name="password"
+              aria-label={t('signup.password')}
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+              onBlur={() => setFieldErrors((previous) => ({ ...previous, password: validateAuth(email, password, username).password }))}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setFieldErrors((previous) => ({ ...previous, password: undefined })) } }
               className="rounded-xl border border-gray-200 px-3.5 py-2.5 text-gray-900 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition"
             />
-            <span className="text-xs text-gray-400">{t('signup.passwordHint')}</span>
+            {fieldErrors.password && <span id="password-error" role="alert" className="text-sm text-red-500">{t(fieldErrors.password!)}</span>}
+            {!fieldErrors.password && <span className="text-xs text-gray-400">{t('access.passwordRule')}</span>}
           </label>
 
           {error && (

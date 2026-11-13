@@ -10,6 +10,7 @@ import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ErrorToast } from '@/components/ui/ErrorToast'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import { useErrorToastStore } from '@/stores/errorToastStore'
+import { PWAProvider } from '@/hooks/usePWAInstall'
 import { RecordingNavigationGuard } from '@/hooks/useRecordingNavigation'
 
 /**
@@ -58,7 +59,7 @@ export function Providers({
   }, [])
 
   return (
-    <ThemeProvider>
+    <PWAProvider><ThemeProvider>
       <QueryClientProvider client={queryClient}>
         {sessionReady ? (
           <I18nProvider initialLanguage={initialLanguage}>
@@ -68,6 +69,6 @@ export function Providers({
           </I18nProvider>
         ) : null}
       </QueryClientProvider>
-    </ThemeProvider>
+    </ThemeProvider></PWAProvider>
   )
 }

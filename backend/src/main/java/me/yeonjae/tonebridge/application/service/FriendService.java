@@ -104,6 +104,18 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public SentRequestPage getSentRequests(UUID userId, int page) {
+        var pending = friendPort.findPendingBySenderId(userId, page);
+        var receiverIds = pending.items().stream().map(FriendRequest::receiverId).collect(Collectors.toSet());
+        Map<UUID, String> names = receiverIds.isEmpty() ? Map.of() : userPort.findAllByIds(receiverIds).stream()
+                .collect(Collectors.toMap(User::id, User::username));
+        return new SentRequestPage(pending.items().stream().map(request -> new SentRequestView(
+                request.id(), request.receiverId(), names.get(request.receiverId()), request.createdAt())).toList(),
+                pending.hasNext() ? page + 1 : null);
+    }
+
+    @Override
     public void decline(DeclineFriendRequestUseCase.Command command) {
         FriendRequest request = friendPort.findById(command.requestId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));

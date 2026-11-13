@@ -7,6 +7,8 @@ function gate() {
   return { promise, release }
 }
 async function fillAuth(page: Page, kind: 'login' | 'signup', email: string) {
+  await expect(page).toHaveURL(new RegExp('/' + kind + '$'))
+  await expect(page.getByRole('button', { name: kind === 'login' ? 'Log in' : 'Sign up', exact: true })).toBeVisible()
   await page.getByLabel('Email', { exact: true }).fill(email)
   if (kind === 'signup') await page.getByRole('textbox', { name: /^Username/ }).fill('fixture_user')
   await page.getByLabel(/^Password/).fill('Fixture1!')
@@ -96,7 +98,8 @@ for (const switching of [true, false]) {
           username: active, level: 'NATIVE', reputationScore: 0, streakDays: 0, badges: [], totalCorrections: 0,
           adoptedCorrections: 0, nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['en'],
         } })
-        if (path === '/api/friends') return route.fulfill({ json: [{ id: 'friend', username: 'Partner', nativeLanguage: 'en' }] })
+        if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
+    if (path === '/api/friends') return route.fulfill({ json: [{ id: 'friend', username: 'Partner', nativeLanguage: 'en' }] })
         if (path === '/api/sessions') return route.fulfill({ json: [session] })
         if (path === '/api/sessions/shared') return route.fulfill({ json: session })
         if (path === '/api/sessions/shared/cards') return route.fulfill({ json: req.method() === 'POST' ? card : [] })

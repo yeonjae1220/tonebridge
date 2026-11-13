@@ -11,6 +11,7 @@ async function fixture(context: BrowserContext) {
     if (path.startsWith('/api/auth/')) return route.fulfill({ json: { accessToken: state.owner } })
     if (request.method() !== 'GET') state.mutations++
     if (path === '/api/users/me') return route.fulfill({ json: { id: state.owner, username: state.owner, uiLanguage: 'en', onboardingCompleted: true } })
+    if (path === '/api/friends/sent') return route.fulfill({ json: { items: [], nextPage: null } })
     if (path === '/api/friends') return route.fulfill({ json: [{ id: 'friend-secret-id', username: 'Alice', nativeLanguage: 'en' }] })
     if (path === '/api/languages/variants') return route.fulfill({ json: { en: [{ code: 'en-US', label: 'American English', labelNative: 'American English', variantType: 'ACCENT' }] } })
     if (path.startsWith('/api/cards/')) return route.fulfill({ json: { id: 'card-one', sessionId: 'session-one', phrase: 'Practice this sentence', tags: [] } })

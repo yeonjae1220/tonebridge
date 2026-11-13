@@ -19,6 +19,14 @@ public class FriendJpaAdapter implements FriendPort {
     private final FriendRequestJpaRepository repository;
 
     @Override
+    @Transactional(readOnly = true)
+    public PendingSentPage findPendingBySenderId(UUID senderId, int page) {
+        var slice = repository.findBySenderIdAndStatusOrderByCreatedAtDescIdDesc(
+                senderId, FriendStatus.PENDING, org.springframework.data.domain.PageRequest.of(page, 20));
+        return new PendingSentPage(slice.getContent().stream().map(FriendRequestEntity::toDomain).toList(), slice.hasNext());
+    }
+
+    @Override
     public FriendRequest save(FriendRequest request) {
         return repository.save(FriendRequestEntity.fromDomain(request)).toDomain();
     }

@@ -1,5 +1,6 @@
 'use client'
 
+import { usePWAInstall } from '@/hooks/usePWAInstall'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -48,6 +49,7 @@ type SubmitResult =
 
 export default function RequestPage() {
   const router = useRouter()
+  const { suggestInstall } = usePWAInstall()
   const queryClient = useQueryClient()
   const { accessToken, sessionGeneration } = useAuthStore()
   const authenticated = !!accessToken
@@ -198,6 +200,7 @@ export default function RequestPage() {
         editor.resume(); setEditorRestored(true); setStep(0); return
       }
       if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
+      suggestInstall()
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (result.type === 'community') {
         router.push('/community')
@@ -233,6 +236,7 @@ export default function RequestPage() {
       requireSameAccount()
       if (!pending) await editor.submitted()
       setPending(draft)
+      if (!edit) setStep(2)
       submitMutation.mutate({
         sessionGeneration: generation, draft, edit,
       })
@@ -460,6 +464,14 @@ export default function RequestPage() {
           {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
           {error && !storageIssue && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
+          {step === 0 && destination === 'PERSONAL' && !pending && <div className="mt-5 rounded-xl border border-blue-100 p-3">
+            <p className="mb-3 text-sm text-gray-600">{t('request.destinationPersonalSub')}</p>
+            <button type="button" onClick={() => handleSubmit()} disabled={!canSubmit}
+              className="min-h-11 w-full rounded-xl bg-action-primary px-4 py-3 font-semibold text-white disabled:opacity-40">
+              {isPending ? t('request.submitting') : t('access.quickSave')}
+            </button>
+          </div>}
+          {step === 0 && destination === 'PERSONAL' && <p className="mt-4 text-sm text-gray-500">{t('access.moreOptions')} →</p>}
           <div className="mt-5 flex gap-2">
             {step > 0 && (
               <button

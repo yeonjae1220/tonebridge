@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -11,6 +11,7 @@ import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useDebounce } from '@/hooks/useDebounce'
 import type { Friend, FriendRequest, UserSearchResult, StudySession } from '@/types'
 import { useI18n } from '@/i18n/I18nProvider'
+import { QueryError } from '@/components/ui/QueryError'
 import { Dialog } from '@/components/ui/Dialog'
 import { formatDate } from '@/lib/dateUtils'
 
@@ -32,6 +33,7 @@ export default function FriendsPage() {
   const { language, t } = useI18n()
   const { data: currentUser } = useCurrentUser()
   const [origin, setOrigin] = useState('')
+  const [inviter, setInviter] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -41,7 +43,6 @@ export default function FriendsPage() {
   const [decliningId, setDecliningId] = useState<string | null>(null)
   const [removingFriend, setRemovingFriend] = useState<Friend | null>(null)
   const [closeShared, setCloseShared] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
   const debouncedQuery = useDebounce(searchQuery, 300)
 
   useEffect(() => {
@@ -54,32 +55,34 @@ export default function FriendsPage() {
     // Existing Google usernames can exceed the 20-character rename limit.
     // Match the persisted username and /users/search limit (50).
     if (invite && /^[A-Za-z0-9_]{2,50}$/.test(invite)) {
+      setInviter(invite)
       setSearchQuery(invite)
       setShowSearch(true)
     }
   }, [])
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowSearch(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   const { data: friends = [], isLoading: friendsLoading, isError: friendsError } = useQuery<Friend[]>({
     queryKey: ['friends'],
     queryFn: () => api.get('/friends').then((r) => r.data),
     enabled: !!accessToken,
+    refetchInterval: 15_000,
   })
 
   const { data: pending = [], isError: pendingError } = useQuery<FriendRequest[]>({
     queryKey: ['friends', 'pending'],
     queryFn: () => api.get('/friends/pending').then((r) => r.data),
     enabled: !!accessToken,
+    refetchInterval: 15_000,
   })
+
+  const sentQuery = useInfiniteQuery<{ items: { id: string; receiverId: string; receiverUsername: string | null; createdAt: string }[]; nextPage: number | null }>({
+    queryKey: ['friends', 'sent'], initialPageParam: 0,
+    queryFn: ({ pageParam }) => api.get('/friends/sent', { params: { page: pageParam } }).then(r => r.data),
+    getNextPageParam: page => page.nextPage ?? undefined,
+    enabled: !!accessToken, refetchInterval: 15_000,
+  })
+  const sent = [...new Map((sentQuery.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id, item])).values()]
 
   const { data: searchResults = [], isFetching: searchLoading, isError: searchError } = useQuery<UserSearchResult[]>({
     queryKey: ['users', 'search', debouncedQuery],
@@ -181,6 +184,11 @@ export default function FriendsPage() {
           </button>
         </div>
 
+        {inviter && <section className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <h2 className="text-sm font-semibold text-gray-900">{t('access.invitedBy')} · <span className="break-all">{inviter}</span></h2>
+          <p className="mt-2 text-sm text-gray-600">{t('access.inviteConfirm')}</p>
+        </section>}
+        <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['friends'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
         {inviteUrl && (
           <section className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4">
             <p className="text-sm font-semibold mb-2">{t('friends.inviteLink')}</p>
@@ -203,8 +211,11 @@ export default function FriendsPage() {
 
         {/* 친구 검색 패널 */}
         {showSearch && (
-          <div ref={searchRef} className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
-            <p className="text-sm font-semibold text-gray-700 mb-3">{t('friends.searchTitle')}</p>
+          <div className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-gray-700">{t('friends.searchTitle')}</p>
+              <button type="button" onClick={() => setShowSearch(false)} aria-label={t('common.close')} className="h-11 w-11 text-gray-500">×</button>
+            </div>
             <div className="relative">
               <input
                 type="text"
@@ -227,6 +238,7 @@ export default function FriendsPage() {
               <div className="mt-2 flex flex-col gap-1">
                 {searchResults.map((user) => {
                   const isFriend = friendIds.has(user.id)
+                  const isWaiting = sent.some(request => request.receiverId === user.id)
                   return (
                     <div key={user.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="min-w-0 flex-1">
@@ -235,7 +247,7 @@ export default function FriendsPage() {
                       </div>
                       {isFriend ? (
                         <span className="shrink-0 text-xs text-green-600 font-medium">{t('friends.alreadyFriends')}</span>
-                      ) : (
+                      ) : isWaiting ? <span className="text-xs text-gray-500">{t('access.waiting')}</span> : (
                         <button
                           onClick={() => sendRequestMutation.mutate(user.username)}
                           disabled={sendRequestMutation.isPending}
@@ -256,6 +268,14 @@ export default function FriendsPage() {
           </div>
         )}
 
+        <section className="mb-5 rounded-xl border border-gray-100 bg-surface p-4" aria-label={t('access.sent')}>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">{t('access.sent')}</h2>
+          {sentQuery.isError ? <QueryError onRetry={() => void sentQuery.refetch()} /> : sentQuery.isPending ? <p role="status">{t('common.loading')}</p> : sent.length === 0 ? <p className="text-sm text-gray-500">{t('access.sentEmpty')}</p> :
+            <ul className="space-y-3">{sent.map(request => <li key={request.id} className="flex flex-wrap justify-between gap-2 text-sm">
+              <span className="break-all">{request.receiverUsername ?? t('friends.unknown')}</span><span className="text-gray-500">{t('access.waiting')}</span>
+            </li>)}</ul>}
+          {sentQuery.hasNextPage && <button type="button" disabled={sentQuery.isFetching} onClick={() => void sentQuery.fetchNextPage()} className="mt-3 min-h-11 text-sm text-blue-600">{t('feedback.more')}</button>}
+        </section>
         {/* 받은 친구 요청 */}
         {pending.length > 0 && (
           <section className="mb-4">

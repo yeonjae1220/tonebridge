@@ -59,6 +59,14 @@ public class FriendController {
         return ResponseEntity.ok(pending.stream().map(FriendRequestResponse::fromPending).toList());
     }
 
+    @GetMapping("/sent")
+    public ResponseEntity<GetFriendsUseCase.SentRequestPage> getSent(
+            @AuthenticationPrincipal UUID userId,
+            @RequestParam(defaultValue = "0") @jakarta.validation.constraints.Min(0)
+            @jakarta.validation.constraints.Max(10000) int page) {
+        return ResponseEntity.ok(getUseCase.getSentRequests(userId, page));
+    }
+
     @DeleteMapping("/requests/{requestId}")
     public ResponseEntity<Void> declineRequest(
             @AuthenticationPrincipal UUID userId,
