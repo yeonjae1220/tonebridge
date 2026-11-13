@@ -84,7 +84,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             // 스캐너가 없는 경로를 두드리는 건 일상이라 WARN 도 소음이다.
             log.debug("Not found: {}", ex.getMessage());
         } else {
-            log.warn("Client error {}: {} - {}", status.value(), ex.getClass().getSimpleName(), ex.getMessage());
+            // Binding/JSON exception messages can include rejected passwords and reset tokens.
+            log.warn("Client error {}: {}", status.value(), ex.getClass().getSimpleName());
         }
     }
 

@@ -75,6 +75,14 @@ google:
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
 
 tonebridge:
+  password-reset:
+    enabled: ${PASSWORD_RESET_ENABLED:false}
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:}
+    base-url: ${FRONTEND_URL:http://localhost:3000}
   validation:
     enabled: ${TONEBRIDGE_VALIDATION_ENABLED:false}
   storage:
@@ -117,6 +125,9 @@ tonebridge:
 
 management:
   health:
+    # Optional SMTP delivery must not mark the core learning service unhealthy.
+    mail:
+      enabled: false
     probes:
       enabled: true
   endpoints:

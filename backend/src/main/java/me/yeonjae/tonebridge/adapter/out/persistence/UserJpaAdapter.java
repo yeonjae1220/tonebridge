@@ -62,6 +62,31 @@ public class UserJpaAdapter implements UserPort {
     }
 
     @Override
+    public Optional<User> findByEmailForUpdate(String email) {
+        return userJpaRepository.findByEmailForUpdate(email).map(UserEntity::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByIdForUpdate(UUID id) {
+        return userJpaRepository.findByIdForUpdate(id).map(UserEntity::toDomain);
+    }
+
+    @Override
+    public long credentialsVersion(UUID id) {
+        return userJpaRepository.credentialsVersion(id).orElseThrow(() ->
+                new me.yeonjae.tonebridge.shared.exception.ToneBridgeException(
+                        me.yeonjae.tonebridge.shared.exception.ErrorCode.INVALID_TOKEN));
+    }
+
+    @Override
+    public void resetPassword(UUID id, String hash) {
+        UserEntity user = userJpaRepository.findByIdForUpdate(id).orElseThrow();
+        user.setPasswordHash(hash);
+        user.setCredentialsVersion(Math.addExact(user.getCredentialsVersion(), 1));
+        userJpaRepository.saveAndFlush(user);
+    }
+
+    @Override
     public User save(User user) {
         if (user.id() != null) {
             Optional<UserEntity> existing = userJpaRepository.findById(user.id());

@@ -28,6 +28,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
+    private final me.yeonjae.tonebridge.application.port.out.UserPort userPort;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -38,6 +39,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             if (StringUtils.hasText(token)) {
                 JwtProvider.AccessClaims claims = jwtProvider.parseAccessClaims(token);
+                if (claims.credentialsVersion() != userPort.credentialsVersion(claims.userId())) {
+                    throw new ToneBridgeException(me.yeonjae.tonebridge.shared.exception.ErrorCode.INVALID_TOKEN);
+                }
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 if (claims.isAdmin()) {

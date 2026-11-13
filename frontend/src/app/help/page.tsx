@@ -41,7 +41,8 @@ export default function HelpPage() {
       </section>
       <section id="account-access" className="scroll-mt-4 space-y-3 rounded-xl border border-gray-200 p-4 text-sm">
         <h2 className="font-semibold">{ko ? '계정 접속 도움말' : 'Account access help'}</h2>
-        <p>{ko ? 'Google로 가입했다면 로그인 화면에서 ‘Google로 시작하기’를 선택하세요. 이메일 계정의 자동 비밀번호 재설정은 아직 지원하지 않습니다.' : 'If you signed up with Google, choose Continue with Google on the login screen. Automated email-password reset is not available yet.'}</p>
+        <p>{ko ? 'Google로 가입했다면 로그인 화면에서 ‘Google로 시작하기’를 선택하세요. 이메일로 가입했다면 비밀번호 재설정 메일을 요청할 수 있습니다. 링크는 15분 동안 한 번만 사용할 수 있고, 변경 후 모든 기기에서 다시 로그인해야 합니다.' : 'If you signed up with Google, choose Continue with Google on the login screen. For email-password accounts, request a reset email. The link works once for 15 minutes; sign in again on every device after changing your password.'}</p>
+        <Link href="/forgot-password" className="block text-blue-600">{ko ? '비밀번호 재설정 메일 요청' : 'Request a password reset email'}</Link>
         <p>{ko ? '접속 문제는 아래로 문의할 수 있습니다. 문의만으로 비밀번호나 계정 권한이 바뀌지 않으며, 본인 확인과 가능한 조치를 안내합니다. 비밀번호·인증 코드는 보내지 마세요.' : 'Contact us below for access issues. A message alone does not change passwords or access; identity verification and available options must be checked. Never send passwords or verification codes.'}</p>
         <Link href="/login" className="inline-block py-2 text-blue-600">{ko ? '로그인으로 돌아가기' : 'Back to login'}</Link>
       </section>

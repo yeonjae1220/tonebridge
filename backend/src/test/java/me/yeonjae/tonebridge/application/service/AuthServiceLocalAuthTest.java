@@ -81,10 +81,11 @@ class AuthServiceLocalAuthTest {
         when(passwordHasherPort.encode("Str0ng!pw")).thenReturn("HASHED");
         when(userPort.save(any(User.class)))
                 .thenReturn(localUser(newId, "alice@example.com", "alice", "HASHED"));
-        when(userPort.findById(newId))
+        when(userPort.findByIdForUpdate(newId))
                 .thenReturn(Optional.of(localUser(newId, "alice@example.com", "alice", "HASHED")));
-        when(jwtProvider.generateAccessToken(eq(newId), eq(false))).thenReturn("ACCESS");
-        when(jwtProvider.generateRefreshToken(newId)).thenReturn("REFRESH");
+        when(userPort.findByIdForUpdate(newId)).thenReturn(Optional.of(localUser(newId, "alice@example.com", "alice", "HASHED")));
+        when(jwtProvider.generateAccessToken(eq(newId), eq(false), eq(0L))).thenReturn("ACCESS");
+        when(jwtProvider.generateRefreshToken(newId, 0)).thenReturn("REFRESH");
 
         TokenResponse result = authService.register("Alice@Example.com", "alice", "Str0ng!pw");
 
@@ -128,11 +129,11 @@ class AuthServiceLocalAuthTest {
     void loginLocal_validPassword_issuesTokens() {
         UUID id = UUID.randomUUID();
         User user = localUser(id, "alice@example.com", "alice", "HASHED");
-        when(userPort.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+        when(userPort.findByEmailForUpdate("alice@example.com")).thenReturn(Optional.of(user));
         when(passwordHasherPort.matches("Str0ng!pw", "HASHED")).thenReturn(true);
-        when(userPort.findById(id)).thenReturn(Optional.of(user));
-        when(jwtProvider.generateAccessToken(eq(id), eq(false))).thenReturn("ACCESS");
-        when(jwtProvider.generateRefreshToken(id)).thenReturn("REFRESH");
+        when(userPort.findByIdForUpdate(id)).thenReturn(Optional.of(user));
+        when(jwtProvider.generateAccessToken(eq(id), eq(false), eq(0L))).thenReturn("ACCESS");
+        when(jwtProvider.generateRefreshToken(id, 0)).thenReturn("REFRESH");
 
         TokenResponse result = authService.loginLocal("Alice@Example.com", "Str0ng!pw");
 
@@ -142,7 +143,7 @@ class AuthServiceLocalAuthTest {
     @Test
     @DisplayName("loginLocal: 존재하지 않는 이메일은 LOGIN_FAILED — 더미 해시로 비교해 응답 시간을 맞춘다")
     void loginLocal_unknownEmail_throwsLoginFailed() {
-        when(userPort.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+        when(userPort.findByEmailForUpdate("ghost@example.com")).thenReturn(Optional.empty());
         when(passwordHasherPort.matches("whatever1!A", "DUMMY_HASH")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.loginLocal("ghost@example.com", "whatever1!A"))
@@ -156,7 +157,7 @@ class AuthServiceLocalAuthTest {
     @DisplayName("loginLocal: 비밀번호 불일치는 LOGIN_FAILED")
     void loginLocal_wrongPassword_throwsLoginFailed() {
         UUID id = UUID.randomUUID();
-        when(userPort.findByEmail("alice@example.com"))
+        when(userPort.findByEmailForUpdate("alice@example.com"))
                 .thenReturn(Optional.of(localUser(id, "alice@example.com", "alice", "HASHED")));
         when(passwordHasherPort.matches("wrong", "HASHED")).thenReturn(false);
 
@@ -172,7 +173,7 @@ class AuthServiceLocalAuthTest {
         User googleUser = new User(id, "alice@example.com", "alice", "", "ko", List.of(), List.of(),
                 null, Map.of(), Map.of(), 30, 5.0, CorrectorLevel.NATIVE, 0, null, Instant.now(), false,
                 OAuthProvider.GOOGLE, null);
-        when(userPort.findByEmail("alice@example.com")).thenReturn(Optional.of(googleUser));
+        when(userPort.findByEmailForUpdate("alice@example.com")).thenReturn(Optional.of(googleUser));
         when(passwordHasherPort.matches("Str0ng!pw", "DUMMY_HASH")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.loginLocal("alice@example.com", "Str0ng!pw"))

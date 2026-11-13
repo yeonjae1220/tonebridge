@@ -43,7 +43,7 @@ test('signup explains invalid fields before sending, focuses first error and ret
   await page.getByLabel('닉네임', { exact: true }).fill('review_user')
   await page.getByLabel('비밀번호', { exact: true }).fill('Short1!')
   await page.getByRole('button', { name: '가입하기', exact: true }).click()
-  await expect(page.locator('#password-error')).toContainText('8~100')
+  await expect(page.locator('#password-error')).toContainText('8~72')
   expect(state.posts).toHaveLength(0)
   await page.getByLabel('비밀번호', { exact: true }).fill('ValidPass123!')
   await page.getByRole('button', { name: '가입하기', exact: true }).click()
@@ -58,7 +58,7 @@ test('login has explicit validation and an honest recovery route', async ({ page
   await expect(page.locator('#email-error')).toBeVisible()
   expect(state.posts).toHaveLength(0)
   await page.getByRole('link', { name: '계정에 접속할 수 없나요?' }).click()
-  await expect(page.locator('#account-access')).toContainText('자동 비밀번호 재설정은 아직 지원하지 않습니다')
+  await expect(page.locator('#account-access')).toContainText('비밀번호 재설정 메일을 요청할 수 있습니다')
   await expect(page.getByText(/마지막 보관 후 7일/)).toBeVisible()
 })
 

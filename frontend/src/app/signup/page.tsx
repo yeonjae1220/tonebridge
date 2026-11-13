@@ -109,7 +109,7 @@ export default function SignupPage() {
               autoComplete="new-password"
               required
               minLength={8}
-              maxLength={100}
+              maxLength={72}
               name="password"
               aria-label={t('signup.password')}
               aria-invalid={!!fieldErrors.password}

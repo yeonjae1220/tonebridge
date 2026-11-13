@@ -41,7 +41,7 @@ spec:
               app: minio
       ports:
         - port: 9000
-    # 외부 API (Google OAuth, Claude, OpenAI)
+    # 외부 API (443) + 인증된 STARTTLS 메일 제출 (587); 사설망 제외 유지
     # 공인 IP 로만 — 사설·CGNAT·링크로컬을 빼서 노드 nginx(lab·uptime·grafana)나 LAN 장비로 새지 않게 한다
     - to:
         - ipBlock:
@@ -54,6 +54,8 @@ spec:
               - 169.254.0.0/16  # 링크로컬
       ports:
         - port: 443
+          protocol: TCP
+        - port: 587
           protocol: TCP
     # DNS — CoreDNS(kube-system/kube-dns) 로만. to: 가 없으면 53 으로 어디든 나간다(GLOBAL-PIT-090)
     - to:

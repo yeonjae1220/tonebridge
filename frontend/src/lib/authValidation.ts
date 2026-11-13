@@ -7,7 +7,12 @@ export function validateAuth(email: string, password: string, username?: string)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'access.emailInvalid'
   if (username !== undefined && !/^[a-zA-Z0-9_]{2,20}$/.test(username.trim())) errors.username = 'profile.nicknameInvalid'
   if (username !== undefined) {
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^()\-])[A-Za-z\d@$!%*?&_#^()\-]{8,100}$/.test(password)) errors.password = 'access.passwordRule'
+    const issue = validatePassword(password)
+    if (issue) errors.password = issue
   } else if (!password) errors.password = 'access.passwordRequired'
   return errors
+}
+
+export function validatePassword(password: string): MessageKey | undefined {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^()\-])[A-Za-z\d@$!%*?&_#^()\-]{8,72}$/.test(password) ? undefined : 'access.passwordRule'
 }
