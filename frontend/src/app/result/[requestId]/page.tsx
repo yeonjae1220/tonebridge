@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,6 +12,10 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
 import { usePresignedDownloadUrl } from '@/hooks/usePresignedDownloadUrl'
+import { Dialog } from '@/components/ui/Dialog'
+import { QueryError } from '@/components/ui/QueryError'
+import { RequestEditDialog } from '@/components/community/RequestEditDialog'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { localizedLabel } from '@/lib/localizedLabels'
 
 const STATUS_MAP: Record<string, { key: 'result.waiting' | 'result.approved' | 'result.rejected'; cls: string }> = {
@@ -34,7 +39,7 @@ function RefAudioPlayer({ audioKey }: { audioKey: string }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold text-indigo-600">{t('common.audio')}</p>
-      <AudioLoadFailed failed={failed} onRetry={retry} />
+      <AudioLoadFailed failed={failed || ws.failed} onRetry={() => { retry(); ws.retry() }} />
       <div ref={containerRef} className="w-full min-h-[48px] bg-indigo-50 rounded-xl overflow-hidden" />
       <div className="flex items-center justify-between">
         <button
@@ -109,9 +114,13 @@ function AudioCorrectionDetail({ correction }: { correction: Correction }) {
 }
 
 export default function ResultPage() {
-  const router = useRouter()
   const params = useParams()
-  const requestId = params.requestId as string
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <ResultDetail key={`${generation}:${params.requestId}`} requestId={params.requestId as string} />
+}
+
+function ResultDetail({ requestId }: { requestId: string }) {
+  const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
@@ -127,28 +136,30 @@ export default function ResultPage() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: myRequests } = useQuery<CorrectionRequest[]>({
-    queryKey: ['my-requests'],
-    queryFn: () => api.get('/correction-requests/mine').then((r) => r.data),
+  const requestQuery = useQuery<CorrectionRequest>({
+    queryKey: ['correction-request', requestId],
+    queryFn: () => api.get(`/correction-requests/${requestId}`).then(r => r.data),
     enabled: !!accessToken,
   })
-
-  const request = myRequests?.find((r) => r.id === requestId)
-
-  const { data: sessions = [] } = useQuery<StudySession[]>({
+  const request = requestQuery.data
+  const sessionsQuery = useQuery<StudySession[]>({
     queryKey: ['sessions'],
-    queryFn: () => api.get('/sessions').then((r) => r.data),
-    enabled: !!accessToken,
+    queryFn: () => api.get('/sessions').then(r => r.data),
+    enabled: !!accessToken && !!savingCorrection,
   })
+  const sessions = sessionsQuery.data ?? []
 
-  const originalAudio = usePresignedDownloadUrl(request?.type === 'AUDIO' ? request.audioUrl : null)
+  const originalAudio = usePresignedDownloadUrl(!requestQuery.isError && request?.type === 'AUDIO' ? request.audioUrl : null)
   const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
-  const { data: corrections, refetch } = useQuery<Correction[]>({
+  const correctionsQuery = useQuery<Correction[]>({
     queryKey: ['corrections', requestId],
     queryFn: () => api.get(`/corrections/request/${requestId}`).then((r) => r.data),
     enabled: !!accessToken,
   })
+
+  const { data: corrections, refetch } = correctionsQuery
+  const [savedCardUrl, setSavedCardUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) return
@@ -157,9 +168,10 @@ export default function ResultPage() {
     es.addEventListener('correction-ready', () => {
       refetch()
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
     })
     return () => es.close()
-  }, [accessToken, refetch, queryClient])
+  }, [accessToken, refetch, queryClient, requestId])
 
   const rateMutation = useMutation({
     mutationFn: ({ correctionId, helpful }: { correctionId: string; helpful: boolean }) =>
@@ -172,6 +184,7 @@ export default function ResultPage() {
     onSuccess: () => {
       refetch()
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
     },
   })
 
@@ -203,6 +216,7 @@ export default function ResultPage() {
       referenceAudioUrl: correction.referenceAudioUrl,
     }),
     onSuccess: () => refetch(),
+    onError: () => {},
   })
 
   const updateRequestMutation = useMutation({
@@ -213,7 +227,11 @@ export default function ResultPage() {
       context: payload.context,
       feedbackGoals: payload.feedbackGoals,
     }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
+    },
+    onError: () => {},
   })
 
   const createCardMutation = useMutation({
@@ -223,21 +241,30 @@ export default function ResultPage() {
         context: payload.context,
         tags: payload.tags,
       }),
-    onSuccess: (_data, variables) => {
+    onSuccess: (response, variables) => {
+      setSavedCardUrl(`/study/${variables.sessionId}` + (response.data?.id ? `/cards/${response.data.id}` : ''))
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'cards'] })
       setSavingCorrection(null)
     },
+    onError: () => {},
   })
 
   const deleteRequestMutation = useMutation({
     mutationFn: () => api.delete(`/correction-requests/${requestId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
       router.push('/community')
     },
   })
 
   if (!accessToken) return null
+  if (requestQuery.isError || !request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
+    <h1 className="text-xl font-bold">{t('result.title')}</h1>
+    {requestQuery.isError ? <QueryError retrying={requestQuery.isFetching} onRetry={() => void requestQuery.refetch()} />
+      : <p role="status">{t('common.loading')}</p>}
+    <Link href="/community" className="block py-3 text-blue-600">{t('nav.feed')}</Link>
+  </main>
 
   const isAudio = request?.type === 'AUDIO'
 
@@ -258,15 +285,15 @@ export default function ResultPage() {
             )}
             {request && (
               <div className="ml-auto flex gap-2">
-                {request.status === 'PENDING' && (
+                {currentUser?.id === request.requesterId && request.status === 'PENDING' && (
                   <button
-                    onClick={() => setEditingRequest(request)}
+                    onClick={() => { updateRequestMutation.reset(); setEditingRequest(request) }}
                     className="text-xs text-amber-700 hover:text-amber-900"
                   >
                     {t('common.edit')}
                   </button>
                 )}
-                {request.status === 'PENDING' && (
+                {currentUser?.id === request.requesterId && request.status === 'PENDING' && (
                   <button
                     onClick={() => {
                       if (window.confirm(t('result.confirmDeleteRequest'))) {
@@ -283,7 +310,7 @@ export default function ResultPage() {
           </div>
           {isAudio ? (
             <div>
-              <AudioLoadFailed failed={originalAudio.failed} onRetry={originalAudio.retry} />
+              <AudioLoadFailed failed={originalAudio.failed || ws.failed} onRetry={() => { originalAudio.retry(); ws.retry() }} />
               <div ref={waveContainerRef} className="w-full min-h-[64px] bg-amber-100 rounded-xl overflow-hidden" />
               <div className="flex items-center justify-between mt-3">
                 <button
@@ -303,8 +330,11 @@ export default function ResultPage() {
           )}
         </div>
 
-        {/* Corrections */}
-        {!corrections || corrections.length === 0 ? (
+        {savedCardUrl && <p role="status"><Link href={savedCardUrl} className="block rounded-xl bg-green-50 p-4 font-semibold text-green-700">{t('study.openCards')} →</Link></p>}
+        {/* A failed request is never represented as an empty collection. */}
+        {correctionsQuery.isError ? <QueryError retrying={correctionsQuery.isFetching} onRetry={() => void refetch()} />
+          : correctionsQuery.isPending ? <p role="status">{t('common.loading')}</p>
+          : !corrections || corrections.length === 0 ? (
           <div className="bg-surface rounded-2xl border border-gray-100 p-8 text-center">
             <p className="text-3xl mb-3">⏳</p>
             <p className="text-sm font-medium text-gray-700 mb-1">{t('result.pendingTitle')}</p>
@@ -344,7 +374,7 @@ export default function ResultPage() {
                       {canManage && (
                         <>
                           <button
-                            onClick={() => setEditingCorrection(correction)}
+                            onClick={() => { updateCorrectionMutation.reset(); setEditingCorrection(correction) }}
                             className="text-xs text-gray-500 hover:text-blue-600"
                           >
                             {t('common.edit')}
@@ -411,7 +441,7 @@ export default function ResultPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => setSavingCorrection(correction)}
+                          onClick={() => { createCardMutation.reset(); setSavedCardUrl(null); setSavingCorrection(correction) }}
                           className="w-full py-2.5 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold hover:bg-gray-800 transition-colors"
                         >
                           {t('result.saveCard')}
@@ -445,10 +475,10 @@ export default function ResultPage() {
         )}
       </div>
       {editingRequest && (
-        <RequestEditSheet
+        <RequestEditDialog
           request={editingRequest}
-          isAudio={editingRequest.type === 'AUDIO'}
           pending={updateRequestMutation.isPending}
+          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t('error.unexpected')) : null}
           onClose={() => setEditingRequest(null)}
           onSubmit={(payload) => {
             updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
@@ -462,6 +492,7 @@ export default function ResultPage() {
           correction={editingCorrection}
           isAudio={isAudio}
           pending={updateCorrectionMutation.isPending}
+          error={updateCorrectionMutation.isError ? getApiErrorMessage(updateCorrectionMutation.error, t('error.unexpected')) : null}
           onClose={() => setEditingCorrection(null)}
           onSubmit={(payload) => {
             updateCorrectionMutation.mutate({ ...editingCorrection, ...payload }, {
@@ -475,7 +506,12 @@ export default function ResultPage() {
           correction={savingCorrection}
           request={request}
           sessions={sessions}
+          loading={sessionsQuery.isPending}
+          failed={sessionsQuery.isError}
+          retrying={sessionsQuery.isFetching}
+          onRetry={() => void sessionsQuery.refetch()}
           pending={createCardMutation.isPending}
+          error={createCardMutation.isError ? getApiErrorMessage(createCardMutation.error, t('error.unexpected')) : null}
           onClose={() => setSavingCorrection(null)}
           onSubmit={(payload) => createCardMutation.mutate(payload)}
           onStudy={() => router.push('/study')}
@@ -485,67 +521,18 @@ export default function ResultPage() {
   )
 }
 
-function RequestEditSheet({
-  request,
-  isAudio,
-  pending,
-  onClose,
-  onSubmit,
-}: {
-  request: CorrectionRequest
-  isAudio: boolean
-  pending: boolean
-  onClose: () => void
-  onSubmit: (payload: Partial<CorrectionRequest>) => void
-}) {
-  const [contentText, setContentText] = useState(request.contentText ?? '')
-  const [context, setContext] = useState(request.context ?? '')
-  const { t } = useI18n()
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    onSubmit({
-      contentText: isAudio ? request.contentText : contentText.trim(),
-      context: context.trim() || undefined,
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title={t('common.edit')} onClose={onClose} />
-        {!isAudio && (
-          <textarea
-            value={contentText}
-            onChange={(e) => setContentText(e.target.value)}
-            rows={4}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-        )}
-        <input
-          value={context}
-          onChange={(e) => setContext(e.target.value)}
-          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder={t('request.context')}
-        />
-        <button type="submit" disabled={pending} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
-          {pending ? t('common.saving') : t('common.save')}
-        </button>
-      </form>
-    </div>
-  )
-}
-
 function CorrectionEditSheet({
   correction,
   isAudio,
   pending,
+  error,
   onClose,
   onSubmit,
 }: {
   correction: Correction
   isAudio: boolean
   pending: boolean
+  error: string | null
   onClose: () => void
   onSubmit: (payload: Partial<Correction>) => void
 }) {
@@ -555,7 +542,7 @@ function CorrectionEditSheet({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!explanation.trim()) return
+    if (pending || !explanation.trim()) return
     onSubmit({
       correctedText: isAudio ? correction.correctedText : correctedText.trim(),
       explanation: explanation.trim(),
@@ -563,11 +550,12 @@ function CorrectionEditSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title={t('common.edit')} onClose={onClose} />
+    <Dialog title={t('common.edit')} onClose={onClose} busy={pending}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <fieldset disabled={pending} className="flex flex-col gap-4">
         {!isAudio && (
           <textarea
+            aria-label={t('result.correctedText')}
             value={correctedText}
             onChange={(e) => setCorrectedText(e.target.value)}
             rows={3}
@@ -576,17 +564,20 @@ function CorrectionEditSheet({
           />
         )}
         <textarea
+          aria-label={t('result.explanation')}
           value={explanation}
           onChange={(e) => setExplanation(e.target.value)}
           rows={4}
           className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
           placeholder={t('result.explanation')}
         />
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <button type="submit" disabled={pending || !explanation.trim()} className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold disabled:opacity-40">
           {pending ? t('common.saving') : t('common.save')}
         </button>
+        </fieldset>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
@@ -595,6 +586,11 @@ function SaveCardSheet({
   request,
   sessions,
   pending,
+  error,
+  loading,
+  failed,
+  retrying,
+  onRetry,
   onClose,
   onSubmit,
   onStudy,
@@ -603,6 +599,11 @@ function SaveCardSheet({
   request: CorrectionRequest
   sessions: StudySession[]
   pending: boolean
+  error: string | null
+  loading: boolean
+  failed: boolean
+  retrying: boolean
+  onRetry: () => void
   onClose: () => void
   onSubmit: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) => void
   onStudy: () => void
@@ -613,14 +614,14 @@ function SaveCardSheet({
   const [context, setContext] = useState(correction.explanation || request.context || '')
 
   useEffect(() => {
-    if (!sessionId && sessions[0]?.id) {
+    if (!sessions.some(session => session.id === sessionId) && sessions[0]?.id) {
       setSessionId(sessions[0].id)
     }
   }, [sessionId, sessions])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!sessionId || !phrase.trim()) return
+    if (pending || failed || loading || !sessions.some(session => session.id === sessionId) || !phrase.trim()) return
     onSubmit({
       sessionId,
       phrase: phrase.trim(),
@@ -630,10 +631,10 @@ function SaveCardSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center px-4 pb-4">
-      <form onSubmit={submit} className="w-full max-w-lg bg-surface rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <SheetHeader title={t('result.saveCard')} onClose={onClose} />
-        {sessions.length === 0 ? (
+    <Dialog title={t('result.saveCard')} onClose={onClose} busy={pending}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+
+        {failed ? <QueryError retrying={retrying} onRetry={onRetry} /> : loading ? <p role="status">{t('common.loading')}</p> : sessions.length === 0 ? (
           <div className="py-6 text-center">
             <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
@@ -642,29 +643,21 @@ function SaveCardSheet({
             </button>
           </div>
         ) : (
-          <>
-            <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface">
+          <fieldset disabled={pending} className="flex flex-col gap-4">
+            <select aria-label={t('study.title')} value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface">
               {sessions.map((session) => (
                 <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>
               ))}
             </select>
-            <textarea value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
-            <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder={t('study.cards.context')} />
+            <textarea aria-label={t('study.cards.phrase')} value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
+            <textarea aria-label={t('study.cards.context')} value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder={t('study.cards.context')} />
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold disabled:opacity-40">
               {pending ? t('common.saving') : t('common.save')}
             </button>
-          </>
+          </fieldset>
         )}
       </form>
-    </div>
-  )
-}
-
-function SheetHeader({ title, onClose }: { title: string; onClose: () => void }) {
-  return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-      <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">×</button>
-    </div>
+    </Dialog>
   )
 }
