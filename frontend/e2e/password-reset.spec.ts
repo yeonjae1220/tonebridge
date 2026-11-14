@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const token = 'A'.repeat(43)
 async function mockReset(page: Page, options: { enabled?: boolean; failOnce?: boolean; invalid?: boolean } = {}) {
@@ -149,4 +149,36 @@ test('lost password confirmation explains uncertainty and never automatically re
   await expect(page.getByRole('link', { name: '로그인', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: '새 재설정 메일 요청', exact: true })).toBeVisible()
   expect(posts).toBe(1)
+})
+
+
+test('reset completion serializes cookie deletion before a new password login', async ({ page }) => {
+  await mockReset(page)
+  let logoutRequest: Route | undefined
+  let logins = 0
+  await page.route('**/api/auth/logout', route => { logoutRequest = route })
+  await page.route('**/api/auth/login', route => {
+    logins++
+    return route.fulfill({ json: { accessToken: 'fixture' }, headers: { 'Set-Cookie': 'refresh_token=new-login; Path=/; HttpOnly; SameSite=Lax' } })
+  })
+  await page.route('**/api/users/me', route => route.fulfill({ json: {
+    id: 'owner', username: 'learner', onboardingCompleted: true, uiLanguage: 'ko', nativeLanguage: 'ko', learningLanguages: ['ja'], fluentLanguages: [],
+  } }))
+  await page.goto('/reset-password#token=' + token)
+  await page.getByLabel('비밀번호', { exact: true }).fill('NewPass2!')
+  await page.getByLabel('새 비밀번호 확인', { exact: true }).fill('NewPass2!')
+  await page.getByRole('button', { name: '새 비밀번호 저장', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '비밀번호가 변경되었습니다' })).toBeVisible()
+  await expect.poll(() => !!logoutRequest).toBe(true)
+  await page.getByRole('link', { name: '로그인', exact: true }).click()
+  await page.getByLabel('이메일', { exact: true }).fill('learner@example.test')
+  await page.getByLabel('비밀번호', { exact: true }).fill('NewPass2!')
+  await page.getByRole('button', { name: '로그인', exact: true }).click()
+  // The login stays pending until the old response can no longer erase its new cookie.
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeDisabled()
+  await page.waitForTimeout(200)
+  expect(logins).toBe(0)
+  await logoutRequest!.fulfill({ status: 204, headers: { 'Set-Cookie': 'refresh_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax' } })
+  await expect.poll(() => logins).toBe(1)
+  await expect.poll(async () => (await page.context().cookies()).find(cookie => cookie.name === 'refresh_token')?.value).toBe('new-login')
 })
