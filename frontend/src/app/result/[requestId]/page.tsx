@@ -15,6 +15,7 @@ import { usePresignedDownloadUrl } from '@/hooks/usePresignedDownloadUrl'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
 import { RequestEditDialog } from '@/components/community/RequestEditDialog'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { localizedLabel } from '@/lib/localizedLabels'
 
@@ -149,7 +150,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
   })
   const sessions = sessionsQuery.data ?? []
 
-  const originalAudio = usePresignedDownloadUrl(!requestQuery.isError && request?.type === 'AUDIO' ? request.audioUrl : null)
+  const originalAudio = usePresignedDownloadUrl(request?.type === 'AUDIO' ? request.audioUrl : null)
   const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
   const correctionsQuery = useQuery<Correction[]>({
@@ -205,7 +206,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
   })
 
   const updateCorrectionMutation = useMutation({
-    mutationFn: (correction: Correction) => api.patch(`/corrections/${correction.id}`, {
+    mutationFn: (correction: Correction) => withWriteDeadline(signal => api.patch(`/corrections/${correction.id}`, {
       correctedText: correction.correctedText,
       explanation: correction.explanation,
       tags: correction.tags,
@@ -214,19 +215,19 @@ function ResultDetail({ requestId }: { requestId: string }) {
       intonationScore: correction.intonationScore,
       fluencyScore: correction.fluencyScore,
       referenceAudioUrl: correction.referenceAudioUrl,
-    }),
-    onSuccess: () => refetch(),
+    }, { signal })),
+    onSuccess: () => { void refetch() },
     onError: () => {},
   })
 
   const updateRequestMutation = useMutation({
-    mutationFn: (payload: CorrectionRequest) => api.patch(`/correction-requests/${payload.id}`, {
+    mutationFn: (payload: CorrectionRequest) => withWriteDeadline(signal => api.patch(`/correction-requests/${payload.id}`, {
       targetLanguage: payload.targetLanguage,
       targetVariant: payload.targetVariant,
       contentText: payload.contentText,
       context: payload.context,
       feedbackGoals: payload.feedbackGoals,
-    }),
+    }, { signal })),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
       queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
@@ -236,11 +237,11 @@ function ResultDetail({ requestId }: { requestId: string }) {
 
   const createCardMutation = useMutation({
     mutationFn: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) =>
-      api.post(`/sessions/${payload.sessionId}/cards`, {
+      withWriteDeadline(signal => api.post(`/sessions/${payload.sessionId}/cards`, {
         phrase: payload.phrase,
         context: payload.context,
         tags: payload.tags,
-      }),
+      }, { signal })),
     onSuccess: (response, variables) => {
       setSavedCardUrl(`/study/${variables.sessionId}` + (response.data?.id ? `/cards/${response.data.id}` : ''))
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'cards'] })
@@ -259,7 +260,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
   })
 
   if (!accessToken) return null
-  if (requestQuery.isError || !request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
+  if (!request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
     <h1 className="text-xl font-bold">{t('result.title')}</h1>
     {requestQuery.isError ? <QueryError retrying={requestQuery.isFetching} onRetry={() => void requestQuery.refetch()} />
       : <p role="status">{t('common.loading')}</p>}
@@ -276,6 +277,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
           <h1 className="text-xl font-bold text-gray-900">{t('result.title')}</h1>
         </div>
 
+        {requestQuery.isError && <QueryError retrying={requestQuery.isFetching} onRetry={() => void requestQuery.refetch()} />}
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
@@ -478,7 +480,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
         <RequestEditDialog
           request={editingRequest}
           pending={updateRequestMutation.isPending}
-          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t('error.unexpected')) : null}
+          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t(updateRequestMutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null}
           onClose={() => setEditingRequest(null)}
           onSubmit={(payload) => {
             updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
@@ -492,7 +494,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
           correction={editingCorrection}
           isAudio={isAudio}
           pending={updateCorrectionMutation.isPending}
-          error={updateCorrectionMutation.isError ? getApiErrorMessage(updateCorrectionMutation.error, t('error.unexpected')) : null}
+          error={updateCorrectionMutation.isError ? getApiErrorMessage(updateCorrectionMutation.error, t(updateCorrectionMutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null}
           onClose={() => setEditingCorrection(null)}
           onSubmit={(payload) => {
             updateCorrectionMutation.mutate({ ...editingCorrection, ...payload }, {
@@ -511,7 +513,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
           retrying={sessionsQuery.isFetching}
           onRetry={() => void sessionsQuery.refetch()}
           pending={createCardMutation.isPending}
-          error={createCardMutation.isError ? getApiErrorMessage(createCardMutation.error, t('error.unexpected')) : null}
+          error={createCardMutation.isError ? getApiErrorMessage(createCardMutation.error, t(createCardMutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null}
           onClose={() => setSavingCorrection(null)}
           onSubmit={(payload) => createCardMutation.mutate(payload)}
           onStudy={() => router.push('/study')}

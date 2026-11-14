@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
 import { validatePassword } from '@/lib/authValidation'
-import { useAuthStore } from '@/stores/authStore'
+import { logout } from '@/lib/api'
 import type { MessageKey } from '@/i18n/messages'
 
 export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
@@ -89,8 +89,7 @@ export function PasswordResetForm({ mode }: { mode: 'request' | 'confirm' }) {
       setDone(true); setPassword(''); setConfirmation(''); setToken(null)
       if (mode === 'confirm') {
         // Local state has no authority after a reset; clear the current browser's session cookie too.
-        useAuthStore.getState().logout()
-        void fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+        void logout()
       }
     } catch { if (alive.current && generation === tokenGeneration.current) setError(mode === 'confirm' ? 'reset.confirmUncertain' : 'reset.failure') }
     finally { clearTimeout(timer); submission.current = null; requestInFlight.current = false; if (alive.current) setPending(false) }

@@ -238,3 +238,92 @@ test('reference recordings stay with their original community request', async ({
   await expect(page.locator('audio[controls]')).toBeVisible()
   expect(state.errors).toEqual([])
 })
+
+
+// A background SSE refresh must not unmount local editor state.
+for (const editor of ['request', 'correction', 'card'] as const) {
+  test(`background request failure preserves the open ${editor} editor`, async ({ page }) => {
+    const state = await fixture(page)
+    if (editor === 'correction') state.viewer = 'helper'
+    await page.addInitScript(() => {
+      const events: EventTarget[] = []
+      Object.assign(window, { reviewEvents: events, EventSource: class extends EventTarget {
+        constructor() { super(); events.push(this) }
+        close() {}
+      } })
+    })
+    await page.goto('/result/request-1')
+    await page.getByRole('button', { name: editor === 'card' ? '스터디 카드로 저장' : '수정', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox').first().fill('Unsaved changes that must survive a refresh')
+    state.fail.add('GET /api/correction-requests/request-1')
+    const refresh = () => page.evaluate(() => {
+      const events = (window as unknown as { reviewEvents: EventTarget[] }).reviewEvents
+      for (const source of events) source.dispatchEvent(new MessageEvent('correction-ready', { data: '{}' }))
+    })
+    await refresh()
+    await expect(page.locator('main [role="alert"]')).toHaveCount(1)
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('textbox').first()).toHaveValue('Unsaved changes that must survive a refresh')
+    state.fail.clear(); await refresh()
+    await expect(page.locator('main [role="alert"]')).toHaveCount(0)
+    await expect(dialog.getByRole('textbox').first()).toHaveValue('Unsaved changes that must survive a refresh')
+  })
+}
+
+for (const editor of ['feed-request', 'result-request', 'correction', 'card'] as const) {
+  test(`a stalled ${editor} save unlocks after its deadline and keeps input without automatic resend`, async ({ page }) => {
+    const state = await fixture(page)
+    if (editor === 'correction') state.viewer = 'helper'
+    await page.clock.install()
+    const path = editor === 'card' ? '/api/sessions/session-1/cards'
+      : editor === 'correction' ? '/api/corrections/correction-1' : '/api/correction-requests/request-1'
+    let writes = 0
+    await page.route(`**${path}`, route => {
+      if (route.request().method() === 'GET') return route.fallback()
+      writes++ // Hold the response; the server may already have committed it.
+    })
+    await page.goto(editor === 'feed-request' ? '/community' : '/result/request-1')
+    if (editor === 'feed-request') await page.getByRole('button', { name: '내 요청', exact: true }).click()
+    await page.getByRole('button', { name: editor === 'card' ? '스터디 카드로 저장' : '수정', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox').first().fill('Retained after the save deadline')
+    await dialog.getByRole('button', { name: '저장', exact: true }).click()
+    await expect.poll(() => writes).toBe(1)
+    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeDisabled()
+    await page.keyboard.press('Escape'); await expect(dialog).toBeVisible()
+    await page.clock.fastForward(30_001)
+    await expect(dialog.getByRole('alert')).toContainText('저장 완료 여부를 확인하지 못했습니다')
+    await expect(dialog.getByRole('textbox').first()).toHaveValue('Retained after the save deadline')
+    await expect(dialog.getByRole('button', { name: '저장', exact: true })).toBeEnabled()
+    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
+    await page.clock.fastForward(60_000)
+    expect(writes).toBe(1)
+    await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0)
+    expect(state.errors).toEqual([])
+  })
+}
+
+for (const editor of ['request', 'correction'] as const) {
+  test(`successful ${editor} save closes even when its follow-up list refresh stalls`, async ({ page }) => {
+    const state = await fixture(page)
+    if (editor === 'correction') state.viewer = 'helper'
+    let saved = false
+    const mutationPath = editor === 'request' ? '/api/correction-requests/request-1' : '/api/corrections/correction-1'
+    const listPath = editor === 'request' ? '/api/correction-requests/mine' : '/api/corrections/request/request-1'
+    await page.route(`**${mutationPath}`, async route => {
+      if (route.request().method() !== 'PATCH') return route.fallback()
+      saved = true
+      return route.fulfill({ json: {} })
+    })
+    await page.route(`**${listPath}`, route => saved ? undefined : route.fallback())
+    await page.goto(editor === 'request' ? '/community' : '/result/request-1')
+    if (editor === 'request') await page.getByRole('button', { name: '내 요청', exact: true }).click()
+    await page.getByRole('button', { name: '수정', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox').first().fill('Saved successfully')
+    await dialog.getByRole('button', { name: '저장', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(saved).toBe(true)
+  })
+}

@@ -12,6 +12,7 @@ import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useI18n } from '@/i18n/I18nProvider'
 import { QueryError } from '@/components/ui/QueryError'
 import { RequestEditDialog } from '@/components/community/RequestEditDialog'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { localizedLabel } from '@/lib/localizedLabels'
 
@@ -107,14 +108,14 @@ export default function FeedPage() {
   })
 
   const updateRequestMutation = useMutation({
-    mutationFn: (payload: CorrectionRequest) => api.patch(`/correction-requests/${payload.id}`, {
+    mutationFn: (payload: CorrectionRequest) => withWriteDeadline(signal => api.patch(`/correction-requests/${payload.id}`, {
       targetLanguage: payload.targetLanguage,
       targetVariant: payload.targetVariant,
       contentText: payload.type === 'TEXT' ? payload.contentText : null,
       context: payload.context,
       feedbackGoals: payload.feedbackGoals,
-    }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+    }, { signal })),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['my-requests'] }) },
     onError: () => {}, // The dialog keeps the error beside the retained input.
   })
 
@@ -261,7 +262,7 @@ export default function FeedPage() {
         <RequestEditDialog
           request={editingRequest}
           pending={updateRequestMutation.isPending}
-          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t('error.unexpected')) : null}
+          error={updateRequestMutation.isError ? getApiErrorMessage(updateRequestMutation.error, t(updateRequestMutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null}
           onClose={() => setEditingRequest(null)}
           onSubmit={(payload) => {
             updateRequestMutation.mutate({ ...editingRequest, ...payload }, {
