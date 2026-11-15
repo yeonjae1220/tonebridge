@@ -125,3 +125,14 @@ test('normal backup details collapse while restored and error recovery remain vi
   await page.locator('textarea').fill('Input kept on failure'); await expect(notice.getByRole('alert')).toBeVisible()
   await expect(notice.getByRole('button', { name: 'Retry draft backup' })).toBeVisible()
 })
+
+
+test('invalid editor dates report an error without hiding valid recordings', async ({ page, context }) => {
+  await fixture(context); await seed(page)
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  await page.evaluate(key => { const row = JSON.parse(localStorage.getItem(key)!); row.updatedAt = 1e100; localStorage.setItem(key, JSON.stringify(row)) }, editorKey)
+  await page.reload()
+  await expect(page.locator('main').getByRole('alert')).toBeVisible()
+  await expect(page.getByTestId('managed-recording')).toHaveCount(1)
+  expect(errors).toEqual([])
+})

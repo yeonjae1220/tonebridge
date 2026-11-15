@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
+import { withDraftLock } from './draftLock'
 import { validFeedback, validCardDraft } from './feedbackDraft'
 
 export type PendingSubmission = { operation: string; payload: Record<string, unknown>; recordingId?: string }
@@ -36,15 +37,7 @@ function guard(handle: RecoveryHandle) {
     throw new DraftStorageError('conflict')
 }
 export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue | null, pending: PendingSubmission | null, signal?: AbortSignal) {
-  // A suspended tab may hold a Web Lock indefinitely. Cancel the queued request itself,
-  // so timed-out saves/cleanup cannot mutate a newer draft when that tab eventually resumes.
-  const controller = new AbortController()
-  const abort = () => controller.abort()
-  signal?.addEventListener('abort', abort, { once: true })
-  if (signal?.aborted) controller.abort()
-  const timer = setTimeout(abort, 5_000)
-  try { await navigator.locks.request(key(handle.owner, handle.scope), { signal: controller.signal }, () => {
-    controller.signal.throwIfAborted()
+  return withDraftLock(key(handle.owner, handle.scope), () => {
     guard(handle)
     const row = read(handle.owner, handle.scope)
     if (row?.revision !== handle.revision) throw new DraftStorageError('conflict')
@@ -54,7 +47,7 @@ export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue
     if (raw.length > 300000) throw new DraftStorageError('quota')
     localStorage.setItem(key(handle.owner, handle.scope), raw)
     handle.revision = revision
-  }) } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort) }
+  }, signal)
 }
 export function recoverySnapshots(owner: string, onError: () => void) {
   owners.add(owner)

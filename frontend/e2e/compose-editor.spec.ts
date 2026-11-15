@@ -213,3 +213,29 @@ test('successful submission clears its editor draft even when tombstone storage 
   await page.goto('/request'); await expect(page.locator('textarea')).toHaveValue('')
   expect(state.saves).toHaveLength(1)
 })
+
+
+test('compose submission recovers when another tab holds its editor lock', async ({ page, context }) => {
+  const state = await fixture(context); state.fail = false
+  await page.clock.install()
+  await compose(page, 'PERSONAL', 'TEXT', false); await backup(page)
+  await page.evaluate(async key => {
+    await new Promise<void>(resolve => {
+      void navigator.locks.request(key, () => new Promise<void>(release => {
+        Object.assign(window, { releaseEditorLock: release }); resolve()
+      }))
+    })
+  }, key)
+  await page.getByRole('textbox', { name: 'Context', exact: true }).fill('Latest content while another tab is paused')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending?.length ?? 0)).toBeGreaterThan(0)
+  await page.clock.fastForward(5_001)
+  // Native Web Lock rejection resumes the submit promise on a browser task, after the clock advance.
+  await expect.poll(() => page.evaluate(() => !!localStorage.getItem('tonebridge-composition:owner'))).toBe(true)
+  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending?.length ?? 0)).toBeGreaterThan(0)
+  await page.clock.fastForward(5_001)
+  await expect(page).toHaveURL(/study\/saved-session\/cards\//)
+  expect(state.saves).toHaveLength(1)
+  expect(state.saves[0].body.context).toBe('Latest content while another tab is paused')
+  await page.evaluate(() => (window as unknown as { releaseEditorLock: () => void }).releaseEditorLock())
+})

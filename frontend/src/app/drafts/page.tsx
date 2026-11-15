@@ -104,7 +104,7 @@ export default function DraftsPage() {
       <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm">{String(row.value?.explanation || row.value?.phrase || row.value?.correctedText || '')}</p>
       <p className="text-xs">{t('drafts.updated')}: {timestamp(row.updatedAt)}</p>
       {row.pending && <p>{t('recovery.pending')}</p>}
-      <div className="flex flex-wrap gap-3"><Link className={actionClass} href={row.value?.kind === 'feedback' ? `/correct/${encodeURIComponent(row.scope.split(':')[1])}` : `/result/${encodeURIComponent(row.scope.split(':')[1])}?save=${encodeURIComponent(row.scope.split(':')[2])}`}>{t('drafts.continue')}</Link>
+      <div className="flex flex-wrap gap-3"><Link className={actionClass} href={row.scope.startsWith('card-new:') ? `/study/${encodeURIComponent(row.scope.split(':')[1])}?create=1` : row.value?.kind === 'feedback' ? `/correct/${encodeURIComponent(row.scope.split(':')[1])}` : `/result/${encodeURIComponent(row.scope.split(':')[1])}?save=${encodeURIComponent(row.scope.split(':')[2])}`}>{t('drafts.continue')}</Link>
         <button type="button" className={actionClass} onClick={() => downloadDraftBlob(new Blob([JSON.stringify(row.value, null, 2)], { type: 'application/json' }), 'tonebridge-feedback.json')}>{t('editor.download')}</button>
         {!row.pending && <button type="button" className={actionClass} disabled={busy} onClick={() => { if (window.confirm(t('drafts.discard'))) void run(() => writeRecovery(handle, null, null)) }}>{t('recording.discardDraft')}</button>}
       </div>

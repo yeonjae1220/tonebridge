@@ -32,7 +32,7 @@ export function useComposeEditor(owner: string | undefined, value: EditorValue, 
     const serial = ++sequence.current
     setStatus('saving')
     const run = queue.current.then(async () => {
-      if (paused.current || useAuthStore.getState().sessionGeneration !== generation) return
+      if (paused.current || (serial !== sequence.current && !replace) || useAuthStore.getState().sessionGeneration !== generation) return
       // Failure to read initially must not silently replace a draft once storage
       // becomes available. An explicit confirmed retry can replace it.
       if (!handle.current) {
