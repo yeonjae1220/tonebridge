@@ -45,7 +45,7 @@ export default function DraftsPage() {
     const data: Snapshot = { account, editor: null, pending: null, recordings: [], recovery: [] }
     let failed = false
     try { data.editor = editorSnapshot(user.id) } catch { failed = true }
-    try { data.recovery = recoverySnapshots(user.id) } catch { failed = true }
+    try { data.recovery = recoverySnapshots(user.id, () => { failed = true }) } catch { failed = true }
     try { data.pending = loadComposition(user.id) } catch { failed = true }
     try { data.recordings = await recordingDrafts.list(user.id) } catch { failed = true }
     if (serial !== sequence.current || current.current !== account || !useAuthStore.getState().accessToken) return
