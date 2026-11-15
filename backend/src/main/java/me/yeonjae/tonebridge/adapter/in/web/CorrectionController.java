@@ -27,7 +27,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CorrectionController {
 
-    private final SubmitCorrectionUseCase submitUseCase;
+    private final me.yeonjae.tonebridge.application.service.SubmissionService submissions;
     private final RateCorrectionUseCase rateUseCase;
     private final GetCorrectionResultUseCase resultUseCase;
     private final UpdateCorrectionUseCase updateUseCase;
@@ -38,8 +38,9 @@ public class CorrectionController {
     @PostMapping
     public ResponseEntity<CorrectionResponse> submit(
             @AuthenticationPrincipal UUID userId,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID operation,
             @Valid @RequestBody SubmitCorrectionDto dto) {
-        var result = submitUseCase.submit(new SubmitCorrectionUseCase.Command(
+        var result = submissions.submit(operation, new SubmitCorrectionUseCase.Command(
                 dto.requestId(), userId,
                 dto.correctedText(), dto.explanation(), dto.tags(),
                 dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),

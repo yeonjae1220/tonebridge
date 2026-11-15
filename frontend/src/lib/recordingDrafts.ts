@@ -192,7 +192,7 @@ export const recordingDrafts = {
           const row = item.value as Row
           if (row.owner === owner && row.epoch === epoch.result && row.revocation === token
             && Date.now() - row.updatedAt <= MAX_AGE && row.draft
-            && (row.scope === 'compose' || /^(practice|example):[^:]+$/.test(row.scope))) {
+            && (row.scope === 'compose' || /^(practice|example|correction-reference):[^:]+$/.test(row.scope))) {
             found.push({ owner, scope: row.scope, id: row.id, epoch: row.epoch, revocation: row.revocation, updatedAt: row.updatedAt, draft: row.draft })
           }
           item.continue()

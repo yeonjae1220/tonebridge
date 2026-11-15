@@ -12,6 +12,10 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 import { AudioLoadFailed } from '@/components/audio/AudioLoadFailed'
 import { usePresignedDownloadUrl } from '@/hooks/usePresignedDownloadUrl'
+import { useRecoveryDraft } from '@/hooks/useRecoveryDraft'
+import { validCardDraft, type CardDraftValue, type SubmissionResult } from '@/lib/feedbackDraft'
+import { RecoveryDraftNotice } from '@/components/recorder/RecoveryDraftNotice'
+import { captureAccountGuard } from '@/lib/validationDiagnostics'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
 import { RequestEditDialog } from '@/components/community/RequestEditDialog'
@@ -160,6 +164,14 @@ function ResultDetail({ requestId }: { requestId: string }) {
   })
 
   const { data: corrections, refetch } = correctionsQuery
+  const openedSavedCard = useRef(false)
+  useEffect(() => {
+    if (openedSavedCard.current || !corrections) return
+    const id = new URLSearchParams(window.location.search).get('save')
+    const correction = corrections.find(item => item.id === id)
+    if (correction) { openedSavedCard.current = true; setSavingCorrection(correction) }
+  }, [corrections])
+
   const [savedCardUrl, setSavedCardUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -231,21 +243,6 @@ function ResultDetail({ requestId }: { requestId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] })
       queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
-    },
-    onError: () => {},
-  })
-
-  const createCardMutation = useMutation({
-    mutationFn: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) =>
-      withWriteDeadline(signal => api.post(`/sessions/${payload.sessionId}/cards`, {
-        phrase: payload.phrase,
-        context: payload.context,
-        tags: payload.tags,
-      }, { signal })),
-    onSuccess: (response, variables) => {
-      setSavedCardUrl(`/study/${variables.sessionId}` + (response.data?.id ? `/cards/${response.data.id}` : ''))
-      queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'cards'] })
-      setSavingCorrection(null)
     },
     onError: () => {},
   })
@@ -443,7 +440,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
                           </button>
                         )}
                         <button
-                          onClick={() => { createCardMutation.reset(); setSavedCardUrl(null); setSavingCorrection(correction) }}
+                          onClick={() => { setSavedCardUrl(null); setSavingCorrection(correction) }}
                           className="w-full py-2.5 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold hover:bg-gray-800 transition-colors"
                         >
                           {t('result.saveCard')}
@@ -512,10 +509,12 @@ function ResultDetail({ requestId }: { requestId: string }) {
           failed={sessionsQuery.isError}
           retrying={sessionsQuery.isFetching}
           onRetry={() => void sessionsQuery.refetch()}
-          pending={createCardMutation.isPending}
-          error={createCardMutation.isError ? getApiErrorMessage(createCardMutation.error, t(createCardMutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null}
           onClose={() => setSavingCorrection(null)}
-          onSubmit={(payload) => createCardMutation.mutate(payload)}
+          onSaved={(card) => {
+            setSavedCardUrl(`/study/${card.sessionId}/cards/${card.id}`)
+            void queryClient.invalidateQueries({ queryKey: ['sessions', card.sessionId, 'cards'] })
+            setSavingCorrection(null)
+          }}
           onStudy={() => router.push('/study')}
         />
       )}
@@ -583,83 +582,76 @@ function CorrectionEditSheet({
   )
 }
 
-function SaveCardSheet({
-  correction,
-  request,
-  sessions,
-  pending,
-  error,
-  loading,
-  failed,
-  retrying,
-  onRetry,
-  onClose,
-  onSubmit,
-  onStudy,
-}: {
-  correction: Correction
-  request: CorrectionRequest
-  sessions: StudySession[]
-  pending: boolean
-  error: string | null
-  loading: boolean
-  failed: boolean
-  retrying: boolean
-  onRetry: () => void
-  onClose: () => void
-  onSubmit: (payload: { sessionId: string; phrase: string; context: string | null; tags: string[] }) => void
-  onStudy: () => void
+function SaveCardSheet({ correction, request, sessions, loading, failed, retrying, onRetry, onClose, onSaved, onStudy }: {
+  correction: Correction; request: CorrectionRequest; sessions: StudySession[]
+  loading: boolean; failed: boolean; retrying: boolean; onRetry: () => void; onClose: () => void
+  onSaved: (card: { id: string; sessionId: string }) => void; onStudy: () => void
 }) {
-  const [sessionId, setSessionId] = useState(sessions[0]?.id ?? '')
   const { t } = useI18n()
-  const [phrase, setPhrase] = useState(correction.correctedText || request.contentText || request.context || t('result.audioCardDefault'))
-  const [context, setContext] = useState(correction.explanation || request.context || '')
-
+  const { data: user } = useCurrentUser()
+  const draft = useRecoveryDraft<CardDraftValue>(user?.id, `card:${request.id}:${correction.id}`, {
+    kind: 'card', sessionId: sessions[0]?.id ?? '',
+    phrase: correction.correctedText || request.contentText || request.context || t('result.audioCardDefault'),
+    context: correction.explanation || request.context || '', tags: correction.tags?.length ? correction.tags : request.feedbackGoals,
+  }, validCardDraft)
+  const { sessionId, phrase, context } = draft.value
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const mutation = useMutation({
+    mutationFn: (action: 'save' | 'edit') => withWriteDeadline(async signal => {
+      const sameAccount = captureAccountGuard()
+      if (action === 'edit' && draft.pending) {
+        const { data } = await api.post<SubmissionResult>(`/submissions/${draft.pending.operation}/cancel`, null, { signal })
+        sameAccount()
+        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(); return null }
+        return { id: data.resourceId!, sessionId: data.parentId! }
+      }
+      const submission = await draft.begin({ sessionId, phrase: phrase.trim(), context: context.trim() || null, tags: draft.value.tags })
+      sameAccount()
+      const payload = submission.payload
+      const { data } = await api.post(`/sessions/${encodeURIComponent(String(payload.sessionId))}/cards`, {
+        phrase: payload.phrase, context: payload.context, tags: payload.tags,
+      }, { signal, headers: { 'Idempotency-Key': submission.operation } })
+      sameAccount()
+      return { id: data.id as string, sessionId: typeof data.sessionId === 'string' ? data.sessionId : String(payload.sessionId) }
+    }),
+    onSuccess: async card => {
+      if (!card) return
+      try { await draft.clear() } catch { /* Keep another tab's newer edits; replay remains safe. */ }
+      if (mounted.current) onSaved(card)
+    },
+    onError: () => {},
+  })
+  const pending = mutation.isPending
+  const error = mutation.isError ? getApiErrorMessage(mutation.error, t(mutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected')) : null
   useEffect(() => {
-    if (!sessions.some(session => session.id === sessionId) && sessions[0]?.id) {
-      setSessionId(sessions[0].id)
+    if (draft.ready && !draft.pending && !sessions.some(session => session.id === sessionId) && sessions[0]?.id) {
+      draft.setValue(previous => ({ ...previous, sessionId: sessions[0].id }))
     }
-  }, [sessionId, sessions])
-
+  }, [sessionId, sessions, draft.ready, draft.pending]) // eslint-disable-line react-hooks/exhaustive-deps
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (pending || failed || loading || !sessions.some(session => session.id === sessionId) || !phrase.trim()) return
-    onSubmit({
-      sessionId,
-      phrase: phrase.trim(),
-      context: context.trim() || null,
-      tags: correction.tags?.length ? correction.tags : request.feedbackGoals,
-    })
+    if (pending || !draft.ready || draft.issue || (!draft.pending && (failed || loading || !sessions.some(session => session.id === sessionId) || !phrase.trim()))) return
+    mutation.mutate('save')
   }
-
-  return (
-    <Dialog title={t('result.saveCard')} onClose={onClose} busy={pending}>
-      <form onSubmit={submit} className="flex flex-col gap-4">
-
-        {failed ? <QueryError retrying={retrying} onRetry={onRetry} /> : loading ? <p role="status">{t('common.loading')}</p> : sessions.length === 0 ? (
-          <div className="py-6 text-center">
-            <p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p>
-            <p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
-            <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-action-primary text-white text-sm font-semibold">
-              {t('study.startPractice')}
-            </button>
-          </div>
-        ) : (
-          <fieldset disabled={pending} className="flex flex-col gap-4">
-            <select aria-label={t('study.title')} value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface">
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>
-              ))}
-            </select>
-            <textarea aria-label={t('study.cards.phrase')} value={phrase} onChange={(e) => setPhrase(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
-            <textarea aria-label={t('study.cards.context')} value={context} onChange={(e) => setContext(e.target.value)} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" placeholder={t('study.cards.context')} />
-            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={pending || !sessionId || !phrase.trim()} className="w-full py-3 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold disabled:opacity-40">
-              {pending ? t('common.saving') : t('common.save')}
-            </button>
-          </fieldset>
-        )}
-      </form>
-    </Dialog>
-  )
+  return <Dialog title={t('result.saveCard')} onClose={() => { if (draft.status !== 'error' || window.confirm(t('editor.leave'))) onClose() }} busy={pending}>
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <RecoveryDraftNotice value={draft.value} status={draft.status} issue={draft.issue} restored={draft.restored}
+        pending={!!draft.pending} busy={pending} onRetry={() => void draft.retry()} onEdit={() => mutation.mutate('edit')} />
+      {!draft.pending && failed ? <QueryError retrying={retrying} onRetry={onRetry} /> : !draft.pending && loading ? <p role="status">{t('common.loading')}</p> : !draft.pending && sessions.length === 0 ? (
+        <div className="py-6 text-center"><p className="text-sm font-semibold text-gray-700">{t('study.emptyTitle')}</p><p className="text-xs text-gray-400 mt-1">{t('study.emptySubtitle')}</p>
+          <button type="button" onClick={onStudy} className="mt-4 px-4 py-2 rounded-xl bg-action-primary text-white text-sm font-semibold">{t('study.startPractice')}</button></div>
+      ) : <>
+        <fieldset disabled={pending || !draft.ready || !!draft.pending} className="flex flex-col gap-4">
+          <select aria-label={t('study.title')} value={sessionId} onChange={e => draft.setValue(previous => ({ ...previous, sessionId: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface">
+            {sessions.map(session => <option key={session.id} value={session.id}>{session.title ?? t('study.practiceDefault')}</option>)}
+          </select>
+          <textarea aria-label={t('study.cards.phrase')} value={phrase} maxLength={500} onChange={e => draft.setValue(previous => ({ ...previous, phrase: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
+          <textarea aria-label={t('study.cards.context')} value={context} maxLength={10000} onChange={e => draft.setValue(previous => ({ ...previous, context: e.target.value }))} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none" />
+        </fieldset>
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        <button type="submit" disabled={pending || !draft.ready || !!draft.issue || (!draft.pending && (!sessionId || !phrase.trim()))} className="w-full py-3 rounded-xl bg-action-neutral text-action-neutral-foreground text-sm font-semibold disabled:opacity-40">{t(pending ? 'common.saving' : 'common.save')}</button>
+      </>}
+    </form>
+  </Dialog>
 }
