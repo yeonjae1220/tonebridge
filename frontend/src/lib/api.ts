@@ -1,3 +1,4 @@
+import { bindRecoveryOwner } from '@/lib/recoveryDraft'
 import { bindEditorOwner } from '@/lib/composeEditorDraft'
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
@@ -73,7 +74,7 @@ function expireSession(generation: number | undefined) {
 api.interceptors.response.use(
   (res) => {
     requireSession(res.config._sessionGeneration)
-    if (res.config.url === '/users/me' && typeof res.data?.id === 'string') { recordingDrafts.bindOwner(res.data.id); bindEditorOwner(res.data.id) }
+    if (res.config.url === '/users/me' && typeof res.data?.id === 'string') { recordingDrafts.bindOwner(res.data.id); bindEditorOwner(res.data.id); bindRecoveryOwner(res.data.id) }
     return res
   },
   async (error) => {

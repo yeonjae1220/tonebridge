@@ -27,7 +27,7 @@ import java.util.UUID;
 public class StudyCardController {
 
     private final GetStudyCardUseCase getCardUseCase;
-    private final CreateStudyCardUseCase createCardUseCase;
+    private final me.yeonjae.tonebridge.application.service.SubmissionService submissions;
     private final UploadNativeAudioUseCase uploadNativeAudioUseCase;
     private final GetNativeAudioDownloadUrlUseCase getNativeAudioDownloadUrlUseCase;
     private final SubmitLearnerAttemptUseCase submitAttemptUseCase;
@@ -46,8 +46,9 @@ public class StudyCardController {
     public ResponseEntity<StudyCardResponse> createCard(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID sessionId,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID operation,
             @Valid @RequestBody CreateCardDto dto) {
-        var card = createCardUseCase.create(
+        var card = submissions.create(operation,
                 new CreateStudyCardUseCase.Command(sessionId, userId, dto.phrase(), dto.context(), dto.tags()));
         return ResponseEntity.status(HttpStatus.CREATED).body(StudyCardResponse.from(card));
     }

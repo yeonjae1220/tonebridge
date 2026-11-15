@@ -2,14 +2,18 @@
 
 import Link from 'next/link'
 import { QueryError } from '@/components/ui/QueryError'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type SetStateAction } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import { CorrectionRequest, TimestampComment } from '@/types'
-
-type TimestampCommentWithId = TimestampComment & { id: string }
+import { CorrectionRequest } from '@/types'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useRecoveryDraft } from '@/hooks/useRecoveryDraft'
+import { EMPTY_FEEDBACK, validFeedback, type FeedbackDraftValue, type SubmissionResult } from '@/lib/feedbackDraft'
+import { recordingDrafts } from '@/lib/recordingDrafts'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { RecoveryDraftNotice } from '@/components/recorder/RecoveryDraftNotice'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { RecorderErrorMessage } from '@/components/recorder/RecorderModal'
@@ -87,17 +91,15 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
   const { accessToken } = useAuthStore()
   const { t } = useI18n()
 
-  const [correctedText, setCorrectedText] = useState('')
-  const [explanation, setExplanation] = useState('')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const { data: currentUser } = useCurrentUser()
+  const draft = useRecoveryDraft(currentUser?.id, `feedback:${requestId}`, EMPTY_FEEDBACK, validFeedback)
+  const { correctedText, explanation, selectedTags, timestampComments, pendingComment, pendingCategory, pronunciationScore, intonationScore, fluencyScore } = draft.value
+  const field = <K extends keyof FeedbackDraftValue>(key: K) => (value: SetStateAction<FeedbackDraftValue[K]>) =>
+    draft.setValue(previous => ({ ...previous, [key]: typeof value === 'function' ? (value as (old: FeedbackDraftValue[K]) => FeedbackDraftValue[K])(previous[key]) : value }))
+  const setCorrectedText = field('correctedText'), setExplanation = field('explanation'), setSelectedTags = field('selectedTags')
+  const setTimestampComments = field('timestampComments'), setPendingComment = field('pendingComment'), setPendingCategory = field('pendingCategory')
+  const setPronunciationScore = field('pronunciationScore'), setIntonationScore = field('intonationScore'), setFluencyScore = field('fluencyScore')
   const [error, setError] = useState('')
-
-  const [timestampComments, setTimestampComments] = useState<TimestampCommentWithId[]>([])
-  const [pendingComment, setPendingComment] = useState('')
-  const [pendingCategory, setPendingCategory] = useState<string>(TIMESTAMP_CATEGORIES[0].value)
-  const [pronunciationScore, setPronunciationScore] = useState(5)
-  const [intonationScore, setIntonationScore] = useState(5)
-  const [fluencyScore, setFluencyScore] = useState(5)
 
   const waveContainerRef = useRef<HTMLDivElement>(null)
 
@@ -121,45 +123,50 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
   const ws = useWaveSurfer(waveContainerRef, originalAudio.url)
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: (action: 'submit' | 'edit') => withWriteDeadline(async signal => {
       const requireSameAccount = captureAccountGuard()
-      const savedBlob = refRecorder.audioBlob
-      let referenceAudioUrl: string | undefined
-      if (request?.type === 'AUDIO' && refRecorder.state === 'stopped') {
-        const file = refRecorder.getFile(`ref_${Date.now()}.webm`)
-        if (file && savedBlob) {
-          if (uploadedReference.current?.blob === savedBlob) referenceAudioUrl = uploadedReference.current.key
-          else {
-            referenceAudioUrl = await uploadRef(file)
-            uploadedReference.current = { blob: savedBlob, key: referenceAudioUrl }
+      if (action === 'edit' && draft.pending) {
+        const { data } = await api.post<SubmissionResult>(`/submissions/${draft.pending.operation}/cancel`, null, { signal })
+        requireSameAccount()
+        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(); return null }
+        return draft.pending
+      }
+      let pending = draft.pending
+      if (!pending) {
+        const savedBlob = refRecorder.audioBlob
+        let referenceAudioUrl: string | undefined
+        if (request?.type === 'AUDIO' && refRecorder.state === 'stopped') {
+          const file = refRecorder.getFile(`ref_${Date.now()}.webm`)
+          if (file && savedBlob) {
+            if (uploadedReference.current?.blob === savedBlob) referenceAudioUrl = uploadedReference.current.key
+            else {
+              referenceAudioUrl = await uploadRef(file)
+              uploadedReference.current = { blob: savedBlob, key: referenceAudioUrl }
+            }
           }
         }
+        requireSameAccount()
+        if (signal.aborted) throw new WriteOutcomeUnknownError()
+        pending = await draft.begin({ requestId, correctedText: correctedText || undefined, explanation, tags: selectedTags,
+          ...(request?.type === 'AUDIO' && { timestampComments: timestampComments.map(({ id: _id, ...comment }) => comment),
+            pronunciationScore, intonationScore, fluencyScore, referenceAudioUrl }) },
+          recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:correction-reference:${requestId}`)?.id)
       }
-
       requireSameAccount()
-      await api.post('/corrections', {
-        requestId,
-        correctedText: correctedText || undefined,
-        explanation,
-        tags: selectedTags,
-        ...(request?.type === 'AUDIO' && {
-          timestampComments: timestampComments.map(({ id: _id, ...tc }) => tc),
-          pronunciationScore,
-          intonationScore,
-          fluencyScore,
-          referenceAudioUrl,
-        }),
-      })
+      await api.post('/corrections', pending.payload, { signal, headers: { 'Idempotency-Key': pending.operation } })
       requireSameAccount()
-      return savedBlob
-    },
-    onSuccess: savedBlob => {
+      return pending
+    }),
+    onSuccess: async pending => {
+      if (!pending) return
+      try { await draft.clear() } catch { /* A newer tab's draft must survive. The receipt still prevents duplicates. */ }
       if (!mounted.current) return
-      refRecorder.clearSaved(savedBlob)
+      const recording = recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:correction-reference:${requestId}`)
+      if (pending.recordingId && recording?.id === pending.recordingId) refRecorder.reset()
       router.push('/community')
     },
     onMutate: () => setError(''),
-    onError: (e: unknown) => setError(getApiErrorMessage(e, t('correct.submitFailed'))),
+    onError: (e: unknown) => setError(getApiErrorMessage(e, t(e instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'correct.submitFailed'))),
   })
 
   const toggleTag = (tag: string) => {
@@ -184,7 +191,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
 
   const isAudio = request?.type === 'AUDIO'
   const recordingBusy = refRecorder.starting || refRecorder.state === 'recording' || refRecorder.state === 'processing'
-  const isValid = !!request && !requestQuery.isError && explanation.trim().length >= 20 && !recordingBusy
+  const isValid = draft.ready && !draft.issue && !!request && !requestQuery.isError && (!!draft.pending || (explanation.trim().length >= 20 && !recordingBusy && refRecorder.draftStatus !== 'loading'))
 
   if (!accessToken) return null
   if (requestQuery.isError || !request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
@@ -197,7 +204,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <button aria-label={t('nav.feed')} onClick={() => router.push('/community')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
+          <button aria-label={t('nav.feed')} onClick={() => { if (draft.status !== 'error' || window.confirm(t('editor.leave'))) router.push('/community') }} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{t('correct.title')}</h1>
           </div>
@@ -243,7 +250,9 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
           )}
         </div>
 
-        <fieldset disabled={mutation.isPending || uploadingRef} className="flex min-w-0 flex-col gap-5">
+        <RecoveryDraftNotice value={draft.value} status={draft.status} issue={draft.issue} restored={draft.restored}
+          pending={!!draft.pending} busy={mutation.isPending} onRetry={() => void draft.retry()} onEdit={() => mutation.mutate('edit')} />
+        <fieldset disabled={!draft.ready || mutation.isPending || uploadingRef || !!draft.pending} className="flex min-w-0 flex-col gap-5">
         {/* Timestamp comments */}
         {isAudio && (
           <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
@@ -262,6 +271,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
               </select>
               <input
                 aria-label={t('correct.commentPlaceholder')}
+                maxLength={10000}
                 value={pendingComment}
                 onChange={(e) => setPendingComment(e.target.value)}
                 placeholder={t('correct.commentPlaceholder')}
@@ -351,6 +361,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
           <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
             <label className="text-sm font-semibold text-gray-700">{t('result.correctedText')}</label>
             <textarea
+              maxLength={10000}
               aria-label={t('result.correctedText')}
               value={correctedText}
               onChange={(e) => setCorrectedText(e.target.value)}
@@ -370,6 +381,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
             </span>
           </div>
           <textarea
+              maxLength={10000}
             aria-label={t('result.explanation')}
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
@@ -399,16 +411,16 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
           </div>
         </div>
 
+        </fieldset>
         {error && <p role="alert" className="text-red-500 text-sm px-1">{error}</p>}
 
         <button
-          onClick={() => mutation.mutate()}
+          onClick={() => mutation.mutate('submit')}
           disabled={!isValid || mutation.isPending || uploadingRef}
           className="w-full py-3.5 rounded-xl bg-action-primary text-white font-semibold disabled:opacity-40 hover:bg-action-primary-hover transition-colors"
         >
           {mutation.isPending || uploadingRef ? t('correct.submitting') : t('correct.submit')}
         </button>
-        </fieldset>
       </div>
     </main>
   )

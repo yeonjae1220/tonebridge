@@ -120,3 +120,11 @@ Web Locks 안에서 revision 비교 후 쓰며 stale 탭은 자동 덮어쓰지 
 녹음 폐기는 IndexedDB 트랜잭션 안에서 owner epoch·id·updatedAt을 비교해 진행 중인 새 checkpoint도 보호한다.
 성공한 삭제는 tombstone과 기존 BroadcastChannel로 전달한다. 편집 폐기는 기존 Web Locks/revision 계약을 사용한다.
 제출 영수증은 목록에서 삭제하지 않고 기존 서버 취소/결과 조회 흐름을 유지한다. 내보내기에 토큰·서명 URL·친구 UUID를 넣지 않는다.
+
+### 커뮤니티 제출 복구
+
+피드백/카드 초안 `tonebridge-recovery:<owner>:<scope>`는 위 계정 generation/revocation·7일 TTL·Web Locks/revision 계약을 따른다.
+미확인 제출의 UUID와 본문을 쓰기 요청보다 먼저 영속화하며 저장소 실패 때 서버 POST를 막는다. 편집 전 서버 취소와
+완료 조회를 직렬화하므로 늦은 제출과 새 편집이 각각 새 기록을 만드는 경쟁을 막는다. 만료된 로컬 초안은 읽을 때 제거한다.
+서버 V30 영수증은 성공과 취소 기록을 만료시키지 않으며 계정 삭제 때 cascade한다. 다른 소유자의 영수증이나 현재 접근권이
+없는/삭제된 리소스를 반환하지 않는다. 기존 모바일 호환을 위해 헤더 없는 요청은 기존 동작이며 해당 경로에는 이 보장이 없다.
