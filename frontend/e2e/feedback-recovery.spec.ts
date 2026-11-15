@@ -11,7 +11,12 @@ test('feedback text and tags restore after reload and remain scoped to their req
   await page.getByRole('textbox').first().fill('Recovered corrected sentence')
   await page.getByRole('textbox').last().fill('Recovered explanation with enough detail for submission.')
   await page.getByRole('button', { name: '문법', exact: true }).click()
-  await saved(page, 'Recovered explanation')
+  // The preceding text edit may already be durable while the tag write still holds a Web Lock.
+  // Wait for the last edit, not an older snapshot, before simulating a reload.
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => key.startsWith('tonebridge-recovery:helper:feedback:request-1'))
+    return key ? JSON.parse(localStorage.getItem(key)!).value?.selectedTags : null
+  })).toEqual(['문법'])
   await page.reload()
   await expect(page.getByRole('textbox').first()).toHaveValue('Recovered corrected sentence')
   await expect(page.getByRole('textbox').last()).toHaveValue('Recovered explanation with enough detail for submission.')
