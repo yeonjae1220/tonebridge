@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
+import { validFeedback, validCardDraft } from './feedbackDraft'
 
 export type PendingSubmission = { operation: string; payload: Record<string, unknown>; recordingId?: string }
 export type RecoveryValue = { kind: 'feedback' | 'card' } & Record<string, unknown>
@@ -17,8 +18,9 @@ function read(owner: string, scope: string): RecoveryRow | undefined {
   if (raw.length > 300000) throw new DraftStorageError('corrupt')
   const row = JSON.parse(raw) as RecoveryRow
   if (!row || row.version !== 1 || row.owner !== owner || row.scope !== scope || typeof row.revision !== 'string'
-    || !Number.isFinite(row.updatedAt) || (row.value !== null && (!row.value || !['feedback', 'card'].includes(row.value.kind)))
-    || (row.pending !== null && (!row.pending || !/^[0-9a-f-]{36}$/.test(row.pending.operation)
+    || !Number.isFinite(row.updatedAt) || !Number.isFinite(new Date(row.updatedAt).getTime())
+    || (row.value !== null && !validFeedback(row.value) && !validCardDraft(row.value))
+    || (row.pending !== null && (!row.value || !row.pending || !/^[0-9a-f-]{36}$/.test(row.pending.operation)
       || !row.pending.payload || typeof row.pending.payload !== 'object' || Array.isArray(row.pending.payload)))) throw new DraftStorageError('corrupt')
   if (row.revocation !== marker(owner) || Date.now() - row.updatedAt > ttl) { localStorage.removeItem(key(owner, scope)); return }
   return row
@@ -33,8 +35,16 @@ function guard(handle: RecoveryHandle) {
   if (!auth.accessToken || auth.sessionGeneration !== handle.generation || marker(handle.owner) !== handle.revocation)
     throw new DraftStorageError('conflict')
 }
-export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue | null, pending: PendingSubmission | null) {
-  return navigator.locks.request(key(handle.owner, handle.scope), () => {
+export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue | null, pending: PendingSubmission | null, signal?: AbortSignal) {
+  // A suspended tab may hold a Web Lock indefinitely. Cancel the queued request itself,
+  // so timed-out saves/cleanup cannot mutate a newer draft when that tab eventually resumes.
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) controller.abort()
+  const timer = setTimeout(abort, 5_000)
+  try { await navigator.locks.request(key(handle.owner, handle.scope), { signal: controller.signal }, () => {
+    controller.signal.throwIfAborted()
     guard(handle)
     const row = read(handle.owner, handle.scope)
     if (row?.revision !== handle.revision) throw new DraftStorageError('conflict')
@@ -44,14 +54,16 @@ export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue
     if (raw.length > 300000) throw new DraftStorageError('quota')
     localStorage.setItem(key(handle.owner, handle.scope), raw)
     handle.revision = revision
-  })
+  }) } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort) }
 }
-export function recoverySnapshots(owner: string) {
+export function recoverySnapshots(owner: string, onError: () => void) {
   owners.add(owner)
   const rows: { handle: RecoveryHandle; row: RecoveryRow }[] = []
   const start = prefix + owner + ':'
   for (const name of Object.keys(localStorage).filter(name => name.startsWith(start))) {
-    const opened = openRecovery(owner, name.slice(start.length))
+    let opened: ReturnType<typeof openRecovery>
+    try { opened = openRecovery(owner, name.slice(start.length)) }
+    catch { onError(); continue } // Preserve healthy drafts, while the caller displays a partial-read error.
     guard(opened.handle)
     if (opened.row?.value) rows.push({ handle: opened.handle, row: opened.row })
   }

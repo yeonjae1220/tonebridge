@@ -43,7 +43,7 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
     const serial = ++sequence.current
     setStatus('saving')
     const run = queue.current.then(async () => {
-      if (paused.current) return
+      if (paused.current || serial !== sequence.current) return
       if (!handle.current) throw new DraftStorageError('unavailable')
       if (!valid(next)) throw new DraftStorageError('quota')
       await writeRecovery(handle.current, next, null)
@@ -75,7 +75,8 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
   const setValue = (next: SetStateAction<T>) => { if (!pendingRef.current) { dirty.current = true; setState(next) } }
   return { value, setValue, pending, ready, restored, status, issue,
     retry: () => persist(latest.current),
-    begin: (payload: Record<string, unknown>, recordingId?: string): Promise<PendingSubmission> => {
+    begin: (payload: Record<string, unknown>, recordingId?: string, signal?: AbortSignal): Promise<PendingSubmission> => {
+      signal?.throwIfAborted()
       if (pendingRef.current) return Promise.resolve(pendingRef.current)
       if (beginFlight.current) return beginFlight.current
       // Same-screen concurrent callers share the identity too, before React disables the button.
@@ -83,10 +84,11 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
         paused.current = true
         await queue.current
         try {
+          signal?.throwIfAborted()
           if (!handle.current) throw new DraftStorageError('unavailable')
           if (!valid(latest.current)) throw new DraftStorageError('quota')
           const next = { operation: crypto.randomUUID(), payload, recordingId }
-          await writeRecovery(handle.current, latest.current, next)
+          await writeRecovery(handle.current, latest.current, next, signal)
           pendingRef.current = next; if (mounted.current) { setPending(next); setStatus('saved'); setIssue(null) }
           return next
         } catch (error) { paused.current = false; if (mounted.current) { setIssue(draftStorageIssue(error)); setStatus('error') }; throw error }
@@ -95,9 +97,9 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
       void flight.finally(() => { if (beginFlight.current === flight) beginFlight.current = null }).catch(() => {})
       return flight
     },
-    resumeEditing: async () => {
+    resumeEditing: async (signal?: AbortSignal) => {
       if (!handle.current) throw new DraftStorageError('unavailable')
-      await writeRecovery(handle.current, latest.current, null)
+      await writeRecovery(handle.current, latest.current, null, signal)
       pendingRef.current = null; paused.current = false
       if (mounted.current) { setPending(null); setStatus('saved'); setIssue(null) }
     },

@@ -277,3 +277,79 @@ test('rapid repeated feedback submission keeps a single durable identity', async
   expect(new Set(keys).size).toBe(1)
   expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/)
 })
+
+
+async function holdDraftLock(page: Page) {
+  await page.evaluate(async () => {
+    const key = Object.keys(localStorage).find(key => key.startsWith('tonebridge-recovery:'))!
+    await new Promise<void>(resolve => {
+      void navigator.locks.request(key, () => new Promise<void>(release => {
+        Object.assign(window, { releaseRecoveryLock: release }); resolve()
+      }))
+    })
+  })
+}
+async function releaseDraftLock(page: Page) {
+  await page.evaluate(() => (window as unknown as { releaseRecoveryLock: () => void }).releaseRecoveryLock())
+}
+
+test('a blocked local submission times out without later freezing or sending old input', async ({ page }) => {
+  const state = await fixture(page); state.viewer = 'helper'
+  await page.clock.install()
+  await page.goto('/correct/request-1')
+  await page.getByRole('textbox').last().fill('Original feedback before the blocked save.')
+  await saved(page, 'Original feedback before')
+  await holdDraftLock(page)
+  await page.getByRole('button', { name: '첨삭 제출하기', exact: true }).click()
+  await page.clock.fastForward(30_001)
+  await expect(page.getByRole('textbox').last()).toBeEnabled()
+  await page.getByRole('textbox').last().fill('New feedback after the local save timed out.')
+  await releaseDraftLock(page)
+  await saved(page, 'New feedback after')
+  await expect(page.getByRole('textbox').last()).toBeEnabled()
+  expect(state.writes.filter(write => write.path === '/api/corrections')).toHaveLength(0)
+  await page.getByRole('button', { name: '첨삭 제출하기', exact: true }).click()
+  await expect(page).toHaveURL(/community$/)
+  expect(state.writes.find(write => write.path === '/api/corrections')?.body.explanation).toBe('New feedback after the local save timed out.')
+})
+
+test('a successful card save finishes even when local receipt cleanup is blocked', async ({ page }) => {
+  await fixture(page)
+  await page.clock.install()
+  await page.route('**/api/sessions/session-1/cards', async route => {
+    await holdDraftLock(page)
+    await route.fulfill({ status: 201, json: { id: 'saved-card', sessionId: 'session-1' } })
+  })
+  await page.goto('/result/request-1')
+  await page.getByRole('button', { name: '스터디 카드로 저장', exact: true }).click()
+  await page.getByRole('dialog').getByLabel('표현', { exact: true }).fill('Card with delayed local cleanup')
+  await page.getByRole('dialog').getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { releaseRecoveryLock?: unknown }).releaseRecoveryLock)).toBe('function')
+  // Allow the response handler to reach local cleanup before advancing its deadline.
+  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending?.length ?? 0)).toBeGreaterThan(0)
+  await page.clock.fastForward(30_001)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /카드 열기/ })).toHaveAttribute('href', '/study/session-1/cards/saved-card')
+  await releaseDraftLock(page)
+  expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('tonebridge-recovery:') && !!JSON.parse(localStorage.getItem(key)!).pending))).toBe(true)
+})
+
+for (const corrupt of ['json', 'date']) test(`a damaged ${corrupt} draft does not hide healthy feedback drafts`, async ({ page }) => {
+  const state = await fixture(page); state.viewer = 'helper'
+  await page.goto('/correct/request-1')
+  await page.getByRole('textbox').last().fill('Healthy feedback remains recoverable.')
+  await saved(page, 'Healthy feedback remains')
+  await page.evaluate(corrupt => {
+    const key = Object.keys(localStorage).find(key => key.startsWith('tonebridge-recovery:'))!
+    const row = JSON.parse(localStorage.getItem(key)!)
+    row.scope = 'feedback:broken-request'; row.updatedAt = 1e100
+    localStorage.setItem('tonebridge-recovery:helper:feedback:broken-request', corrupt === 'json' ? '{broken' : JSON.stringify(row))
+  }, corrupt)
+  await page.goto('/drafts')
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible()
+  await expect(page.getByTestId('managed-feedback')).toHaveCount(1)
+  await expect(page.getByTestId('managed-feedback')).toContainText('Healthy feedback remains recoverable.')
+  await page.getByTestId('managed-feedback').getByRole('link').click()
+  await expect(page.getByRole('textbox').last()).toHaveValue('Healthy feedback remains recoverable.')
+  expect(state.errors).toEqual([])
+})

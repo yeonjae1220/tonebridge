@@ -128,7 +128,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
       if (action === 'edit' && draft.pending) {
         const { data } = await api.post<SubmissionResult>(`/submissions/${draft.pending.operation}/cancel`, null, { signal })
         requireSameAccount()
-        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(); return null }
+        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(signal); return null }
         return draft.pending
       }
       let pending = draft.pending
@@ -150,7 +150,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
         pending = await draft.begin({ requestId, correctedText: correctedText || undefined, explanation, tags: selectedTags,
           ...(request?.type === 'AUDIO' && { timestampComments: timestampComments.map(({ id: _id, ...comment }) => comment),
             pronunciationScore, intonationScore, fluencyScore, referenceAudioUrl }) },
-          recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:correction-reference:${requestId}`)?.id)
+          recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:correction-reference:${requestId}`)?.id, signal)
       }
       requireSameAccount()
       await api.post('/corrections', pending.payload, { signal, headers: { 'Idempotency-Key': pending.operation } })

@@ -603,10 +603,10 @@ function SaveCardSheet({ correction, request, sessions, loading, failed, retryin
       if (action === 'edit' && draft.pending) {
         const { data } = await api.post<SubmissionResult>(`/submissions/${draft.pending.operation}/cancel`, null, { signal })
         sameAccount()
-        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(); return null }
+        if (data.type === 'cancelled' || data.type === 'unavailable') { await draft.resumeEditing(signal); return null }
         return { id: data.resourceId!, sessionId: data.parentId! }
       }
-      const submission = await draft.begin({ sessionId, phrase: phrase.trim(), context: context.trim() || null, tags: draft.value.tags })
+      const submission = await draft.begin({ sessionId, phrase: phrase.trim(), context: context.trim() || null, tags: draft.value.tags }, undefined, signal)
       sameAccount()
       const payload = submission.payload
       const { data } = await api.post(`/sessions/${encodeURIComponent(String(payload.sessionId))}/cards`, {
