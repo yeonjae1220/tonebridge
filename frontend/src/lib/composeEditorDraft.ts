@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
+import { withDraftLock } from './draftLock'
 
 export type EditorValue = {
   kind: 'TEXT' | 'AUDIO'; destination: 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
@@ -26,7 +27,7 @@ function read(owner: string): Row | undefined {
   if (!json) return
   if (json.length > 150000) throw new DraftStorageError('corrupt')
   const row = JSON.parse(json) as Row
-  if (!row || row.version !== 1 || row.owner !== owner || !string(row.revision, 100) || !Number.isFinite(row.updatedAt)
+  if (!row || row.version !== 1 || row.owner !== owner || !string(row.revision, 100) || !Number.isFinite(row.updatedAt) || !Number.isFinite(new Date(row.updatedAt).getTime())
     || (row.value !== null && !valid(row.value))) throw new DraftStorageError('corrupt')
   if (row.revocation !== marker(owner) || Date.now() - row.updatedAt > ttl) return
   return row
@@ -56,7 +57,7 @@ function guard(handle: EditorHandle) {
 // replaces a newer draft, including a tombstone left by submission or discard.
 export async function writeEditor(handle: EditorHandle, value: EditorValue | null, replace = false) {
   if (value && !valid(value)) throw new DraftStorageError('corrupt')
-  return navigator.locks.request(prefix + handle.owner, () => {
+  return withDraftLock(prefix + handle.owner, () => {
     guard(handle)
     let previous: Row | undefined
     try { previous = read(handle.owner) } catch (e) { if (!replace) throw e }

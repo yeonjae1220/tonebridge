@@ -16,9 +16,9 @@ export function validFeedback(value: unknown): value is FeedbackDraftValue {
     && Array.isArray(v.timestampComments) && v.timestampComments.length <= 200 && v.timestampComments.every(c => c && text(c.id, 100)
       && Number.isFinite(c.start) && c.start >= 0 && Number.isFinite(c.end) && c.end >= c.start && text(c.comment) && text(c.category, 100))
 }
-export type CardDraftValue = { kind: 'card'; sessionId: string; phrase: string; context: string; tags: string[] }
+export type CardDraftValue = { kind: 'card'; sessionId: string; phrase: string; context: string; tags: string[]; tagText?: string }
 export function validCardDraft(value: unknown): value is CardDraftValue {
   const v = value as CardDraftValue
-  return !!v && v.kind === 'card' && text(v.sessionId, 100) && text(v.phrase, 500) && text(v.context) && tags(v.tags)
+  return !!v && v.kind === 'card' && text(v.sessionId, 100) && text(v.phrase, 500) && text(v.context) && tags(v.tags) && (v.tagText === undefined || text(v.tagText, 2200))
 }
 export type SubmissionResult = { type: 'correction' | 'card' | 'cancelled' | 'unavailable'; resourceId: string | null; parentId: string | null }

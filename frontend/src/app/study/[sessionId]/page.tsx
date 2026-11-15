@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -13,10 +13,18 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
+import { CardCreateSheet } from '@/components/study/CardCreateSheet'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { StudyScore } from '@/components/study/StudyScore'
 
 export default function StudySessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <SessionDetail key={`${generation}:${sessionId}`} sessionId={sessionId} />
+}
+
+function SessionDetail({ sessionId }: { sessionId: string }) {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
@@ -25,6 +33,8 @@ export default function StudySessionPage() {
   const [leaving, setLeaving] = useState(false)
   const [cardSheet, setCardSheet] = useState<{ mode: 'create' } | { mode: 'edit'; card: StudyCard } | null>(null)
   const [movingCard, setMovingCard] = useState<StudyCard | null>(null)
+  const [savedCardUrl, setSavedCardUrl] = useState<string | null>(null)
+  const openedCreate = useRef(false)
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -43,14 +53,22 @@ export default function StudySessionPage() {
     enabled: !!accessToken && !!sessionId,
   })
 
-  const { data: sessions = [] } = useQuery<StudySession[]>({
+  const sessionsQuery = useQuery<StudySession[]>({
     queryKey: ['sessions'],
     queryFn: () => api.get('/sessions').then((r) => r.data),
     enabled: !!accessToken,
   })
 
+  const sessions = sessionsQuery.data ?? []
+  useEffect(() => {
+    if (!openedCreate.current && session && !sessionError && new URLSearchParams(window.location.search).get('create') === '1') {
+      openedCreate.current = true; setCardSheet({ mode: 'create' })
+    }
+  }, [session, sessionError])
+  const writeError = (error: unknown) => getApiErrorMessage(error, t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected'))
+
   const leaveMutation = useMutation({
-    mutationFn: () => api.delete(`/sessions/${sessionId}/membership`),
+    mutationFn: () => withWriteDeadline(signal => api.delete(`/sessions/${sessionId}/membership`, { signal })),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ['sessions'] })
       queryClient.removeQueries({ queryKey: ['cards'] })
@@ -62,31 +80,22 @@ export default function StudySessionPage() {
   })
 
   const updateCardMutation = useMutation({
-    mutationFn: (card: StudyCard) => api.patch(`/cards/${card.id}`, {
+    mutationFn: (card: StudyCard) => withWriteDeadline(signal => api.patch(`/cards/${card.id}`, {
       phrase: card.phrase,
       context: card.context,
       tags: card.tags,
-    }),
+    }, { signal })),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }); setCardSheet(null) },
   })
 
-  const createCardMutation = useMutation({
-    mutationFn: (payload: { phrase: string; context: string | null; tags: string[] }) =>
-      api.post(`/sessions/${sessionId}/cards`, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
-      setCardSheet(null)
-    },
-  })
-
   const deleteCardMutation = useMutation({
-    mutationFn: (cardId: string) => api.delete(`/cards/${cardId}`),
+    mutationFn: (cardId: string) => withWriteDeadline(signal => api.delete(`/cards/${cardId}`, { signal })),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
   })
 
   const moveCardMutation = useMutation({
     mutationFn: ({ cardId, targetSessionId, position }: { cardId: string; targetSessionId: string; position: number }) =>
-      api.patch(`/cards/${cardId}/move`, { targetSessionId, position }),
+      withWriteDeadline(signal => api.patch(`/cards/${cardId}/move`, { targetSessionId, position }, { signal })),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.targetSessionId, 'cards'] })
@@ -143,6 +152,8 @@ export default function StudySessionPage() {
             className="min-h-11 px-3 text-sm text-gray-500">{t('sharing.leave')}</button>
         </div>}
 
+        {savedCardUrl && <p role="status"><Link href={savedCardUrl} className="block rounded-xl bg-green-50 p-4 font-semibold text-green-700">{t('study.openCards')} →</Link></p>}
+        {(deleteCardMutation.isError || (moveCardMutation.isError && !movingCard)) && <p role="alert" className="mb-3 text-red-600">{writeError(deleteCardMutation.isError ? deleteCardMutation.error : moveCardMutation.error)}</p>}
         {cardsError || sessionError ? (
           <QueryError onRetry={() => { void refetchCards(); void refetchSession() }} />
         ) : cardsLoading ? (
@@ -268,28 +279,23 @@ export default function StudySessionPage() {
           </div>
         )}
       </div>
-      {cardSheet && (
-        <CardSheet
-          initial={cardSheet.mode === 'edit' ? cardSheet.card : undefined}
-          pending={createCardMutation.isPending || updateCardMutation.isPending}
-          failed={createCardMutation.isError || updateCardMutation.isError}
-          onClose={() => setCardSheet(null)}
-          onSubmit={(payload) => {
-            if (cardSheet.mode === 'edit') {
-              updateCardMutation.mutate({ ...cardSheet.card, ...payload })
-            } else {
-              createCardMutation.mutate(payload)
-            }
-          }}
-        />
-      )}
+      {cardSheet?.mode === 'create' && <CardCreateSheet sessionId={sessionId} onClose={() => setCardSheet(null)} onSaved={card => {
+        void queryClient.invalidateQueries({ queryKey: ['sessions', card.sessionId, 'cards'] })
+        setSavedCardUrl(`/study/${card.sessionId}/cards/${card.id}`)
+        setCardSheet(null)
+      }} />}
+      {cardSheet?.mode === 'edit' && <CardSheet initial={cardSheet.card} pending={updateCardMutation.isPending}
+        error={updateCardMutation.isError ? writeError(updateCardMutation.error) : null}
+        onClose={() => setCardSheet(null)} onSubmit={payload => updateCardMutation.mutate({ ...cardSheet.card, ...payload })} />}
       {movingCard && (
         <MoveCardSheet
           card={movingCard}
           sessions={sessions}
           currentSessionId={sessionId}
           pending={moveCardMutation.isPending}
-          failed={moveCardMutation.isError}
+          error={moveCardMutation.isError ? writeError(moveCardMutation.error) : null}
+          loading={sessionsQuery.isPending} failed={sessionsQuery.isError} retrying={sessionsQuery.isFetching}
+          onRetry={() => void sessionsQuery.refetch()}
           onClose={() => setMovingCard(null)}
           onSubmit={(payload) => {
             moveCardMutation.mutate({
@@ -304,7 +310,7 @@ export default function StudySessionPage() {
         <p className="text-sm text-gray-700">{t('sharing.leaveHelp')}</p>
         <p className="mt-3 text-sm text-gray-500">{t('sharing.urls')}</p>
         <Link href="/help" className="my-3 inline-block text-sm text-blue-600">{t('validation.help')}</Link>
-        {leaveMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{t('sharing.failed')}</p>}
+        {leaveMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{writeError(leaveMutation.error)}</p>}
         <button type="button" disabled={leaveMutation.isPending} onClick={() => leaveMutation.mutate()}
           className="min-h-11 w-full rounded-xl bg-action-record px-4 text-sm font-semibold text-white disabled:opacity-40">
           {t(leaveMutation.isPending ? 'friends.processing' : 'sharing.leave')}
@@ -317,13 +323,13 @@ export default function StudySessionPage() {
 function CardSheet({
   initial,
   pending,
-  failed,
+  error,
   onClose,
   onSubmit,
 }: {
   initial?: StudyCard
   pending: boolean
-  failed: boolean
+  error: string | null
   onClose: () => void
   onSubmit: (payload: { phrase: string; context: string | null; tags: string[] }) => void
 }) {
@@ -335,7 +341,7 @@ function CardSheet({
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const trimmed = phrase.trim()
-    if (!trimmed) return
+    if (pending || !trimmed) return
     onSubmit({
       phrase: trimmed,
       context: context.trim() || null,
@@ -346,7 +352,8 @@ function CardSheet({
   return (
     <Dialog title={initial ? t('study.cards.edit') : t('study.cards.new')} onClose={onClose} busy={pending}>
       <form onSubmit={submit} className="flex flex-col gap-4">
-        {failed && <p role="alert" className="text-sm text-red-500">{t('error.unexpected')}</p>}
+        {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+        <fieldset disabled={pending} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.phrase')}</span>
           <textarea
@@ -376,6 +383,7 @@ function CardSheet({
             placeholder={t('study.cards.tagsPlaceholder')}
           />
         </label>
+        </fieldset>
         <button
           type="submit"
           disabled={pending || !phrase.trim()}
@@ -393,7 +401,7 @@ function MoveCardSheet({
   sessions,
   currentSessionId,
   pending,
-  failed,
+  error, loading, failed, retrying, onRetry,
   onClose,
   onSubmit,
 }: {
@@ -401,7 +409,8 @@ function MoveCardSheet({
   sessions: StudySession[]
   currentSessionId: string
   pending: boolean
-  failed: boolean
+  error: string | null
+  loading: boolean; failed: boolean; retrying: boolean; onRetry: () => void
   onClose: () => void
   onSubmit: (payload: { targetSessionId: string; position: number }) => void
 }) {
@@ -411,13 +420,17 @@ function MoveCardSheet({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
+    if (pending || loading || failed || !sessions.some(s => s.id === targetSessionId)) return
     onSubmit({ targetSessionId, position: Math.max(0, position) })
   }
 
   return (
     <Dialog title={t('study.cards.move')} onClose={onClose} busy={pending}>
       <form onSubmit={submit} className="flex flex-col gap-4">
-        {failed && <p role="alert" className="text-sm text-red-500">{t('error.unexpected')}</p>}
+        {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+        {failed && <QueryError onRetry={onRetry} retrying={retrying} />}
+        {loading && <p role="status">{t('common.loading')}</p>}
+        <fieldset disabled={pending || loading || failed} className="flex flex-col gap-4">
         <p className="text-sm text-gray-500 line-clamp-2">{card.phrase}</p>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.targetPractice')}</span>
@@ -441,9 +454,10 @@ function MoveCardSheet({
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
           />
         </label>
+        </fieldset>
         <button
           type="submit"
-          disabled={pending || !targetSessionId}
+          disabled={pending || loading || failed || !sessions.some(s => s.id === targetSessionId)}
           className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}
