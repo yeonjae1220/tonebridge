@@ -3,6 +3,7 @@ import { bindEditorOwner } from '@/lib/composeEditorDraft'
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { recordingDrafts } from '@/lib/recordingDrafts'
+import { withWriteDeadline } from '@/lib/writeDeadline'
 
 // _retry 필드를 Axios 타입에 병합 — AxiosRequestConfig에 없는 필드를 안전하게 사용
 declare module 'axios' {
@@ -167,7 +168,7 @@ export async function logout(): Promise<void> {
   if (logoutFlight) return logoutFlight
   const flight = (async () => {
     try {
-      await axios.post('/api/auth/logout', null, { withCredentials: true })
+      await withWriteDeadline(signal => axios.post('/api/auth/logout', null, { withCredentials: true, signal }))
     } catch {
       // Local access has already been cleared, even if cookie deletion fails.
     }

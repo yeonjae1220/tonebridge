@@ -21,6 +21,7 @@ import { QueryError } from '@/components/ui/QueryError'
 import { RequestEditDialog } from '@/components/community/RequestEditDialog'
 import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { localizedLabel } from '@/lib/localizedLabels'
 
 const STATUS_MAP: Record<string, { key: 'result.waiting' | 'result.approved' | 'result.rejected'; cls: string }> = {
@@ -134,7 +135,10 @@ function ResultDetail({ requestId }: { requestId: string }) {
   const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
   const [editingCorrection, setEditingCorrection] = useState<Correction | null>(null)
   const [savingCorrection, setSavingCorrection] = useState<Correction | null>(null)
-  const [likingId, setLikingId] = useState<string | null>(null)
+  const [writeError, setWriteError] = useState<string | null>(null)
+  const writeSequence = useRef(0)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const waveContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -186,35 +190,58 @@ function ResultDetail({ requestId }: { requestId: string }) {
     return () => es.close()
   }, [accessToken, refetch, queryClient, requestId])
 
+  const actionCallbacks = {
+    onMutate: () => { setWriteError(null); return ++writeSequence.current },
+    onError: (error: unknown, _variables: unknown, sequence: number | undefined) => {
+      if (sequence === writeSequence.current) setWriteError(error instanceof WriteOutcomeUnknownError
+        ? t('common.actionUncertain') : getApiErrorMessage(error, t('common.retryLater')))
+    },
+  }
+  const confirmCorrections = (update: (items: Correction[]) => Correction[]) => {
+    if (!mounted.current) {
+      void queryClient.invalidateQueries({ queryKey: ['corrections', requestId] })
+      return
+    }
+    updateConfirmedQuery<Correction[]>(queryClient, ['corrections', requestId], items => items && update(items))
+    void refetch()
+  }
   const rateMutation = useMutation({
+    ...actionCallbacks,
     mutationFn: ({ correctionId, helpful }: { correctionId: string; helpful: boolean }) =>
-      api.post(`/corrections/${correctionId}/rate`, { helpful }),
-    onSuccess: () => refetch(),
+      withWriteDeadline(signal => api.post(`/corrections/${correctionId}/rate`, { helpful }, { signal })),
+    onSuccess: (_response, { correctionId }) => {
+      confirmCorrections(items => items.map(item => item.id === correctionId ? { ...item, ratedByMe: true } : item))
+    },
   })
 
   const acceptMutation = useMutation({
-    mutationFn: (correctionId: string) => api.post(`/corrections/${correctionId}/accept`),
-    onSuccess: () => {
-      refetch()
-      queryClient.invalidateQueries({ queryKey: ['my-requests'] })
-      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
+    ...actionCallbacks,
+    mutationFn: (correctionId: string) => withWriteDeadline(signal => api.post(`/corrections/${correctionId}/accept`, null, { signal })),
+    onSuccess: (_response, correctionId) => {
+      if (mounted.current) updateConfirmedQuery<CorrectionRequest>(queryClient, ['correction-request', requestId], item => item && { ...item, acceptedCorrectionId: correctionId })
+      confirmCorrections(items => items.map(item => item.id === correctionId ? { ...item, isAccepted: true, status: 'APPROVED' } : item))
+      void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      void queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
     },
   })
 
-  // 토글(POST) 대신 원하는 상태를 보낸다 — 재시도·더블탭이 상태를 뒤집지 않는다.
+  // Send the desired state; a repeated request must never toggle it back.
   const likeMutation = useMutation({
-    mutationFn: ({ correctionId, like }: { correctionId: string; like: boolean }) => {
-      setLikingId(correctionId)
+    ...actionCallbacks,
+    mutationFn: ({ correctionId, like }: { correctionId: string; like: boolean }) => withWriteDeadline(signal => {
       const url = `/corrections/${correctionId}/like`
-      return like ? api.put(url) : api.delete(url)
+      return like ? api.put<{ liked: boolean; likeCount: number }>(url, null, { signal })
+        : api.delete<{ liked: boolean; likeCount: number }>(url, { signal })
+    }),
+    onSuccess: ({ data }, { correctionId }) => {
+      confirmCorrections(items => items.map(item => item.id === correctionId ? { ...item, likedByMe: data.liked, likeCount: data.likeCount } : item))
     },
-    onSuccess: () => refetch(),
-    onSettled: () => setLikingId(null),
   })
 
   const deleteCorrectionMutation = useMutation({
-    mutationFn: (correctionId: string) => api.delete(`/corrections/${correctionId}`),
-    onSuccess: () => refetch(),
+    ...actionCallbacks,
+    mutationFn: (correctionId: string) => withWriteDeadline(signal => api.delete(`/corrections/${correctionId}`, { signal })),
+    onSuccess: (_response, correctionId) => { confirmCorrections(items => items.filter(item => item.id !== correctionId)) },
   })
 
   const updateCorrectionMutation = useMutation({
@@ -248,13 +275,17 @@ function ResultDetail({ requestId }: { requestId: string }) {
   })
 
   const deleteRequestMutation = useMutation({
-    mutationFn: () => api.delete(`/correction-requests/${requestId}`),
+    ...actionCallbacks,
+    mutationFn: () => withWriteDeadline(signal => api.delete(`/correction-requests/${requestId}`, { signal })),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-requests'] })
-      queryClient.invalidateQueries({ queryKey: ['correction-request', requestId] })
-      router.push('/community')
+      void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      queryClient.removeQueries({ queryKey: ['correction-request', requestId], exact: true })
+      queryClient.removeQueries({ queryKey: ['corrections', requestId], exact: true })
     },
   })
+  const actionPending = rateMutation.isPending || acceptMutation.isPending || likeMutation.isPending
+    || deleteCorrectionMutation.isPending || deleteRequestMutation.isPending
+    || updateCorrectionMutation.isPending || updateRequestMutation.isPending
 
   if (!accessToken) return null
   if (!request) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
@@ -274,6 +305,10 @@ function ResultDetail({ requestId }: { requestId: string }) {
           <h1 className="text-xl font-bold text-gray-900">{t('result.title')}</h1>
         </div>
 
+        {writeError && <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <p>{writeError}</p>
+          <button onClick={() => { void requestQuery.refetch(); void refetch() }} className="mt-2 font-semibold">{t('access.refresh')}</button>
+        </div>}
         {requestQuery.isError && <QueryError retrying={requestQuery.isFetching} onRetry={() => void requestQuery.refetch()} />}
         {/* Original */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
@@ -286,6 +321,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
               <div className="ml-auto flex gap-2">
                 {currentUser?.id === request.requesterId && request.status === 'PENDING' && (
                   <button
+                    disabled={actionPending}
                     onClick={() => { updateRequestMutation.reset(); setEditingRequest(request) }}
                     className="text-xs text-amber-700 hover:text-amber-900"
                   >
@@ -295,10 +331,11 @@ function ResultDetail({ requestId }: { requestId: string }) {
                 {currentUser?.id === request.requesterId && request.status === 'PENDING' && (
                   <button
                     onClick={() => {
-                      if (window.confirm(t('result.confirmDeleteRequest'))) {
-                        deleteRequestMutation.mutate()
+                      if (!actionPending && window.confirm(t('result.confirmDeleteRequest'))) {
+                        deleteRequestMutation.mutate(undefined, { onSuccess: () => router.push('/community') })
                       }
                     }}
+                    disabled={actionPending}
                     className="text-xs text-red-500 hover:text-red-700"
                   >
                     {t('common.delete')}
@@ -365,7 +402,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
                       <button
                         onClick={() => likeMutation.mutate({ correctionId: correction.id, like: !correction.likedByMe })}
                         aria-pressed={correction.likedByMe}
-                        disabled={likingId === correction.id}
+                        disabled={actionPending}
                         className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${correction.likedByMe ? 'bg-pink-50 border-pink-300 text-pink-600' : 'border-gray-200 text-gray-500 hover:bg-pink-50 hover:border-pink-300 hover:text-pink-600'}`}
                       >
                         ♥ {correction.likeCount > 0 ? correction.likeCount : t('result.like')}
@@ -373,6 +410,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
                       {canManage && (
                         <>
                           <button
+                            disabled={actionPending}
                             onClick={() => { updateCorrectionMutation.reset(); setEditingCorrection(correction) }}
                             className="text-xs text-gray-500 hover:text-blue-600"
                           >
@@ -380,10 +418,11 @@ function ResultDetail({ requestId }: { requestId: string }) {
                           </button>
                           <button
                             onClick={() => {
-                              if (window.confirm(t('result.confirmDeleteCorrection'))) {
+                              if (!actionPending && window.confirm(t('result.confirmDeleteCorrection'))) {
                                 deleteCorrectionMutation.mutate(correction.id)
                               }
                             }}
+                            disabled={actionPending}
                             className="text-xs text-gray-500 hover:text-red-600"
                           >
                             {t('common.delete')}
@@ -426,14 +465,14 @@ function ResultDetail({ requestId }: { requestId: string }) {
 
                     {correction.status !== 'REJECTED' && (
                       <div className="border-t border-gray-50 pt-4 flex flex-col gap-3">
-                        {isRequester && !requestAccepted && !correction.isAccepted && (
+                        {isRequester && !requestAccepted && !correction.isAccepted && correction.status === 'SUBMITTED' && (
                           <button
                             onClick={() => {
                               if (window.confirm(t('result.confirmAccept'))) {
                                 acceptMutation.mutate(correction.id)
                               }
                             }}
-                            disabled={acceptMutation.isPending}
+                            disabled={actionPending}
                             className="w-full py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-600 transition-colors disabled:opacity-40"
                           >
                             {t('result.accept')}
@@ -445,12 +484,14 @@ function ResultDetail({ requestId }: { requestId: string }) {
                         >
                           {t('result.saveCard')}
                         </button>
+                        {isRequester && (correction.ratedByMe ? <p role="status" className="text-sm text-green-700">{t('result.rated')}</p> : <>
                         <p className="text-xs text-gray-500 mb-0">{t('result.helpfulQuestion')}</p>
                         <div className="flex gap-2">
                           <button
                             onClick={() =>
                               rateMutation.mutate({ correctionId: correction.id, helpful: true })
                             }
+                            disabled={actionPending}
                             className="flex-1 py-2 rounded-xl border border-gray-200 text-sm hover:bg-green-50 hover:border-green-300 transition-colors"
                           >
                             👍 {t('result.helpful')}
@@ -459,11 +500,13 @@ function ResultDetail({ requestId }: { requestId: string }) {
                             onClick={() =>
                               rateMutation.mutate({ correctionId: correction.id, helpful: false })
                             }
+                            disabled={actionPending}
                             className="flex-1 py-2 rounded-xl border border-gray-200 text-sm hover:bg-red-50 hover:border-red-300 transition-colors"
                           >
                             👎 {t('result.notHelpful')}
                           </button>
                         </div>
+                        </>)}
                       </div>
                     )}
                   </div>

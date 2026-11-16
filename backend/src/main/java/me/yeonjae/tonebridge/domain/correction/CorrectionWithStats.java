@@ -4,5 +4,6 @@ public record CorrectionWithStats(
         Correction correction,
         int likeCount,
         boolean likedByMe,
-        boolean isAccepted
+        boolean isAccepted,
+        boolean ratedByMe
 ) {}

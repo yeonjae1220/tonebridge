@@ -87,6 +87,7 @@ export interface Correction {
   likeCount: number
   likedByMe: boolean
   isAccepted: boolean
+  ratedByMe?: boolean
 }
 
 export interface TimestampComment {
