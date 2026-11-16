@@ -17,7 +17,7 @@ export function CardCreateSheet({ sessionId, onClose, onSaved }: { sessionId: st
   }, validCardDraft)
   const mutation = useCardSubmission(draft, onSaved)
   const locked = mutation.isPending || !draft.ready || !!draft.pending
-  return <Dialog title={t('study.cards.new')} busy={mutation.isPending} onClose={() => { if (draft.status !== 'error' || window.confirm(t('editor.leave'))) onClose() }}>
+  return <Dialog title={t('study.cards.new')} busy={mutation.isPending} onClose={() => { if (draft.confirmLeave()) onClose() }}>
     <form className="flex flex-col gap-4" onSubmit={event => {
       event.preventDefault()
       if (!mutation.isPending && draft.ready && !draft.issue && (draft.pending || draft.value.phrase.trim())) mutation.mutate('save')

@@ -608,7 +608,7 @@ function SaveCardSheet({ correction, request, sessions, loading, failed, retryin
     if (pending || !draft.ready || draft.issue || (!draft.pending && (failed || loading || !sessions.some(session => session.id === sessionId) || !phrase.trim()))) return
     mutation.mutate('save')
   }
-  return <Dialog title={t('result.saveCard')} onClose={() => { if (draft.status !== 'error' || window.confirm(t('editor.leave'))) onClose() }} busy={pending}>
+  return <Dialog title={t('result.saveCard')} onClose={() => { if (draft.confirmLeave()) onClose() }} busy={pending}>
     <form onSubmit={submit} className="flex flex-col gap-4">
       <RecoveryDraftNotice value={draft.value} status={draft.status} issue={draft.issue} restored={draft.restored}
         pending={!!draft.pending} busy={pending} onRetry={() => void draft.retry()} onEdit={() => mutation.mutate('edit')} />

@@ -353,3 +353,28 @@ for (const corrupt of ['json', 'date']) test(`a damaged ${corrupt} draft does no
   await expect(page.getByRole('textbox').last()).toHaveValue('Healthy feedback remains recoverable.')
   expect(state.errors).toEqual([])
 })
+
+for (const target of ['result', 'feedback-button', 'feedback-link']) test(`leaving ${target} during recovery autosave asks before losing input`, async ({ page }) => {
+  const state = await fixture(page); if (target !== 'result') state.viewer = 'helper'
+  await page.clock.install()
+  await page.goto(target === 'result' ? '/result/request-1' : '/correct/request-1')
+  if (target === 'result') await page.getByRole('button', { name: '스터디 카드로 저장', exact: true }).click()
+  const input = target === 'result' ? page.getByRole('dialog').getByLabel('표현', { exact: true }) : page.getByRole('textbox').last()
+  await input.fill('Durable original input for leaving test.')
+  await saved(page, 'Durable original input')
+  await holdDraftLock(page)
+  await input.fill('Latest input must remain when leaving is cancelled.')
+  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending?.length ?? 0)).toBeGreaterThan(0)
+  let confirmations = 0
+  page.on('dialog', async prompt => { confirmations++; await prompt.dismiss() })
+  if (target === 'result') await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).click()
+  else if (target === 'feedback-button') await page.getByRole('button', { name: '커뮤니티', exact: true }).click()
+  else {
+    await page.getByTestId('recovery-draft').locator('summary').click()
+    await page.getByTestId('recovery-draft').getByRole('link').click()
+  }
+  expect(confirmations).toBe(1)
+  await expect(input).toHaveValue('Latest input must remain when leaving is cancelled.')
+  await releaseDraftLock(page)
+  await saved(page, 'Latest input must remain')
+})

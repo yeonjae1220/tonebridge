@@ -67,6 +67,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
   }, [session, sessionError])
   const writeError = (error: unknown) => getApiErrorMessage(error, t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected'))
 
+  // Cache invalidation survives navigation; redirect only through the mounted mutate observer.
   const leaveMutation = useMutation({
     mutationFn: () => withWriteDeadline(signal => api.delete(`/sessions/${sessionId}/membership`, { signal })),
     onSuccess: () => {
@@ -74,7 +75,6 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
       queryClient.removeQueries({ queryKey: ['cards'] })
       queryClient.removeQueries({ queryKey: ['study-audio'] })
       queryClient.removeQueries({ queryKey: ['practice-feedback'] })
-      router.replace('/study')
     },
     onError: () => {},
   })
@@ -311,7 +311,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
         <p className="mt-3 text-sm text-gray-500">{t('sharing.urls')}</p>
         <Link href="/help" className="my-3 inline-block text-sm text-blue-600">{t('validation.help')}</Link>
         {leaveMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{writeError(leaveMutation.error)}</p>}
-        <button type="button" disabled={leaveMutation.isPending} onClick={() => leaveMutation.mutate()}
+        <button type="button" disabled={leaveMutation.isPending} onClick={() => leaveMutation.mutate(undefined, { onSuccess: () => router.replace('/study') })}
           className="min-h-11 w-full rounded-xl bg-action-record px-4 text-sm font-semibold text-white disabled:opacity-40">
           {t(leaveMutation.isPending ? 'friends.processing' : 'sharing.leave')}
         </button>
