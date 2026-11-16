@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -27,6 +29,11 @@ function formatMessage(template: string, values: Record<string, string | number>
 }
 
 export default function FriendsPage() {
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <FriendsContent key={generation} />
+}
+
+function FriendsContent() {
   const router = useRouter()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
@@ -44,6 +51,7 @@ export default function FriendsPage() {
   const [removingFriend, setRemovingFriend] = useState<Friend | null>(null)
   const [closeShared, setCloseShared] = useState(false)
   const debouncedQuery = useDebounce(searchQuery, 300)
+  const writeError = (error: unknown, fallback: string) => getApiErrorMessage(error, error instanceof WriteOutcomeUnknownError ? t('common.saveUncertain') : fallback)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search))
@@ -93,7 +101,8 @@ export default function FriendsPage() {
 
   const sendRequestMutation = useMutation({
     mutationFn: (receiverUsername: string) =>
-      api.post('/friends/request', { receiverUsername }),
+      withWriteDeadline(signal => api.post('/friends/request', { receiverUsername }, { signal })),
+    onMutate: () => setSendError(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       setNotice(t('friends.requestSent'))
@@ -101,37 +110,39 @@ export default function FriendsPage() {
       setShowSearch(false)
       setSendError(null)
     },
-    onError: (err: { response?: { status?: number; data?: { message?: string } } }) => {
-      if (err?.response?.status === 409) {
+    onError: (err: unknown) => {
+      if (getApiErrorStatus(err) === 409) {
         setSendError(t('friends.requestAlreadySent'))
-      } else if (err?.response?.status === 404) {
+      } else if (getApiErrorStatus(err) === 404) {
         setSendError(t('friends.userNotFound'))
       } else {
-        setSendError(t('friends.requestFailed'))
+        setSendError(writeError(err, t('friends.requestFailed')))
       }
     },
   })
 
   const acceptMutation = useMutation({
-    mutationFn: (requestId: string) => api.post(`/friends/${requestId}/accept`),
+    mutationFn: (requestId: string) => withWriteDeadline(signal => api.post(`/friends/${requestId}/accept`, null, { signal })),
+    onMutate: () => setSendError(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
     },
-    onError: () => setSendError(t('friends.requestFailed')),
+    onError: error => setSendError(writeError(error, t('friends.requestFailed'))),
     onSettled: () => setAcceptingId(null),
   })
 
   const declineMutation = useMutation({
-    mutationFn: (requestId: string) => api.delete(`/friends/requests/${requestId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }),
-    onError: () => setSendError(t('friends.requestFailed')),
+    mutationFn: (requestId: string) => withWriteDeadline(signal => api.delete(`/friends/requests/${requestId}`, { signal })),
+    onMutate: () => setSendError(null),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }) },
+    onError: error => setSendError(writeError(error, t('friends.requestFailed'))),
     onSettled: () => setDecliningId(null),
   })
 
   const removeMutation = useMutation({
     mutationFn: ({ friendId, closeShared }: { friendId: string; closeShared: boolean }) =>
-      api.delete(`/friends/${friendId}`, { params: { closeShared } }),
+      withWriteDeadline(signal => api.delete(`/friends/${friendId}`, { params: { closeShared }, signal })),
     onSuccess: (_response, variables) => {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       // Do not retain readable client snapshots after explicitly revoking sharing.
@@ -148,16 +159,17 @@ export default function FriendsPage() {
   })
 
   const practiceMutation = useMutation({
-    mutationFn: async (friendId: string) => {
-      const { data: sessions } = await api.get<StudySession[]>('/sessions')
+    mutationFn: (friendId: string) => withWriteDeadline(async signal => {
+      const { data: sessions } = await api.get<StudySession[]>('/sessions', { signal })
       const existing = sessions.find((session) => session.memberIds.length === 2 && session.memberIds.includes(friendId))
       if (existing) return existing.id
-      const { data } = await api.post<StudySession>('/sessions', { friendId })
+      signal.throwIfAborted()
+      const { data } = await api.post<StudySession>('/sessions', { friendId }, { signal })
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       return data.id
-    },
-    onSuccess: (id) => router.push('/study/' + id),
-    onError: () => setSendError(t('study.createFailed')),
+    }),
+    onMutate: () => setSendError(null),
+    onError: error => setSendError(writeError(error, t('study.createFailed'))),
   })
 
   const inviteUrl = origin && currentUser ? origin + '/friends?invite=' + encodeURIComponent(currentUser.username) : ''
@@ -188,7 +200,7 @@ export default function FriendsPage() {
           <h2 className="text-sm font-semibold text-gray-900">{t('access.invitedBy')} · <span className="break-all">{inviter}</span></h2>
           <p className="mt-2 text-sm text-gray-600">{t('access.inviteConfirm')}</p>
         </section>}
-        <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['friends'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
+        <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['friends'] }); void queryClient.invalidateQueries({ queryKey: ['sessions'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
         {inviteUrl && (
           <section className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4">
             <p className="text-sm font-semibold mb-2">{t('friends.inviteLink')}</p>
@@ -214,11 +226,12 @@ export default function FriendsPage() {
           <div className="bg-surface rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('friends.searchTitle')}</p>
-              <button type="button" onClick={() => setShowSearch(false)} aria-label={t('common.close')} className="h-11 w-11 text-gray-500">×</button>
+              <button type="button" disabled={sendRequestMutation.isPending} onClick={() => setShowSearch(false)} aria-label={t('common.close')} className="h-11 w-11 text-gray-500">×</button>
             </div>
             <div className="relative">
               <input
                 type="text"
+                disabled={sendRequestMutation.isPending}
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setSendError(null) }}
                 placeholder={t('friends.searchPlaceholder')}
@@ -295,14 +308,14 @@ export default function FriendsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
-                      disabled={acceptingId === req.id || decliningId === req.id}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
                       className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-action-primary text-white rounded-lg hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
                     >
                       {acceptingId === req.id ? t('friends.accepting') : t('friends.accept')}
                     </button>
                     <button
                       onClick={() => { setDecliningId(req.id); declineMutation.mutate(req.id) }}
-                      disabled={decliningId === req.id || acceptingId === req.id}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
                       className="px-3 py-1.5 text-xs font-semibold border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
                     >
                       {decliningId === req.id ? t('friends.processing') : t('friends.decline')}
@@ -354,7 +367,7 @@ export default function FriendsPage() {
                   </div>
                   <button type="button"
                     disabled={practiceMutation.isPending}
-                    onClick={() => practiceMutation.mutate(friend.id)}
+                    onClick={() => practiceMutation.mutate(friend.id, { onSuccess: id => router.push('/study/' + id) })}
                     className="ml-auto px-3 py-2 text-xs font-semibold text-blue-600 disabled:opacity-40"
                   >{t('study.openCards')}</button>
                   <button
@@ -387,7 +400,7 @@ export default function FriendsPage() {
         <p className="mt-4 text-sm text-gray-600">{t(closeShared ? 'sharing.closeHelp' : 'sharing.keepHelp')}</p>
         {closeShared && <p className="mt-3 text-sm text-gray-500">{t('sharing.urls')}</p>}
         <Link href="/help" className="my-3 inline-block text-sm text-blue-600">{t('validation.help')}</Link>
-        {removeMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{t('sharing.failed')}</p>}
+        {removeMutation.isError && <p role="alert" className="mb-3 text-sm text-red-600">{writeError(removeMutation.error, t('sharing.failed'))}</p>}
         <button type="button" disabled={removeMutation.isPending}
           onClick={() => removeMutation.mutate({ friendId: removingFriend.id, closeShared })}
           className="min-h-11 w-full rounded-xl bg-action-record px-4 text-sm font-semibold text-white disabled:opacity-40">
