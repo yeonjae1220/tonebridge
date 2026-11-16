@@ -23,7 +23,7 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
   const mounted = useRef(true)
   const generation = useAuthStore(s => s.sessionGeneration)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  useEffect(() => {
+  const initialize = useCallback(() => {
     if (!owner) return
     try {
       const opened = openRecovery(owner, scope)
@@ -35,9 +35,14 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
       handle.current = opened.handle
       pendingRef.current = opened.row?.pending ?? null
       setPending(pendingRef.current); paused.current = !!pendingRef.current
-      setReady(true)
-    } catch (error) { setIssue(draftStorageIssue(error)); setStatus('error'); setReady(true) }
+      setIssue(null); setStatus(opened.row?.value ? 'saved' : 'empty'); setReady(true)
+    } catch (error) {
+      // Do not let an empty editor replace a draft or pending receipt we could not read.
+      handle.current = undefined; setReady(false)
+      setIssue(draftStorageIssue(error)); setStatus('error')
+    }
   }, [owner, scope, valid])
+  useEffect(initialize, [initialize])
   const persist = useCallback((next: T) => {
     if (paused.current) return queue.current
     const serial = ++sequence.current
@@ -62,7 +67,7 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
     return () => window.removeEventListener('beforeunload', warn)
   }, [status])
   useEffect(() => {
-    if (status !== 'error') return
+    if (status !== 'error' && status !== 'saving') return
     const leave = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
       const link = (event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement | null
@@ -74,7 +79,8 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
   }, [status, t])
   const setValue = (next: SetStateAction<T>) => { if (!pendingRef.current) { dirty.current = true; setState(next) } }
   return { value, setValue, pending, ready, restored, status, issue,
-    retry: () => persist(latest.current),
+    confirmLeave: () => (status !== 'error' && status !== 'saving') || window.confirm(t('editor.leave')),
+    retry: () => handle.current ? persist(latest.current) : initialize(),
     begin: (payload: Record<string, unknown>, recordingId?: string, signal?: AbortSignal): Promise<PendingSubmission> => {
       signal?.throwIfAborted()
       if (pendingRef.current) return Promise.resolve(pendingRef.current)

@@ -181,3 +181,95 @@ test('direct card account lookup failure offers retry instead of a permanently d
   await dialog.getByRole('textbox', { name: '표현', exact: true }).fill('Recovered account lookup')
   await expect(dialog.getByRole('button', { name: '저장', exact: true })).toBeEnabled()
 })
+
+for (const pending of [false, true]) test(`initial card storage read failure retries without replacing a ${pending ? 'pending submission' : 'saved draft'}`, async ({ page }) => {
+  await study(page)
+  const keys: string[] = []
+  await page.route('**/api/sessions/session-1/cards', route => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    keys.push(route.request().headers()['idempotency-key'])
+    return keys.length === 1 && pending ? route.abort('failed') : route.fulfill({ status: 201, json: { id: 'recovered-card', sessionId: 'session-1' } })
+  })
+  await openCreate(page)
+  const dialog = page.getByRole('dialog')
+  const phrase = dialog.getByRole('textbox', { name: '표현', exact: true })
+  await phrase.fill('Existing input must survive a failed read')
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('tonebridge-recovery:owner:card-new:session-1')?.includes('Existing input'))).toBe(true)
+  if (pending) {
+    await dialog.getByRole('button', { name: '저장', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toBeVisible()
+  }
+  await dialog.getByRole('button', { name: '닫기', exact: true }).click()
+  await page.evaluate(() => {
+    const get = Storage.prototype.getItem
+    Object.assign(window, { blockRecoveryRead: true })
+    Storage.prototype.getItem = function(key) {
+      if (key.startsWith('tonebridge-recovery:') && (window as unknown as { blockRecoveryRead: boolean }).blockRecoveryRead) throw new DOMException('blocked', 'SecurityError')
+      return get.call(this, key)
+    }
+  })
+  await page.getByRole('button', { name: '카드 추가', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(phrase).toBeDisabled()
+  await page.evaluate(() => Object.assign(window, { blockRecoveryRead: false }))
+  await dialog.getByRole('button', { name: /재시도/ }).click()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(phrase).toHaveValue('Existing input must survive a failed read')
+  if (pending) await expect(phrase).toBeDisabled()
+  else await expect(phrase).toBeEnabled()
+  await dialog.getByRole('button', { name: '저장', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(keys).toHaveLength(pending ? 2 : 1)
+  if (pending) expect(keys[1]).toBe(keys[0])
+})
+
+test('closing direct card creation during a blocked autosave preserves the latest input when cancelled', async ({ page }) => {
+  await study(page); await page.clock.install(); await openCreate(page)
+  const dialog = page.getByRole('dialog')
+  const phrase = dialog.getByRole('textbox', { name: '표현', exact: true })
+  await phrase.fill('Previous durable input')
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('tonebridge-recovery:owner:card-new:session-1')?.includes('Previous durable'))).toBe(true)
+  await page.evaluate(async () => {
+    await new Promise<void>(resolve => { void navigator.locks.request('tonebridge-recovery:owner:card-new:session-1', () => new Promise<void>(release => { Object.assign(window, { releaseReviewLock: release }); resolve() })) })
+  })
+  await phrase.fill('Latest input while another tab holds the lock')
+  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending?.length ?? 0)).toBeGreaterThan(0)
+  let confirmations = 0
+  page.on('dialog', async prompt => { confirmations++; await prompt.dismiss() })
+  await dialog.getByRole('button', { name: '닫기', exact: true }).click()
+  expect(confirmations).toBe(1)
+  await expect(phrase).toHaveValue('Latest input while another tab holds the lock')
+  await page.clock.fastForward(5001)
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await page.evaluate(() => (window as unknown as { releaseReviewLock: () => void }).releaseReviewLock())
+  await dialog.getByRole('button', { name: /재시도/ }).click()
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('tonebridge-recovery:owner:card-new:session-1')?.includes('Latest input'))).toBe(true)
+  await dialog.getByRole('button', { name: '닫기', exact: true }).click()
+  await expect(dialog).toHaveCount(0); expect(confirmations).toBe(1)
+  await page.getByRole('button', { name: '카드 추가', exact: true }).click()
+  await expect(phrase).toHaveValue('Latest input while another tab holds the lock')
+})
+
+
+test('a delayed leave response cannot redirect away from a different practice editor', async ({ page }) => {
+  await study(page)
+  let finish: (() => Promise<void>) | undefined
+  await page.route('**/api/sessions/session-1/membership', route => { finish = () => route.fulfill({ status: 204 }) })
+  await page.goto('/study')
+  await page.getByRole('button', { name: 'Practice', exact: true }).click()
+  await page.getByRole('button', { name: '연습장 나가기', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '연습장 나가기', exact: true }).click()
+  await expect.poll(() => !!finish).toBe(true)
+  await page.goBack()
+  await expect(page).toHaveURL(/study$/)
+  await page.getByRole('button', { name: 'Other practice', exact: true }).click()
+  await page.getByRole('button', { name: '카드 추가', exact: true }).click()
+  await page.getByRole('dialog').getByRole('textbox', { name: '표현', exact: true }).fill('Keep editing the second practice')
+  const response = page.waitForResponse('**/api/sessions/session-1/membership')
+  await finish!(); await response
+  // Keep observing after the response; an immediate URL assertion can miss the stale callback.
+  const redirected = await page.waitForURL(/study$/, { timeout: 1000 }).then(() => true, () => false)
+  expect(redirected).toBe(false)
+  await expect(page).toHaveURL(/study\/session-2$/)
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: '표현', exact: true })).toHaveValue('Keep editing the second practice')
+})

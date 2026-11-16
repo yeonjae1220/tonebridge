@@ -204,7 +204,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <button aria-label={t('nav.feed')} onClick={() => { if (draft.status !== 'error' || window.confirm(t('editor.leave'))) router.push('/community') }} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
+          <button aria-label={t('nav.feed')} onClick={() => { if (draft.confirmLeave()) router.push('/community') }} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{t('correct.title')}</h1>
           </div>
