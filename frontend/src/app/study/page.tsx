@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { getApiErrorMessage } from '@/lib/apiError'
 import type { Friend, FriendRequest, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -22,6 +24,11 @@ type CreateSessionPayload = {
 }
 
 export default function StudyPage() {
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <StudyContent key={generation} />
+}
+
+function StudyContent() {
   const router = useRouter()
   const { suggested, dismissSuggestion } = usePWAInstall()
   const { accessToken } = useAuthStore()
@@ -34,6 +41,7 @@ export default function StudyPage() {
   const [sessionTitle, setSessionTitle] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [renamingSession, setRenamingSession] = useState<StudySession | null>(null)
+  const writeError = (error: unknown, fallback = t('error.unexpected')) => getApiErrorMessage(error, error instanceof WriteOutcomeUnknownError ? t('common.saveUncertain') : fallback)
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -60,34 +68,34 @@ export default function StudyPage() {
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateSessionPayload) =>
-      api.post('/sessions', {
+      withWriteDeadline(signal => api.post('/sessions', {
         friendId: payload.friendId ?? null,
         title: payload.title?.trim() || null,
-      }),
-    onSuccess: (response) => {
-      router.push('/study/' + response.data.id)
+      }, { signal })),
+    onMutate: () => setCreateError(null),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       setShowNewSession(false)
       setSelectedFriendId('')
       setSessionTitle('')
       setCreateError(null)
     },
-    onError: () => setCreateError(t('study.createFailed')),
+    onError: error => setCreateError(writeError(error, t('study.createFailed'))),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ sessionId, title }: { sessionId: string; title: string | null }) =>
-      api.patch(`/sessions/${sessionId}`, { title }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+      withWriteDeadline(signal => api.patch(`/sessions/${sessionId}`, { title }, { signal })),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }) },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (sessionId: string) => api.delete(`/sessions/${sessionId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    mutationFn: (sessionId: string) => withWriteDeadline(signal => api.delete(`/sessions/${sessionId}`, { signal })),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }) },
   })
 
   const acceptMutation = useMutation({
-    mutationFn: (requestId: string) => api.post(`/friends/${requestId}/accept`),
+    mutationFn: (requestId: string) => withWriteDeadline(signal => api.post(`/friends/${requestId}/accept`, null, { signal })),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
@@ -95,8 +103,8 @@ export default function StudyPage() {
   })
 
   const declineMutation = useMutation({
-    mutationFn: (requestId: string) => api.delete(`/friends/requests/${requestId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }),
+    mutationFn: (requestId: string) => withWriteDeadline(signal => api.delete(`/friends/requests/${requestId}`, { signal })),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }) },
   })
 
   if (!accessToken) return null
@@ -118,6 +126,9 @@ export default function StudyPage() {
           </button>
         </div>
 
+        <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }); void queryClient.invalidateQueries({ queryKey: ['friends'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
+        {(deleteMutation.isError || acceptMutation.isError || declineMutation.isError || (!renamingSession && updateMutation.isError)) && <p role="alert" className="mb-3 text-sm text-red-600">{writeError(deleteMutation.isError ? deleteMutation.error : acceptMutation.isError ? acceptMutation.error : declineMutation.isError ? declineMutation.error : updateMutation.error)}</p>}
+        {!showNewSession && createError && <p role="alert" className="mb-3 text-sm text-red-600">{createError}</p>}
         {!isLoading && !isError && sessions.length === 0 && (
           <section className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-5">
             <h2 className="text-lg font-bold text-gray-900">{t('study.firstTitle')}</h2>
@@ -184,7 +195,7 @@ export default function StudyPage() {
                     </button>
                   </p>
                 ) : (
-                  <select id="practice-friend" autoFocus
+                  <select id="practice-friend" autoFocus disabled={createMutation.isPending}
                     value={selectedFriendId}
                     onChange={(e) => setSelectedFriendId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-surface transition-colors"
@@ -200,7 +211,7 @@ export default function StudyPage() {
               <div>
                 <label htmlFor="practice-title" className="text-sm font-medium text-gray-500 mb-1 block">{t('study.nameOptional')}</label>
                 <input
-                  type="text" id="practice-title"
+                  type="text" id="practice-title" disabled={createMutation.isPending}
                   value={sessionTitle}
                   onChange={(e) => setSessionTitle(e.target.value)}
                   placeholder={t('study.namePlaceholder')}
@@ -216,14 +227,15 @@ export default function StudyPage() {
                   onClick={() => createMutation.mutate({
                     friendId: selectedFriendId,
                     title: sessionTitle,
-                  })}
-                  disabled={!selectedFriendId || createMutation.isPending}
+                  }, { onSuccess: response => router.push('/study/' + response.data.id) })}
+                  disabled={!selectedFriendId || createMutation.isPending || friendsError || friendsLoading}
                   className="flex-1 py-2.5 bg-action-primary text-white text-sm font-semibold rounded-xl hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
                 >
                   {createMutation.isPending ? t('study.creating') : t('common.start')}
                 </button>
                 <button
-                  onClick={() => { setShowNewSession(false); setCreateError(null) }}
+                  disabled={createMutation.isPending}
+                  onClick={() => setShowNewSession(false)}
                   className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors"
                 >
                   {t('common.cancel')}
@@ -254,6 +266,7 @@ export default function StudyPage() {
                       <SessionCard
                         key={session.id}
                         session={session}
+                        busy={deleteMutation.isPending || updateMutation.isPending}
                         onOpen={() => router.push(`/study/${session.id}`)}
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
@@ -277,6 +290,7 @@ export default function StudyPage() {
                       <SessionCard
                         key={session.id}
                         session={session}
+                        busy={deleteMutation.isPending || updateMutation.isPending}
                         onOpen={() => router.push(`/study/${session.id}`)}
                         onRename={canManage ? () => setRenamingSession(session) : undefined}
                         onDelete={canManage ? () => {
@@ -300,7 +314,7 @@ export default function StudyPage() {
         <RenameSessionSheet
           session={renamingSession}
           pending={updateMutation.isPending}
-          failed={updateMutation.isError}
+          error={updateMutation.isError ? writeError(updateMutation.error) : null}
           onClose={() => setRenamingSession(null)}
           onSubmit={(title) => {
             updateMutation.mutate({ sessionId: renamingSession.id, title }, {
@@ -316,13 +330,13 @@ export default function StudyPage() {
 function RenameSessionSheet({
   session,
   pending,
-  failed,
+  error,
   onClose,
   onSubmit,
 }: {
   session: StudySession
   pending: boolean
-  failed: boolean
+  error: string | null
   onClose: () => void
   onSubmit: (title: string | null) => void
 }) {
@@ -331,14 +345,15 @@ function RenameSessionSheet({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    onSubmit(title.trim() || null)
+    if (!pending) onSubmit(title.trim() || null)
   }
 
   return (
     <Dialog title={t('study.renameTitle')} onClose={onClose} busy={pending}>
       <form onSubmit={submit} className="flex flex-col gap-4">
-        {failed && <p role="alert" className="text-sm text-red-500">{t('error.unexpected')}</p>}
+        {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
         <input
+          disabled={pending}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           autoFocus
@@ -360,12 +375,13 @@ function RenameSessionSheet({
 
 interface SessionCardProps {
   session: StudySession
+  busy: boolean
   onOpen: () => void
   onRename?: () => void
   onDelete?: () => void
 }
 
-function SessionCard({ session, onOpen, onRename, onDelete }: SessionCardProps) {
+function SessionCard({ session, busy, onOpen, onRename, onDelete }: SessionCardProps) {
   const { language, t } = useI18n()
   return (
     <div className="bg-surface rounded-2xl border border-gray-100 p-4">
@@ -386,6 +402,7 @@ function SessionCard({ session, onOpen, onRename, onDelete }: SessionCardProps) 
         </button>
         {onRename && (
           <button
+            disabled={busy}
             onClick={onRename}
             className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
           >
@@ -394,6 +411,7 @@ function SessionCard({ session, onOpen, onRename, onDelete }: SessionCardProps) 
         )}
         {onDelete && (
           <button
+            disabled={busy}
             onClick={onDelete}
             className="px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
           >
