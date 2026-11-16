@@ -2,12 +2,13 @@
 
 import { InstallBanner } from '@/components/ui/InstallBanner'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { getApiErrorMessage } from '@/lib/apiError'
 import type { Friend, FriendRequest, StudySession } from '@/types'
@@ -39,6 +40,9 @@ function StudyContent() {
   const [showNewSession, setShowNewSession] = useState(false)
   const [selectedFriendId, setSelectedFriendId] = useState('')
   const [sessionTitle, setSessionTitle] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const actionSequence = useRef(0)
+  const beginAction = () => { setActionError(null); return ++actionSequence.current }
   const [createError, setCreateError] = useState<string | null>(null)
   const [renamingSession, setRenamingSession] = useState<StudySession | null>(null)
   const writeError = (error: unknown, fallback = t('error.unexpected')) => getApiErrorMessage(error, error instanceof WriteOutcomeUnknownError ? t('common.saveUncertain') : fallback)
@@ -72,7 +76,7 @@ function StudyContent() {
         friendId: payload.friendId ?? null,
         title: payload.title?.trim() || null,
       }, { signal })),
-    onMutate: () => setCreateError(null),
+    onMutate: () => { setCreateError(null); beginAction() },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       setShowNewSession(false)
@@ -86,25 +90,42 @@ function StudyContent() {
   const updateMutation = useMutation({
     mutationFn: ({ sessionId, title }: { sessionId: string; title: string | null }) =>
       withWriteDeadline(signal => api.patch(`/sessions/${sessionId}`, { title }, { signal })),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }) },
+    onMutate: beginAction,
+    onSuccess: (_response, { sessionId, title }) => {
+      updateConfirmedQuery<StudySession[]>(queryClient, ['sessions'], rows => rows?.map(row => row.id === sessionId ? { ...row, title } : row))
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+    onError: (error, _variables, sequence) => { if (sequence === actionSequence.current) setActionError(writeError(error)) },
   })
 
   const deleteMutation = useMutation({
     mutationFn: (sessionId: string) => withWriteDeadline(signal => api.delete(`/sessions/${sessionId}`, { signal })),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }) },
+    onMutate: beginAction,
+    onSuccess: (_response, sessionId) => {
+      updateConfirmedQuery<StudySession[]>(queryClient, ['sessions'], rows => rows?.filter(row => row.id !== sessionId))
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+    onError: (error, _variables, sequence) => { if (sequence === actionSequence.current) setActionError(writeError(error)) },
   })
 
   const acceptMutation = useMutation({
     mutationFn: (requestId: string) => withWriteDeadline(signal => api.post(`/friends/${requestId}/accept`, null, { signal })),
-    onSuccess: () => {
+    onMutate: beginAction,
+    onSuccess: (_response, requestId) => {
+      updateConfirmedQuery<FriendRequest[]>(queryClient, ['friends', 'pending'], rows => rows?.filter(row => row.id !== requestId))
       queryClient.invalidateQueries({ queryKey: ['friends'] })
-      queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
     },
+    onError: (error, _variables, sequence) => { if (sequence === actionSequence.current) setActionError(writeError(error)) },
   })
 
   const declineMutation = useMutation({
     mutationFn: (requestId: string) => withWriteDeadline(signal => api.delete(`/friends/requests/${requestId}`, { signal })),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }) },
+    onMutate: beginAction,
+    onSuccess: (_response, requestId) => {
+      updateConfirmedQuery<FriendRequest[]>(queryClient, ['friends', 'pending'], rows => rows?.filter(row => row.id !== requestId))
+      void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
+    },
+    onError: (error, _variables, sequence) => { if (sequence === actionSequence.current) setActionError(writeError(error)) },
   })
 
   if (!accessToken) return null
@@ -127,7 +148,7 @@ function StudyContent() {
         </div>
 
         <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }); void queryClient.invalidateQueries({ queryKey: ['friends'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
-        {(deleteMutation.isError || acceptMutation.isError || declineMutation.isError || (!renamingSession && updateMutation.isError)) && <p role="alert" className="mb-3 text-sm text-red-600">{writeError(deleteMutation.isError ? deleteMutation.error : acceptMutation.isError ? acceptMutation.error : declineMutation.isError ? declineMutation.error : updateMutation.error)}</p>}
+        {!renamingSession && actionError && <p role="alert" className="mb-3 text-sm text-red-600">{actionError}</p>}
         {!showNewSession && createError && <p role="alert" className="mb-3 text-sm text-red-600">{createError}</p>}
         {!isLoading && !isError && sessions.length === 0 && (
           <section className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-5">
@@ -268,7 +289,7 @@ function StudyContent() {
                         session={session}
                         busy={deleteMutation.isPending || updateMutation.isPending}
                         onOpen={() => router.push(`/study/${session.id}`)}
-                        onRename={canManage ? () => setRenamingSession(session) : undefined}
+                        onRename={canManage ? () => { updateMutation.reset(); setActionError(null); setRenamingSession(session) } : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm(t('study.confirmDelete'))) {
                             deleteMutation.mutate(session.id)
@@ -292,7 +313,7 @@ function StudyContent() {
                         session={session}
                         busy={deleteMutation.isPending || updateMutation.isPending}
                         onOpen={() => router.push(`/study/${session.id}`)}
-                        onRename={canManage ? () => setRenamingSession(session) : undefined}
+                        onRename={canManage ? () => { updateMutation.reset(); setActionError(null); setRenamingSession(session) } : undefined}
                         onDelete={canManage ? () => {
                           if (window.confirm(t('study.confirmDelete'))) {
                             deleteMutation.mutate(session.id)

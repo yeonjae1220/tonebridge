@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -16,6 +17,9 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { QueryError } from '@/components/ui/QueryError'
 import { Dialog } from '@/components/ui/Dialog'
 import { formatDate } from '@/lib/dateUtils'
+
+type SentRequest = { id: string; receiverId: string; receiverUsername: string | null; createdAt: string }
+type SentPage = { items: SentRequest[]; nextPage: number | null }
 
 function langLabel(code: string) {
   return ALL_LANG_LABELS[code] ?? code
@@ -84,7 +88,7 @@ function FriendsContent() {
     refetchInterval: 15_000,
   })
 
-  const sentQuery = useInfiniteQuery<{ items: { id: string; receiverId: string; receiverUsername: string | null; createdAt: string }[]; nextPage: number | null }>({
+  const sentQuery = useInfiniteQuery<SentPage>({
     queryKey: ['friends', 'sent'], initialPageParam: 0,
     queryFn: ({ pageParam }) => api.get('/friends/sent', { params: { page: pageParam } }).then(r => r.data),
     getNextPageParam: page => page.nextPage ?? undefined,
@@ -103,7 +107,14 @@ function FriendsContent() {
     mutationFn: (receiverUsername: string) =>
       withWriteDeadline(signal => api.post('/friends/request', { receiverUsername }, { signal })),
     onMutate: () => setSendError(null),
-    onSuccess: () => {
+    onSuccess: ({ data }, receiverUsername) => {
+      if (typeof data.id === 'string' && typeof data.receiverId === 'string' && typeof data.createdAt === 'string') {
+        const sent: SentRequest = { id: data.id, receiverId: data.receiverId, createdAt: data.createdAt, receiverUsername }
+        updateConfirmedQuery<InfiniteData<SentPage>>(queryClient, ['friends', 'sent'], previous => {
+          const current = previous ?? { pages: [{ items: [], nextPage: null }], pageParams: [0] }
+          return { ...current, pages: current.pages.map((page, index) => ({ ...page, items: [...(index === 0 ? [sent] : []), ...page.items.filter(row => row.id !== sent.id)] })) }
+        })
+      }
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       setNotice(t('friends.requestSent'))
       setSearchQuery('')
@@ -124,9 +135,9 @@ function FriendsContent() {
   const acceptMutation = useMutation({
     mutationFn: (requestId: string) => withWriteDeadline(signal => api.post(`/friends/${requestId}/accept`, null, { signal })),
     onMutate: () => setSendError(null),
-    onSuccess: () => {
+    onSuccess: (_response, requestId) => {
+      updateConfirmedQuery<FriendRequest[]>(queryClient, ['friends', 'pending'], rows => rows?.filter(row => row.id !== requestId))
       queryClient.invalidateQueries({ queryKey: ['friends'] })
-      queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
     },
     onError: error => setSendError(writeError(error, t('friends.requestFailed'))),
     onSettled: () => setAcceptingId(null),
@@ -135,7 +146,10 @@ function FriendsContent() {
   const declineMutation = useMutation({
     mutationFn: (requestId: string) => withWriteDeadline(signal => api.delete(`/friends/requests/${requestId}`, { signal })),
     onMutate: () => setSendError(null),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] }) },
+    onSuccess: (_response, requestId) => {
+      updateConfirmedQuery<FriendRequest[]>(queryClient, ['friends', 'pending'], rows => rows?.filter(row => row.id !== requestId))
+      void queryClient.invalidateQueries({ queryKey: ['friends', 'pending'] })
+    },
     onError: error => setSendError(writeError(error, t('friends.requestFailed'))),
     onSettled: () => setDecliningId(null),
   })
@@ -144,6 +158,7 @@ function FriendsContent() {
     mutationFn: ({ friendId, closeShared }: { friendId: string; closeShared: boolean }) =>
       withWriteDeadline(signal => api.delete(`/friends/${friendId}`, { params: { closeShared }, signal })),
     onSuccess: (_response, variables) => {
+      updateConfirmedQuery<Friend[]>(queryClient, ['friends'], rows => rows?.filter(row => row.id !== variables.friendId))
       queryClient.invalidateQueries({ queryKey: ['friends'] })
       // Do not retain readable client snapshots after explicitly revoking sharing.
       if (variables.closeShared) {
