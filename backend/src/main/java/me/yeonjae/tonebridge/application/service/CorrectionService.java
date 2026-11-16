@@ -122,12 +122,15 @@ public class CorrectionService implements
         Map<UUID, Long> likeCounts = correctionPort.findLikeCountsByCorrectionIds(ids);
         Set<UUID> likedByUser = correctionPort.findLikedCorrectionIds(ids, userId);
 
+        Set<UUID> ratedByUser = ratingPort.findRatedCorrectionIds(ids, userId);
+
         return visible.stream()
                 .map(c -> new CorrectionWithStats(
                         c,
                         likeCounts.getOrDefault(c.id(), 0L).intValue(),
                         likedByUser.contains(c.id()),
-                        c.id().equals(request.acceptedCorrectionId())
+                        c.id().equals(request.acceptedCorrectionId()),
+                        ratedByUser.contains(c.id())
                 ))
                 .toList();
     }

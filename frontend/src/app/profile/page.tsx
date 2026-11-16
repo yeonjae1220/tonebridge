@@ -1,11 +1,14 @@
 'use client'
 
 import { InstallBanner } from '@/components/ui/InstallBanner'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api, logout as logoutSession } from '@/lib/api'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import type { UserProfile, User } from '@/types'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { ALL_LANG_LABELS, UI_LANGUAGES } from '@/constants/languages'
@@ -52,15 +55,24 @@ function fallbackLangLabel(code: string) {
 }
 
 export default function ProfilePage() {
+  const generation = useAuthStore(s => s.sessionGeneration)
+  const pathname = usePathname()
+  return <ProfileDetail key={`${generation}:${pathname}`} />
+}
+
+function ProfileDetail() {
   const router = useRouter()
   const pathname = usePathname()
   const { accessToken } = useAuthStore()
   const queryClient = useQueryClient()
-  const { language, setLanguage, t } = useI18n()
+  const { language, t } = useI18n()
   const { preference: themePreference, resolvedTheme, setPreference: setThemePreference } = useTheme()
 
-  const [editingLanguages, setEditingLanguages] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
+  const editingLanguages = pathname === '/profile/language-edit'
+  const showSettings = pathname === '/profile/settings'
+  const initializedLanguages = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [nativeLang, setNativeLang] = useState('')
   const [uiLang, setUiLang] = useState<string>(language)
   const [fluentLangs, setFluentLangs] = useState<string[]>([])
@@ -74,11 +86,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
-
-  useEffect(() => {
-    setEditingLanguages(pathname === '/profile/language-edit')
-    setShowSettings(pathname === '/profile/settings')
-  }, [pathname])
 
   const profileQuery = useQuery<UserProfile>({
     queryKey: ['profile'],
@@ -96,7 +103,8 @@ export default function ProfilePage() {
   const { data: me } = meQuery
 
   useEffect(() => {
-    if (me && editingLanguages) {
+    if (me && !initializedLanguages.current) {
+      initializedLanguages.current = true
       setNativeLang(me.nativeLanguage)
       setUiLang(me.uiLanguage)
       setFluentLangs(me.fluentLanguages)
@@ -104,74 +112,63 @@ export default function ProfilePage() {
     }
   }, [me, editingLanguages])
 
+  // Preserve form input during read refreshes; only confirmed writes update shared data.
+  const confirmUser = (user: User) => {
+    // A response from a screen we left may predate a newer settings save.
+    if (!mounted.current) {
+      void queryClient.invalidateQueries({ queryKey: ['profile'] })
+      void queryClient.invalidateQueries({ queryKey: ['me'] })
+      return
+    }
+    updateConfirmedQuery<User>(queryClient, ['me'], () => user)
+    updateConfirmedQuery<UserProfile>(queryClient, ['profile'], current => current ? {
+      ...current, username: user.username, nativeLanguage: user.nativeLanguage,
+      uiLanguage: user.uiLanguage, fluentLanguages: user.fluentLanguages,
+    } : current)
+    void queryClient.invalidateQueries({ queryKey: ['profile'] })
+    void queryClient.invalidateQueries({ queryKey: ['me'] })
+  }
+  const writeMessage = (error: unknown) => error instanceof WriteOutcomeUnknownError
+    ? t('common.saveUncertain') : getApiErrorMessage(error, t('profile.saveFailed'))
+  const refresh = <button type="button" onClick={() => {
+    void profileQuery.refetch(); void meQuery.refetch()
+  }} className="py-2 text-sm text-blue-600">{t('access.refresh')}</button>
+
   const updateLangMutation = useMutation({
-    mutationFn: () =>
-      api.patch('/users/me/languages', {
-        nativeLanguage: nativeLang,
-        uiLanguage: uiLang,
-        fluentLanguages: fluentLangs,
-        learningLanguages: learningLangs,
-        nativeDialect: me?.nativeDialect,
-        fluentLanguageVariants: me?.fluentLanguageVariants ?? {},
-        learningLanguageVariants: me?.learningLanguageVariants ?? {},
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      queryClient.invalidateQueries({ queryKey: ['me'] })
-      setLanguage(uiLang)
-      router.push('/profile')
-      setLangError(null)
-    },
-    onError: () => setLangError(t('profile.saveFailed')),
+    mutationFn: () => withWriteDeadline(signal => api.patch<User>('/users/me/languages', {
+      nativeLanguage: nativeLang, uiLanguage: uiLang,
+      fluentLanguages: fluentLangs, learningLanguages: learningLangs,
+      nativeDialect: me?.nativeDialect,
+      fluentLanguageVariants: me?.fluentLanguageVariants ?? {},
+      learningLanguageVariants: me?.learningLanguageVariants ?? {},
+    }, { signal })),
+    onMutate: () => setLangError(null),
+    onSuccess: ({ data }) => { confirmUser(data) },
+    onError: error => setLangError(writeMessage(error)),
   })
 
   const updateUiLanguageMutation = useMutation({
     mutationFn: (next: string) => {
       if (!me) throw new Error('User profile is not loaded')
-      return api.patch('/users/me/languages', {
-        nativeLanguage: me.nativeLanguage,
-        uiLanguage: next,
-        fluentLanguages: me.fluentLanguages,
-        learningLanguages: me.learningLanguages,
+      return withWriteDeadline(signal => api.patch<User>('/users/me/languages', {
+        nativeLanguage: me.nativeLanguage, uiLanguage: next,
+        fluentLanguages: me.fluentLanguages, learningLanguages: me.learningLanguages,
         nativeDialect: me.nativeDialect,
         fluentLanguageVariants: me.fluentLanguageVariants ?? {},
         learningLanguageVariants: me.learningLanguageVariants ?? {},
-      })
+      }, { signal }))
     },
-    onMutate: (next) => {
-      const previousLanguage = language
-      const previousUiLang = uiLang
-      setLangError(null)
-      setUiLang(next)
-      setLanguage(next)
-      return { previousLanguage, previousUiLang }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] })
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-    },
-    onError: (_error, _next, context) => {
-      setUiLang(context?.previousUiLang ?? me?.uiLanguage ?? language)
-      setLanguage(context?.previousLanguage ?? me?.uiLanguage ?? language)
-      setLangError(t('common.retryLater'))
-    },
+    onMutate: next => { setLangError(null); setUiLang(next) },
+    onSuccess: ({ data }) => { confirmUser(data) },
+    onError: error => setLangError(writeMessage(error)),
   })
 
   const updateNicknameMutation = useMutation({
-    mutationFn: (username: string) => api.patch('/users/me/username', { username }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      queryClient.invalidateQueries({ queryKey: ['me'] })
-      setEditingNickname(false)
-      setNicknameError(null)
-    },
-    onError: (err: { response?: { status?: number } }) => {
-      if (err?.response?.status === 409) {
-        setNicknameError(t('profile.nicknameTaken'))
-      } else {
-        setNicknameError(t('profile.saveFailed'))
-      }
-    },
+    mutationFn: (username: string) => withWriteDeadline(signal => api.patch<User>('/users/me/username', { username }, { signal })),
+    onMutate: () => setNicknameError(null),
+    onSuccess: ({ data }) => { confirmUser(data) },
+    onError: error => setNicknameError(getApiErrorStatus(error) === 409
+      ? t('profile.nicknameTaken') : writeMessage(error)),
   })
 
   const handleNicknameEdit = () => {
@@ -187,21 +184,23 @@ export default function ProfilePage() {
       setNicknameError(t('profile.nicknameInvalid'))
       return
     }
-    updateNicknameMutation.mutate(trimmed)
+    updateNicknameMutation.mutate(trimmed, { onSuccess: () => setEditingNickname(false) })
   }
 
+  const exitAccount = () => {
+    // logout clears the local session synchronously; no delayed callback may clear a newer login.
+    void logoutSession()
+    router.replace('/login')
+  }
   const deleteAccountMutation = useMutation({
-    mutationFn: () => api.delete('/users/me'),
-    onSuccess: async () => {
-      await logoutSession()
-      queryClient.clear()
-      router.replace('/login')
-    },
-    onError: () => setDeleteError(t('profile.deleteFailed')),
+    mutationFn: () => withWriteDeadline(signal => api.delete('/users/me', { signal })),
+    onSuccess: exitAccount,
+    onError: error => setDeleteError(error instanceof WriteOutcomeUnknownError
+      ? t('common.actionUncertain') : getApiErrorMessage(error, t('profile.deleteFailed'))),
   })
 
   const handleDeleteAccount = () => {
-    if (!window.confirm(t('profile.deleteConfirm'))) return
+    if (deleteAccountMutation.isPending || !window.confirm(t('profile.deleteConfirm'))) return
     setDeleteError(null)
     deleteAccountMutation.mutate()
   }
@@ -231,7 +230,7 @@ export default function ProfilePage() {
             <h1 className="text-xl font-bold text-gray-900">{t('profile.languageSettingsTitle')}</h1>
           </div>
 
-          <div className="flex flex-col gap-6">
+          <fieldset disabled={updateLangMutation.isPending} className="flex flex-col gap-6">
             <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('profile.nativeLanguage')}</p>
               <LanguagePicker
@@ -261,16 +260,17 @@ export default function ProfilePage() {
               />
             </div>
 
-            {langError && <p className="text-sm text-red-500 text-center">{langError}</p>}
+            {langError && <p role="alert" className="text-sm text-red-500 text-center">{langError}</p>}
 
             <button
-              onClick={() => updateLangMutation.mutate()}
+              onClick={() => updateLangMutation.mutate(undefined, { onSuccess: () => router.push('/profile') })}
               disabled={!nativeLang || updateLangMutation.isPending}
               className="w-full py-3 bg-action-primary text-white font-semibold rounded-2xl hover:bg-action-primary-hover transition-colors disabled:opacity-40"
             >
               {updateLangMutation.isPending ? t('common.saving') : t('profile.saveChanges')}
             </button>
-          </div>
+          </fieldset>
+          {langError && refresh}
         </div>
       </main>
     )
@@ -303,7 +303,7 @@ export default function ProfilePage() {
                 id="ui-language"
                 value={uiLang}
                 onChange={(event) => updateUiLanguageMutation.mutate(event.target.value)}
-                disabled={!me || updateUiLanguageMutation.isPending}
+                disabled={!me || updateUiLanguageMutation.isPending || deleteAccountMutation.isPending}
                 className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm bg-surface"
               >
                 {UI_LANGUAGES.map((lang) => (
@@ -312,7 +312,12 @@ export default function ProfilePage() {
                   </option>
                 ))}
               </select>
-              {langError && <p className="mt-2 text-xs text-red-500">{langError}</p>}
+              {langError && <>
+                <p role="alert" className="mt-2 text-xs text-red-500">{langError}</p>
+                <button onClick={() => updateUiLanguageMutation.mutate(uiLang)}
+                  disabled={!me || updateUiLanguageMutation.isPending || deleteAccountMutation.isPending}
+                  className="mt-2 py-2 text-sm font-semibold text-blue-600 disabled:opacity-40">{t('common.save')}</button>
+              </>}
             </div>
             <div className="h-px bg-gray-100" />
             <div className="px-5 py-4">
@@ -347,11 +352,7 @@ export default function ProfilePage() {
             </div>
             <div className="h-px bg-gray-100" />
             <button
-              onClick={async () => {
-                await logoutSession()
-                queryClient.clear()
-                router.replace('/login')
-              }}
+              onClick={exitAccount}
               className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <span>
@@ -363,7 +364,7 @@ export default function ProfilePage() {
             <div className="h-px bg-gray-100" />
             <button
               onClick={handleDeleteAccount}
-              disabled={deleteAccountMutation.isPending}
+              disabled={deleteAccountMutation.isPending || updateUiLanguageMutation.isPending}
               className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-red-50 transition-colors disabled:opacity-40"
             >
               <span>
@@ -375,7 +376,8 @@ export default function ProfilePage() {
               <span className="text-red-200">›</span>
             </button>
           </div>
-          {deleteError && <p className="mt-3 text-xs text-red-500 text-center">{deleteError}</p>}
+          {(langError || deleteError) && refresh}
+          {deleteError && <p role="alert" className="mt-3 text-xs text-red-500 text-center">{deleteError}</p>}
         </div>
       </main>
     )
@@ -428,6 +430,7 @@ export default function ProfilePage() {
                       <div className="flex gap-2">
                         <input
                           id="nickname-input"
+                          disabled={updateNicknameMutation.isPending}
                           type="text"
                           value={nicknameInput}
                           onChange={(e) => setNicknameInput(e.target.value)}
@@ -448,13 +451,14 @@ export default function ProfilePage() {
                           {updateNicknameMutation.isPending ? t('common.saving') : t('common.save')}
                         </button>
                         <button
+                          disabled={updateNicknameMutation.isPending}
                           onClick={() => setEditingNickname(false)}
                           className="px-3 py-1.5 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           {t('common.cancel')}
                         </button>
                       </div>
-                      {nicknameError && <p className="text-xs text-red-500">{nicknameError}</p>}
+                      {nicknameError && <><p role="alert" className="text-xs text-red-500">{nicknameError}</p>{refresh}</>}
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">

@@ -101,9 +101,12 @@ class CorrectionServiceTest {
         when(correctionPort.findLikeCountsByCorrectionIds(any())).thenReturn(Map.of());
         when(correctionPort.findLikedCorrectionIds(any(), any())).thenReturn(Set.of());
 
+        when(ratingPort.findRatedCorrectionIds(List.of(corrections.get(0).id()), requesterId))
+                .thenReturn(Set.of(corrections.get(0).id()));
         var result = correctionService.getResult(requestId, requesterId);
         assertThat(result).hasSize(corrections.size());
         assertThat(result.get(0).correction()).isEqualTo(corrections.get(0));
+        assertThat(me.yeonjae.tonebridge.adapter.in.web.dto.CorrectionResponse.from(result.get(0)).ratedByMe()).isTrue();
     }
 
     @Test
@@ -123,6 +126,8 @@ class CorrectionServiceTest {
         var result = correctionService.getResult(requestId, correctorId);
         assertThat(result).hasSize(1);
         assertThat(result.get(0).correction()).isEqualTo(ownCorrection);
+        assertThat(result.get(0).ratedByMe()).isFalse();
+        verify(ratingPort).findRatedCorrectionIds(List.of(ownCorrection.id()), correctorId);
     }
 
     @Test

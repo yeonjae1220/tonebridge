@@ -47,7 +47,7 @@ public class CorrectionController {
                 dto.fluencyScore(), dto.referenceAudioUrl()
         ));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false)));
+                .body(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false, false)));
     }
 
     @GetMapping("/request/{requestId}")
@@ -109,7 +109,7 @@ public class CorrectionController {
                 dto.timestampComments(), dto.pronunciationScore(), dto.intonationScore(),
                 dto.fluencyScore(), dto.referenceAudioUrl()
         ));
-        return ResponseEntity.ok(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false)));
+        return ResponseEntity.ok(CorrectionResponse.from(new CorrectionWithStats(result, 0, false, false, false)));
     }
 
     @DeleteMapping("/{correctionId}")

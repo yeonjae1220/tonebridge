@@ -18,6 +18,7 @@ export async function fixture(page: Page) {
       explanation: 'A sufficiently detailed explanation for practice.', tags: [], status: 'APPROVED', isAi: false,
       likeCount: 0, likedByMe: false, isAccepted: false, createdAt: new Date().toISOString() }],
   }
+  const userUpdates: Record<string, unknown> = {}
   page.on('pageerror', e => state.errors.push(e.message))
   await page.context().addCookies([{ name: 'session', value: 'fixture', domain: '127.0.0.1', path: '/' }])
   await page.route('**/api/**', async route => {
@@ -27,9 +28,9 @@ export async function fixture(page: Page) {
     if (state.fail.has(`${method} ${path}`)) return route.fulfill({ status: 503, json: { message: '잠시 후 다시 시도해 주세요.' } })
     if (path.startsWith('/api/auth/')) return ok({ accessToken: 'fixture' })
     if (path.startsWith('/api/sse/')) return route.fulfill({ contentType: 'text/event-stream', body: ': connected\n\n' })
-    if (path === '/api/users/me' || path === '/api/users/me/profile') return ok({ id: state.viewer, username: 'learner', onboardingCompleted: true,
-      nativeLanguage: 'ko', uiLanguage: 'ko', learningLanguages: ['ja'], fluentLanguages: [], badges: [], correctorLevel: 'NATIVE', reputationScore: 0, correctionStreak: 0 })
-    if (path === '/api/users/me/username') return ok({})
+    if (path === '/api/users/me/username' || path === '/api/users/me/languages') Object.assign(userUpdates, req.postDataJSON())
+    if (['/api/users/me', '/api/users/me/profile', '/api/users/me/username', '/api/users/me/languages'].includes(path)) return ok({ id: state.viewer, username: 'learner', onboardingCompleted: true,
+      nativeLanguage: 'ko', uiLanguage: 'ko', learningLanguages: ['ja'], fluentLanguages: [], badges: [], correctorLevel: 'NATIVE', reputationScore: 0, correctionStreak: 0, ...userUpdates })
     if (path === '/api/languages/variants') return ok({})
     if (path === '/api/correction-requests/feed/page') return ok({ items: [state.request], nextCursor: null })
     if (path === '/api/correction-requests/mine') return ok([state.request])

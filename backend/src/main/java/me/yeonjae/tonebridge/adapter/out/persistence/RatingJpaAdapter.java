@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -22,6 +23,12 @@ public class RatingJpaAdapter implements RatingPort {
     @Transactional(readOnly = true)
     public boolean existsByCorrection(UUID correctionId) {
         return repository.existsByCorrectionId(correctionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> findRatedCorrectionIds(List<UUID> correctionIds, UUID raterId) {
+        return correctionIds.isEmpty() ? Set.of() : repository.findRatedCorrectionIds(correctionIds, raterId);
     }
 
     @Override

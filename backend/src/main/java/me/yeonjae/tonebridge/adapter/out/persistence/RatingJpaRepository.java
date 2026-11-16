@@ -7,8 +7,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 public interface RatingJpaRepository extends JpaRepository<RatingEntity, UUID> {
+    @Query("SELECT r.correctionId FROM RatingEntity r WHERE r.correctionId IN :ids AND r.raterId = :raterId")
+    Set<UUID> findRatedCorrectionIds(@Param("ids") List<UUID> ids, @Param("raterId") UUID raterId);
+
     boolean existsByCorrectionId(UUID correctionId);
 
     @Query("""

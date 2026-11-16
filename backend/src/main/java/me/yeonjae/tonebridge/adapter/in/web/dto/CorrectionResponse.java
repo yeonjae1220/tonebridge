@@ -26,7 +26,8 @@ public record CorrectionResponse(
         Instant createdAt,
         int likeCount,
         boolean likedByMe,
-        boolean isAccepted
+        boolean isAccepted,
+        boolean ratedByMe
 ) {
     public static CorrectionResponse from(CorrectionWithStats s) {
         Correction c = s.correction();
@@ -36,7 +37,7 @@ public record CorrectionResponse(
                 c.timestampComments(), c.pronunciationScore(), c.intonationScore(),
                 c.fluencyScore(), c.referenceAudioUrl(),
                 c.creditEarned(), c.status().name(), c.createdAt(),
-                s.likeCount(), s.likedByMe(), s.isAccepted()
+                s.likeCount(), s.likedByMe(), s.isAccepted(), s.ratedByMe()
         );
     }
 }

@@ -6,6 +6,8 @@ import { compositionMessages } from './compositionMessages'
 const languages = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru'] as const
 type Translations = readonly [string, string, string, string, string, string, string, string, string]
 const rows = {
+  'result.rated': ['평가 완료', 'Rating saved', '評価済み', '已评价', 'Valoración guardada', 'Évaluation enregistrée', 'Bewertung gespeichert', 'Avaliação salva', 'Оценка сохранена'],
+  'common.actionUncertain': ['처리 완료 여부를 확인하지 못했습니다. 다시 실행하기 전에 새로고침하여 반영 여부를 확인해 주세요.', 'We could not confirm completion. Refresh to check the result before trying again.', '処理が完了したか確認できません。再試行する前に更新して結果を確認してください。', '无法确认处理是否完成。重试前请刷新确认结果。', 'No pudimos confirmar el resultado. Actualiza para comprobarlo antes de reintentar.', 'Résultat non confirmé. Actualisez pour le vérifier avant de réessayer.', 'Der Abschluss konnte nicht bestätigt werden. Aktualisiere vor einem erneuten Versuch.', 'Não foi possível confirmar o resultado. Atualize antes de tentar novamente.', 'Не удалось подтвердить результат. Обновите страницу перед повторной попыткой.'],
   'recovery.feedback': ['커뮤니티 피드백 초안', 'Community feedback draft', 'コミュニティ添削の下書き', '社区反馈草稿', 'Borrador de comentarios', 'Brouillon de correction', 'Feedback-Entwurf', 'Rascunho de feedback', 'Черновик отзыва'],
   'recovery.card': ['피드백 카드 저장 초안', 'Feedback card draft', '添削カードの下書き', '反馈卡片草稿', 'Borrador de tarjeta', 'Brouillon de carte', 'Kartenentwurf', 'Rascunho de cartão', 'Черновик карточки'],
   'recovery.feedbackAudio': ['피드백 참고 녹음', 'Feedback reference recording', '添削の参考録音', '反馈参考录音', 'Grabación de referencia', 'Enregistrement de référence', 'Referenzaufnahme', 'Gravação de referência', 'Эталонная запись'],
