@@ -310,3 +310,25 @@ test('explicit separate copy after cloud erasure uploads a new asset under the n
   const copied = [...state.rows.values()].find(row => row.state === 'ACTIVE')!
   expect(copied.id).not.toBe(old.id);expect(copied.value?.assetId).not.toBe(oldAsset);expect(old.state).toBe('DELETED');expect(state.puts).toBe(2)
 })
+
+for (const purpose of ['practice', 'example'] as const) test(`a replacement ${purpose} recording cannot reuse an older receipt or be erased by it`, async ({ page, context, browser }) => {
+  const state = server();await routes(context, state);await selected(page, state)
+  const row = [...state.rows.values()][0], operation = randomUUID(), card = randomUUID(), session = randomUUID(), scope = `${purpose}:${card}`
+  row.scope = 'audio:' + scope;row.value = { assetId: row.value!.assetId, duration: 1 };row.pendingOperation = operation;row.pendingKind = 'SUBMISSION';row.pendingPayload = { cardId: card, purpose, audioKey: 'audio/original/recording.wav' };row.version++
+  const other = await browser.newContext({ baseURL: new URL(page.url()).origin });await routes(other, state)
+  let receiptReads = 0, writes = 0
+  await other.route('**/api/cards/' + card, route => route.fulfill({ json: { id: card, sessionId: session, createdByUserId: 'owner', phrase: 'Saved audio', tags: [], position: 0, createdAt: new Date().toISOString() } }))
+  await other.route('**/api/submissions/**', route => { expect(route.request().url()).toContain(operation);receiptReads++;return route.fulfill({ json: { type: purpose, resourceId: randomUUID(), parentId: card } }) })
+  await other.route('**/api/storage/presigned-upload', route => { writes++;return route.fulfill({ status: 500, json: {} }) })
+  const second = await other.newPage();await second.goto('/drafts/cloud');second.once('dialog', d => d.accept());await second.getByRole('button', { name: 'Use cloud version on this device', exact: true }).click();await expect(second).toHaveURL(new RegExp('/cards/' + card + '$'))
+  await second.evaluate(async scope => { await new Promise<void>(resolve => { const request = indexedDB.open('tonebridge-recording-drafts');request.onsuccess = () => { const db = request.result, tx = db.transaction('drafts', 'readwrite'), store = tx.objectStore('drafts'), get = store.get(JSON.stringify(['owner', scope]));get.onsuccess = () => store.put({ ...get.result, id: 'replacement-recording', updatedAt: Date.now(), upload: undefined });tx.oncomplete = () => { db.close();resolve() } } }) }, scope)
+  await second.reload();await second.getByRole('button', { name: purpose === 'practice' ? 'Save practice' : 'Save example', exact: true }).click()
+  await expect.poll(() => second.evaluate(scope => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner')!)[scope].error, 'audio:' + scope)).toBe('conflict')
+  expect(receiptReads).toBe(0);expect(writes).toBe(0);await play(second)
+  row.state = 'SUBMITTED';row.value = null
+  await second.goto('/drafts/cloud');await second.getByTestId('cloud-local-binding').getByRole('button', { name: 'Check submission receipt', exact: true }).click()
+  await expect.poll(() => second.evaluate(scope => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner') ?? '{}')[scope], 'audio:' + scope)).toBeUndefined()
+  expect(receiptReads).toBe(1);expect(state.puts).toBe(1)
+  await second.goto(`/study/${session}/cards/${card}`);await play(second);await expect(second.getByRole('button', { name: purpose === 'practice' ? 'Save practice' : 'Save example', exact: true })).toBeVisible()
+  await other.close()
+})
