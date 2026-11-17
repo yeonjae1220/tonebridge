@@ -71,7 +71,7 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
     public List<User> search(SearchUsersUseCase.Command command) {
         if (command.query() == null || command.query().isBlank()) return List.of();
         int limit = Math.min(command.limit(), MAX_SEARCH_LIMIT);
-        return userPort.searchByUsernamePrefix(command.query().strip(), limit)
+        return userPort.searchByUsernamePrefix(command.query().strip(), limit, command.requesterId())
                 .stream()
                 .filter(u -> !u.id().equals(command.requesterId()))
                 .toList();

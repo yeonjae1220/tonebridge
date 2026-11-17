@@ -63,7 +63,7 @@ class CorrectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        correctionService = new CorrectionService(
+        correctionService = new CorrectionService(org.mockito.Mockito.mock(UserBlockService.class),
                 correctionRequestPort,
                 correctionPort,
                 ratingPort,
@@ -414,6 +414,7 @@ class CorrectionServiceTest {
         UUID correctionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        when(correctionRequestPort.findById(any())).thenReturn(Optional.of(pendingRequest(UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findById(correctionId))
                 .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId)))
@@ -433,6 +434,7 @@ class CorrectionServiceTest {
         UUID correctionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        when(correctionRequestPort.findById(any())).thenReturn(Optional.of(pendingRequest(UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findById(correctionId))
                 .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findLikeCountsByCorrectionIds(List.of(correctionId)))
@@ -453,6 +455,7 @@ class CorrectionServiceTest {
         UUID correctionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        when(correctionRequestPort.findById(any())).thenReturn(Optional.of(pendingRequest(UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findById(correctionId))
                 .thenReturn(Optional.of(correction(correctionId, UUID.randomUUID(), UUID.randomUUID())));
         when(correctionPort.findLikedCorrectionIds(List.of(correctionId), userId)).thenReturn(Set.of(correctionId));

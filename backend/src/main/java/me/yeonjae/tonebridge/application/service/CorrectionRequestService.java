@@ -39,6 +39,7 @@ public class CorrectionRequestService implements
         UpdateCorrectionRequestUseCase,
         DeleteCorrectionRequestUseCase {
 
+    private final UserBlockService userBlocks;
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
     private final UserPort userPort;
@@ -120,6 +121,7 @@ public class CorrectionRequestService implements
     public CorrectionRequest get(UUID requestId, UUID viewerId) {
         return correctionRequestPort.findById(requestId)
                 .filter(r -> r.isOwnedBy(viewerId) || r.isPending())
+                .filter(r -> !userBlocks.blocked(viewerId, r.requesterId()))
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
     }
 

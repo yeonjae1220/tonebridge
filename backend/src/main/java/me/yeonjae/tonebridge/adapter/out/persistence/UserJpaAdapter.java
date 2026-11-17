@@ -48,9 +48,9 @@ public class UserJpaAdapter implements UserPort {
     }
 
     @Override
-    public List<User> searchByUsernamePrefix(String prefix, int limit) {
+    public List<User> searchByUsernamePrefix(String prefix, int limit, UUID viewerId) {
         return userJpaRepository
-                .findByUsernameStartingWithIgnoreCase(prefix, PageRequest.of(0, limit))
+                .searchVisible(prefix, viewerId, PageRequest.of(0, limit))
                 .stream()
                 .map(UserEntity::toDomain)
                 .toList();

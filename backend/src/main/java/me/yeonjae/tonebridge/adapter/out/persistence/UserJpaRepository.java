@@ -27,6 +27,16 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
     boolean existsByUsername(String username);
     List<UserEntity> findByUsernameStartingWithIgnoreCase(String prefix, Pageable pageable);
 
+    @Query("""
+        SELECT u FROM UserEntity u WHERE u.id <> :viewerId
+        AND LOWER(SUBSTRING(u.username,1,LENGTH(:prefix))) = LOWER(:prefix)
+        AND NOT EXISTS (SELECT b.id FROM UserBlockEntity b
+            WHERE (b.blockerId = :viewerId AND b.blockedId = u.id)
+               OR (b.blockedId = :viewerId AND b.blockerId = u.id))
+        ORDER BY u.username,u.id
+        """)
+    List<UserEntity> searchVisible(String prefix, UUID viewerId, Pageable pageable);
+
     @Modifying
     @Query("UPDATE UserEntity u SET u.credits = u.credits + :delta WHERE u.id = :userId AND (u.credits + :delta) >= 0")
     int adjustCredits(UUID userId, int delta);

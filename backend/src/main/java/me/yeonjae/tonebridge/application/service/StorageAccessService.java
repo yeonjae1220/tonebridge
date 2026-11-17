@@ -23,6 +23,7 @@ public class StorageAccessService implements ValidateAudioKeyAccessUseCase {
             "^audio/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[a-zA-Z0-9._-]+$"
     );
 
+    private final UserBlockService userBlocks;
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
 
@@ -36,11 +37,12 @@ public class StorageAccessService implements ValidateAudioKeyAccessUseCase {
         var requestOpt = correctionRequestPort.findByAudioUrl(audioKey);
         if (requestOpt.isPresent()) {
             CorrectionRequest request = requestOpt.get();
+            userBlocks.requireAllowed(userId, request.requesterId());
             if (request.requesterId().equals(userId)) return;
             // PENDING requests are visible to all potential correctors via the feed
             if (request.status() == RequestStatus.PENDING) return;
             boolean isCorrector = correctionPort.findByRequestId(request.id())
-                    .stream().anyMatch(c -> c.correctorId().equals(userId));
+                    .stream().anyMatch(c -> userId.equals(c.correctorId()));
             if (isCorrector) return;
             throw new ToneBridgeException(ErrorCode.STORAGE_ACCESS_DENIED);
         }
@@ -49,7 +51,8 @@ public class StorageAccessService implements ValidateAudioKeyAccessUseCase {
         var correctionOpt = correctionPort.findByReferenceAudioUrl(audioKey);
         if (correctionOpt.isPresent()) {
             var correction = correctionOpt.get();
-            if (correction.correctorId().equals(userId)) return;
+            userBlocks.requireAllowed(userId, correction.correctorId());
+            if (userId.equals(correction.correctorId())) return;
             correctionRequestPort.findById(correction.requestId())
                     .filter(r -> r.requesterId().equals(userId))
                     .orElseThrow(() -> new ToneBridgeException(ErrorCode.STORAGE_ACCESS_DENIED));

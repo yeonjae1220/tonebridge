@@ -1,5 +1,7 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
+import me.yeonjae.tonebridge.domain.correction.CorrectionType;
+
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.CorrectionPort;
 import me.yeonjae.tonebridge.domain.correction.Correction;
@@ -80,7 +82,7 @@ public class CorrectionJpaAdapter implements CorrectionPort {
     @Override
     @Transactional(readOnly = true)
     public long countApprovedAudioByCorrector(UUID correctorId) {
-        return repository.countApprovedAudioByCorrector(correctorId, CorrectionStatus.APPROVED, "AUDIO");
+        return repository.countApprovedAudioByCorrector(correctorId, CorrectionStatus.APPROVED, CorrectionType.AUDIO);
     }
 
     @Override

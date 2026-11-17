@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequestUseCase, GetFriendsUseCase,
         DeclineFriendRequestUseCase, RemoveFriendUseCase {
 
+    private final UserBlockService userBlocks;
     private final FriendPort friendPort;
     private final UserPort userPort;
     private final StudySessionPort sessionPort;
@@ -45,6 +46,8 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
         if (receiver.id().equals(command.senderId())) {
             throw new ToneBridgeException(ErrorCode.CANNOT_ADD_SELF);
         }
+
+        userBlocks.lockAllowed(command.senderId(), receiver.id());
 
         // Check both directions to prevent duplicate requests from either side
         boolean alreadyExists =
@@ -73,6 +76,10 @@ public class FriendService implements SendFriendRequestUseCase, AcceptFriendRequ
             throw new ToneBridgeException(ErrorCode.NOT_FRIEND_REQUEST_RECEIVER);
         }
 
+        userBlocks.lockAllowed(request.senderId(), request.receiverId());
+        // Re-read after the pair lock: a concurrent block may have removed the request.
+        request = friendPort.findById(command.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
         FriendRequest accepted = friendPort.save(request.accept());
         eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.FRIEND_ACCEPTED,
                 accepted.receiverId(), accepted.senderId(), null, null, null));

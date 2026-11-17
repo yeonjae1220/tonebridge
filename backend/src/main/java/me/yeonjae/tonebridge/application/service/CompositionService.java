@@ -18,6 +18,7 @@ import java.util.UUID;
 @Transactional
 @RequiredArgsConstructor
 public class CompositionService implements SaveCompositionUseCase {
+    private final UserBlockService userBlocks;
     private final CompositionPort receipts;
     private final StudySessionService sessions;
     private final StudyCardService cards;
@@ -55,6 +56,8 @@ public class CompositionService implements SaveCompositionUseCase {
                 || input.destination() == Destination.COMMUNITY && blank(input.targetLanguage())
                 || input.destination() == Destination.FRIEND && (input.friendId() == null || input.friendId().equals(owner)))
             throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
+        // Acquire both users before the receipt owner lock, in the same order as blocking.
+        if (input.destination() == Destination.FRIEND) userBlocks.lockAllowed(owner, input.friendId());
         receipts.lockOwner(owner);
         String fingerprint = fingerprint(input);
         var receipt = receipts.find(owner, operation).orElse(null);

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class QualityCheckEventHandler {
 
+    private final UserBlockService userBlocks;
     private final CorrectionPort correctionPort;
     private final NotificationPort notificationPort;
     private final FcmNotificationPort fcmNotificationPort;
@@ -26,12 +27,15 @@ public class QualityCheckEventHandler {
     public void handle(QualityCheckCompletedEvent event) {
         if (event.passed()) {
             // Ignore rewards even on events emitted before the credit-free cutover.
+            if (!userBlocks.blocked(event.requesterId(), event.correctorId())) {
             notificationPort.sendCorrectionReady(event.requesterId(), event.correctionId());
 
             try {
                 fcmNotificationPort.sendCorrectionReady(event.requesterId(), event.correctionId());
             } catch (Exception e) {
                 log.warn("FCM notification failed for requesterId={}: {}", event.requesterId(), e.getMessage());
+            }
+
             }
 
             try {

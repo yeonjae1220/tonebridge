@@ -1,5 +1,7 @@
 'use client'
 
+import { BlockUserButton } from '@/components/privacy/BlockUserButton'
+
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -455,6 +457,7 @@ function RequestCard({
       }`}
       onClick={onClick}
     >
+      {!mine && <BlockUserButton userId={request.requesterId} />}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">

@@ -38,6 +38,7 @@ public class StudyCardService implements
         MoveStudyCardUseCase,
         DeleteStudyCardUseCase {
 
+    private final UserBlockService userBlocks;
     private final StudyCardPort cardPort;
     private final LearnerAttemptPort attemptPort;
     private final CardNativeAudioPort nativeAudioPort;
@@ -96,6 +97,7 @@ public class StudyCardService implements
 
         Runnable notifyMembers = () -> session.memberIds().stream()
                 .filter(id -> !id.equals(command.creatorId()))
+                .filter(id -> !userBlocks.blocked(id, command.creatorId()))
                 .forEach(memberId -> fcmNotificationPort.sendNewStudyCard(memberId, session.id(), saved.phrase()));
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
@@ -204,7 +206,7 @@ public class StudyCardService implements
         String reviewerUsername = userPort.findById(command.reviewerId())
                 .map(User::username).orElse("파트너");
         eventPublisher.publishEvent(
-                new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername));
+                new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername, command.reviewerId()));
 
         return updated;
     }

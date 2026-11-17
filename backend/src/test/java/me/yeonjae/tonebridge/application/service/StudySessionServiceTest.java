@@ -40,7 +40,7 @@ class StudySessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StudySessionService(sessionPort, userPort, friendPort);
+        service = new StudySessionService(org.mockito.Mockito.mock(UserBlockService.class), sessionPort, userPort, friendPort);
     }
 
     @Test

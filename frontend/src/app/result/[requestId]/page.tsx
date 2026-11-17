@@ -1,5 +1,7 @@
 'use client'
 
+import { BlockUserButton } from '@/components/privacy/BlockUserButton'
+
 import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -371,6 +373,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
           )}
         </div>
 
+        {request && <BlockUserButton userId={request.requesterId} />}
         {savedCardUrl && <p role="status"><Link href={savedCardUrl} className="block rounded-xl bg-green-50 p-4 font-semibold text-green-700">{t('study.openCards')} →</Link></p>}
         {/* A failed request is never represented as an empty collection. */}
         {correctionsQuery.isError ? <QueryError retrying={correctionsQuery.isFetching} onRetry={() => void refetch()} />
@@ -403,6 +406,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
                     {correction.isAi && (
                       <span className="text-xs text-purple-500 font-medium">{t('result.aiCorrection')}</span>
                     )}
+                    <BlockUserButton userId={correction.correctorId} />
                     <div className="ml-auto flex items-center gap-2">
                       <button
                         onClick={() => likeMutation.mutate({ correctionId: correction.id, like: !correction.likedByMe })}
