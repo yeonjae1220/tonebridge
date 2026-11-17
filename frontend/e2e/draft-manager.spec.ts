@@ -136,3 +136,35 @@ test('invalid editor dates report an error without hiding valid recordings', asy
   await expect(page.getByTestId('managed-recording')).toHaveCount(1)
   expect(errors).toEqual([])
 })
+
+
+test('recording resume timeout unlocks actions and preserves the local draft for retry', async ({ page, context }) => {
+  const state = await fixture(context); await seed(page)
+  await expect(page.getByTestId('managed-recording')).toContainText('Practice this sentence')
+  let stalled = true, reads = 0
+  await page.route('**/api/cards/card-one', route => { reads++; if (!stalled) return route.fallback() })
+  await page.clock.install()
+  const row = page.getByTestId('managed-recording')
+  await row.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect.poll(() => reads).toBe(1); await page.clock.fastForward(15_001)
+  await expect(page.locator('main').getByRole('alert')).toBeVisible()
+  await expect(row.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
+  await expect(row).toHaveCount(1); expect(state.mutations).toBe(0)
+  stalled = false
+  await row.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page).toHaveURL(/study\/session-one\/cards\/card-one$/)
+})
+
+test('a recording resume response after leaving cannot redirect the current screen', async ({ page, context }) => {
+  await fixture(context); await seed(page)
+  await expect(page.getByTestId('managed-recording')).toContainText('Practice this sentence')
+  let release: (() => Promise<void>) | undefined
+  await page.route('**/api/cards/card-one', route => { release = () => route.fulfill({ json: { id: 'card-one', sessionId: 'session-one' } }).catch(() => {}) })
+  await page.getByTestId('managed-recording').getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect.poll(() => !!release).toBe(true)
+  await page.locator('nav').getByRole('link', { name: 'Friends', exact: true }).click()
+  await expect(page).toHaveURL(/friends$/)
+  await release!()
+  await page.waitForTimeout(300)
+  await expect(page).toHaveURL(/friends$/)
+})

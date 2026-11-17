@@ -15,6 +15,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
 import { CardCreateSheet } from '@/components/study/CardCreateSheet'
 import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { StudyScore } from '@/components/study/StudyScore'
 
@@ -36,6 +37,8 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
   const [savedCardUrl, setSavedCardUrl] = useState<string | null>(null)
   const openedCreate = useRef(false)
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   useEffect(() => {
     if (!accessToken) router.replace('/login')
@@ -80,34 +83,67 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
   })
 
   const updateCardMutation = useMutation({
-    mutationFn: (card: StudyCard) => withWriteDeadline(signal => api.patch(`/cards/${card.id}`, {
+    mutationFn: (card: StudyCard) => withWriteDeadline(signal => api.patch<StudyCard>(`/cards/${card.id}`, {
       phrase: card.phrase,
       context: card.context,
       tags: card.tags,
     }, { signal })),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }); setCardSheet(null) },
+    onSuccess: ({ data }) => {
+      if (mounted.current) {
+        const edit = (card: StudyCard) => ({ ...card, phrase: data.phrase, context: data.context, tags: data.tags })
+        updateConfirmedQuery<StudyCard[]>(queryClient, ['sessions', sessionId, 'cards'], current => current?.map(card => card.id === data.id ? edit(card) : card))
+        updateConfirmedQuery<StudyCard>(queryClient, ['cards', data.id], current => current ? edit(current) : current)
+        setCardSheet(null)
+      }
+      void queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+      void queryClient.invalidateQueries({ queryKey: ['cards', data.id], exact: true })
+    },
   })
 
   const deleteCardMutation = useMutation({
     mutationFn: (cardId: string) => withWriteDeadline(signal => api.delete(`/cards/${cardId}`, { signal })),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] }),
+    onSuccess: (_response, cardId) => {
+      updateConfirmedQuery<StudyCard[]>(queryClient, ['sessions', sessionId, 'cards'], current => current?.filter(card => card.id !== cardId))
+      void queryClient.cancelQueries({ queryKey: ['cards', cardId] })
+      queryClient.removeQueries({ queryKey: ['cards', cardId] })
+      void queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+      void queryClient.invalidateQueries({ queryKey: ['practice-feedback'] })
+    },
   })
 
   const moveCardMutation = useMutation({
     mutationFn: ({ cardId, targetSessionId, position }: { cardId: string; targetSessionId: string; position: number }) =>
-      withWriteDeadline(signal => api.patch(`/cards/${cardId}/move`, { targetSessionId, position }, { signal })),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
-      queryClient.invalidateQueries({ queryKey: ['sessions', variables.targetSessionId, 'cards'] })
-      setMovingCard(null)
+      withWriteDeadline(signal => api.patch<StudyCard>(`/cards/${cardId}/move`, { targetSessionId, position }, { signal })),
+    onSuccess: ({ data }, variables) => {
+      if (mounted.current) {
+        const sourceCard = queryClient.getQueryData<StudyCard[]>(['sessions', sessionId, 'cards'])?.find(card => card.id === variables.cardId)
+        const reindex = (items: StudyCard[]) => items.map((card, position) => ({ ...card, position }))
+        if (variables.targetSessionId !== sessionId) {
+          updateConfirmedQuery<StudyCard[]>(queryClient, ['sessions', sessionId, 'cards'], current => current && reindex([...current].sort((a, b) => a.position - b.position).filter(card => card.id !== variables.cardId)))
+        }
+        updateConfirmedQuery<StudyCard[]>(queryClient, ['sessions', variables.targetSessionId, 'cards'], current => {
+          if (!current) return current // Do not invent an entire list from one moved card.
+          const known = current.find(card => card.id === variables.cardId)
+          const next = [...current].sort((a, b) => a.position - b.position).filter(card => card.id !== variables.cardId)
+          next.splice(Math.max(0, Math.min(data.position, next.length)), 0, { ...(known ?? sourceCard ?? data), sessionId: data.sessionId, position: data.position })
+          return reindex(next)
+        })
+        updateConfirmedQuery<StudyCard>(queryClient, ['cards', variables.cardId], current => current ? { ...current, sessionId: data.sessionId, position: data.position } : current)
+        setMovingCard(null)
+      }
+      void queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+      if (variables.targetSessionId !== sessionId) void queryClient.invalidateQueries({ queryKey: ['sessions', variables.targetSessionId, 'cards'] })
+      void queryClient.invalidateQueries({ queryKey: ['cards', variables.cardId], exact: true })
     },
   })
 
   if (!accessToken) return null
 
+  const cardWritePending = updateCardMutation.isPending || deleteCardMutation.isPending || moveCardMutation.isPending
   const orderedCards = [...cards].sort((a, b) => a.position - b.position)
 
   const moveWithinSession = (card: StudyCard, position: number) => {
+    if (cardWritePending) return
     moveCardMutation.mutate({
       cardId: card.id,
       targetSessionId: sessionId,
@@ -140,7 +176,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
           )}
           <button
             onClick={() => setCardSheet({ mode: 'create' })}
-            disabled={!session || sessionError}
+            disabled={!session || sessionError || cardWritePending}
             className="px-3 py-2 rounded-xl bg-action-primary text-white text-xs font-semibold hover:bg-action-primary-hover transition-colors"
           >
             {t('study.cards.add')}
@@ -181,16 +217,16 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
               return (
                 <div
                   key={card.id}
-                  draggable={canManage}
+                  draggable={canManage && !cardWritePending}
                   onDragStart={() => setDraggingCardId(card.id)}
                   onDragOver={(event) => {
-                    if (canManage && draggingCardId) event.preventDefault()
+                    if (canManage && !cardWritePending && draggingCardId) event.preventDefault()
                   }}
                   onDrop={(event) => {
                     event.preventDefault()
                     const dragged = orderedCards.find((item) => item.id === draggingCardId)
                     setDraggingCardId(null)
-                    if (!dragged || dragged.id === card.id) return
+                    if (cardWritePending || !dragged || dragged.id === card.id) return
                     moveWithinSession(dragged, index)
                   }}
                   onDragEnd={() => setDraggingCardId(null)}
@@ -237,33 +273,35 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
                     <details className="mt-3"><summary className="cursor-pointer py-2 text-sm text-gray-500">{t('study.manageCard')}</summary><div className="flex flex-wrap gap-2 mt-2">
                       <button
                         onClick={() => moveWithinSession(card, Math.max(0, index - 1))}
-                        disabled={index === 0 || moveCardMutation.isPending}
+                        disabled={index === 0 || cardWritePending}
                         className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-30 transition-colors"
                       >
                         ↑
                       </button>
                       <button
                         onClick={() => moveWithinSession(card, index + 1)}
-                        disabled={index === orderedCards.length - 1 || moveCardMutation.isPending}
+                        disabled={index === orderedCards.length - 1 || cardWritePending}
                         className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-30 transition-colors"
                       >
                         ↓
                       </button>
                       <button
-                        onClick={() => setCardSheet({ mode: 'edit', card })}
+                        disabled={cardWritePending}
+                        onClick={() => { updateCardMutation.reset(); setCardSheet({ mode: 'edit', card }) }}
                         className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
                         {t('common.edit')}
                       </button>
                       <button
-                        onClick={() => setMovingCard(card)}
+                        disabled={cardWritePending}
+                        onClick={() => { moveCardMutation.reset(); setMovingCard(card) }}
                         className="flex-1 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
                         {t('study.cards.move')}
                       </button>
-                      <button
+                      <button disabled={cardWritePending}
                         onClick={() => {
-                          if (window.confirm(t('study.cards.confirmDelete'))) {
+                          if (!cardWritePending && window.confirm(t('study.cards.confirmDelete'))) {
                             deleteCardMutation.mutate(card.id)
                           }
                         }}
