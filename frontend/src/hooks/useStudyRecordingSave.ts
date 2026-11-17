@@ -29,6 +29,10 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
     if (owner) {
       const rows = cloudBindings(owner), row = rows[scope]
       if (row) {
+        if (row.audio?.sourceId !== recordingDrafts.idOf(blob)) {
+          if (row.pendingLocal || row.submissionOperation) { rows[scope] = { ...row, error: 'conflict' }; saveCloudBindings(owner, rows) }
+          throw new Error('Resolve the previous recording submission before saving this recording')
+        }
         operation = row.submissionOperation ?? crypto.randomUUID()
         rows[scope] = { ...row, submissionOperation: operation }; saveCloudBindings(owner, rows)
         try {

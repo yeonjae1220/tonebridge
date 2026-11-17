@@ -370,6 +370,7 @@ export const recordingDrafts = {
     entry.upload = upload
     if (entry.status === 'saved' && !await persist(key, entry)) throw new Error('Draft checkpoint failed')
   },
+  idOf: (blob: Blob) => [...entries.values()].find(entry => entry.draft?.blob === blob)?.id,
   ownerOf: (blob: Blob) => [...entries.values()].find(entry => entry.draft?.blob === blob)?.owner,
   getUpload: (blob: Blob) => [...entries.values()].find((entry) => entry.draft?.blob === blob)?.upload,
   hasUnsaved: () => active.size > 0 || [...entries.values()].some((entry) => !!entry.draft),

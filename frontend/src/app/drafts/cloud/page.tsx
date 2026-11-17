@@ -182,11 +182,22 @@ function CloudDraftContent() {
       operationId: crypto.randomUUID(), epoch: settings.epoch, expectedVersion: copy ? 0 : latest!.version, kind: row.kind, scope: row.scope, value: row.value, editedAt: Date.now(),
     } })
   }
-  const submission = (row: RemoteDraft, cancel: boolean) => void run(async () => {
+  const submission = (row: Pick<RemoteDraft, 'pendingOperation' | 'pendingKind'>, cancel: boolean) => void run(async () => {
     if (!row.pendingOperation) return
     const root = row.pendingKind === 'COMPOSITION' ? '/compositions/' : '/submissions/'
     const response = await withRequestDeadline(signal => cancel ? api.post<Record<string, unknown>>(root + row.pendingOperation + '/cancel', {}, { signal }) : api.get<Record<string, unknown>>(root + row.pendingOperation, { signal }), cancel ? 30000 : 15000)
     if (!current()) return
+    const resultType = response.data?.type
+    const rows = cloudBindings(me!.id)
+    for (const [scope, binding] of Object.entries(rows)) if (/^audio:(practice|example):/.test(scope) && binding.submissionOperation === row.pendingOperation) {
+      if (resultType === 'practice' || resultType === 'example') { const latest = cloudBindings(me!.id); if (latest[scope]?.submissionOperation === row.pendingOperation) { delete latest[scope]; saveCloudBindings(me!.id, latest) } }
+      else if (cancel && resultType === 'cancelled') {
+        const fresh = await readCloudDraft(me!.id, binding.id)
+        if (!current()) return
+        if (fresh.state === 'ACTIVE' && !fresh.pendingOperation) { const latest = cloudBindings(me!.id), currentBinding = latest[scope]; if (currentBinding?.id === binding.id && currentBinding.submissionOperation === row.pendingOperation && currentBinding.localRevision === binding.localRevision) { latest[scope] = { ...currentBinding, version: fresh.version, pendingLocal: false, submissionOperation: undefined, error: null }; saveCloudBindings(me!.id, latest) } }
+      }
+    }
+    // Resolving an older receipt never deletes the current device's audio.
     setNotice(response.status === 204 || response.data.type === 'cancelled' ? t('cloud.cancel') : t('common.saved'))
     await refresh()
   })
@@ -215,6 +226,7 @@ function CloudDraftContent() {
       {Object.values(bindings).map(row => <article key={row.scope} className="space-y-2 rounded-xl border p-4" data-testid="cloud-local-binding"><h3 className="font-semibold">{title(row.kind)}</h3><p className="whitespace-pre-wrap break-words text-sm">{preview(row.value).slice(0, 300)}</p>
         <p>{t(row.error === 'expired' ? 'cloud.localExpired' : row.error === 'conflict' ? 'cloud.conflict' : row.error === 'limit' ? 'cloud.limit' : row.error === 'rate' ? 'cloud.rate' : row.error ? 'cloud.network' : row.pendingLocal ? 'cloud.pending' : row.dirty || row.request ? 'cloud.waiting' : 'cloud.synced')}</p>
         <div className="flex flex-wrap gap-2"><button className={button} disabled={row.error === 'expired'} onClick={() => { if (row.kind === 'recording') void run(async () => { const source = (await recordingDrafts.list(me!.id)).find(item => item.scope === row.scope.slice(6) && item.id === row.localRevision); if (!source) throw new DraftStorageError('conflict'); downloadDraftBlob(source.draft.blob, 'tonebridge-recording.' + (source.draft.blob.type === 'audio/mp4' ? 'm4a' : source.draft.blob.type.split('/')[1])) }); else downloadDraftBlob(new Blob([JSON.stringify(row.value, null, 2)], { type: 'application/json' }), 'tonebridge-local-draft.json') }}>{row.kind === 'recording' ? audioMessages[6] : t('cloud.localDownload')}</button>
+          {row.pendingLocal && row.submissionOperation && /^audio:(practice|example):/.test(row.scope) && <><button className={button} disabled={disabled} onClick={() => submission({ pendingOperation: row.submissionOperation!, pendingKind: 'SUBMISSION' }, false)}>{t('cloud.check')}</button><button className={button} disabled={disabled} onClick={() => submission({ pendingOperation: row.submissionOperation!, pendingKind: 'SUBMISSION' }, true)}>{t('cloud.cancel')}</button></>}
           {(row.error === 'network' || row.error === 'rate' || row.kind === 'recording' && row.error === 'conflict' && !row.pendingLocal) && <button className={button} disabled={disabled} onClick={() => void run(async () => { await syncCloudRecordings(me!.id, true); await synchronizeAllCloudDrafts(me!.id, true) })}>{t('cloud.retry')}</button>}
           {row.error === 'conflict' && <><button className={button} disabled={disabled || !settings?.enabled || row.kind === 'recording' && !row.audio?.ready || !remote?.some(item => item.id === row.id && !item.pendingOperation)} onClick={() => resolve(row, false)}>{t(row.kind === 'recording' ? 'recording.keepCloud' : 'cloud.keepMine')}</button><button className={button} disabled={disabled || !settings?.enabled || row.pendingLocal || (row.kind === 'recording' && !settings.audioEnabled)} onClick={() => resolve(row, true)}>{t(row.kind === 'recording' ? 'recording.copyCloud' : 'cloud.copy')}</button></>}
         </div></article>)}
