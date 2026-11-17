@@ -343,3 +343,45 @@ test('review: restoration cannot overwrite edits made while the cloud read is de
   await expect(page).toHaveURL(/\/drafts\/cloud$/)
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-compose-editor:owner')!).value.contentText)).toBe('Latest local edit during cloud read')
 })
+
+const fixtureJwt = (subject: string, token: string) => [Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'), Buffer.from(JSON.stringify({ sub: subject, jti: token })).toString('base64url'), 'fixture-signature'].join('.')
+test('review: refresh into another account never replays the previous account cloud write', async ({ page, context }) => {
+  const state = server();await routes(context, state)
+  const first = fixtureJwt('11111111-1111-4111-8111-111111111111', 'first'), second = fixtureJwt('22222222-2222-4222-8222-222222222222', 'second')
+  let switched = false
+  await page.route('**/api/auth/refresh', route => {
+    if (switched) { state.owner = 'different-owner';state.settings = { enabled: false, epoch: null, version: 0 };state.rows.clear() }
+    return route.fulfill({ json: { accessToken: switched ? second : first } })
+  })
+  await enableAndSelect(page, state)
+  const attempted: string[] = []
+  await page.route('**/api/users/me/drafts/*', route => {
+    const req = route.request()
+    if (req.method() !== 'PUT' || req.postDataJSON()?.value?.contentText !== 'Previous account private text') return route.fallback()
+    attempted.push(req.headers().authorization ?? '')
+    return route.fulfill({ status: 401, json: {} })
+  })
+  await page.goto('/request');await expect(page.locator('textarea').first()).toBeVisible()
+  switched = true;await page.locator('textarea').first().fill('Previous account private text')
+  await expect.poll(() => attempted.length).toBeGreaterThan(0)
+  await expect.poll(() => state.owner).toBe('different-owner')
+  await page.waitForTimeout(500)
+  expect(attempted).toEqual(['Bearer ' + first])
+})
+test('review: refreshing the same JWT subject preserves the local draft and completes its original write', async ({ page, context }) => {
+  const state = server();await routes(context, state)
+  const first = fixtureJwt('11111111-1111-4111-8111-111111111111', 'first'), second = fixtureJwt('11111111-1111-4111-8111-111111111111', 'second')
+  let refresh = false, rejected = false
+  await page.route('**/api/auth/refresh', route => route.fulfill({ json: { accessToken: refresh ? second : first } }))
+  await enableAndSelect(page, state)
+  const id = [...state.rows.keys()][0]
+  await page.route('**/api/users/me/drafts/' + id, route => {
+    if (route.request().method() === 'PUT' && !rejected) { rejected = true;return route.fulfill({ status: 401, json: {} }) }
+    return route.fallback()
+  })
+  await page.goto('/request');refresh = true;await page.locator('textarea').first().fill('Same account draft survives refresh')
+  await expect.poll(() => state.rows.get(id)?.value?.contentText).toBe('Same account draft survives refresh')
+  expect(rejected).toBe(true)
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-compose-editor:owner')!).value.contentText)).toBe('Same account draft survives refresh')
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner')!).compose.id)).toBe(id)
+})
