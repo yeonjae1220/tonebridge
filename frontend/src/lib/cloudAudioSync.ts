@@ -6,9 +6,9 @@ import { recordingDrafts, type RecordingDraftSnapshot } from './recordingDrafts'
 import { editorSnapshot } from './composeEditorDraft'
 import { openRecovery } from './recoveryDraft'
 import { cloudBindings, saveCloudBindings, canonical, type CloudSettings } from './cloudDraftLocal'
-import { captureCloudAccount, readCloudSettings, synchronizeCloudDraft } from './cloudDraftSync'
+import { captureCloudAccount, readCloudSettings, readCloudDraft, readCloudOperation, synchronizeCloudDraft } from './cloudDraftSync'
 
-type Asset = { id: string; state: string; byteSize: number; contentType: string; sha256: string }
+type Asset = { id: string; state: string; byteSize: number; contentType: string; sha256: string; expiresAt?: string }
 const root = '/users/me/draft-audio/'
 export async function audioDigest(blob: Blob) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(v => v.toString(16).padStart(2, '0')).join('') }
 export async function selectCloudRecording(owner: string, source: RecordingDraftSnapshot, settings: CloudSettings) {
@@ -69,20 +69,25 @@ export async function uploadCloudRecording(owner: string, scope: string) {
 }
 export async function retryCloudRecording(owner: string, scope: string) {
   const account = captureCloudAccount(owner), before = cloudBindings(owner)[scope]
-  if (!before?.audio || before.audio.ready) return uploadCloudRecording(owner, scope)
+  if (!before?.audio || before.pendingLocal) return
+  if (before.request && await readCloudOperation(owner, before.request.operationId)) return synchronizeCloudDraft(owner, scope, true)
   const status = await withRequestDeadline(signal => api.get<Asset>(root + before.audio!.assetId, { signal }).then(r => r.data), 15000, account.signal).catch(error => { if (getApiErrorStatus(error) === 404) return null; throw error })
   account.check()
-  if (status && ['DELETING', 'DELETED'].includes(status.state)) {
+  if (status && (['DELETING', 'DELETED'].includes(status.state) || status.state === 'READY' && Date.parse(status.expiresAt ?? '') <= Date.now())) {
+    const remote = await readCloudDraft(owner, before.id).catch(error => { if (getApiErrorStatus(error) === 404 && before.version === 0) return null; throw error })
+    if (remote && (remote.state !== 'ACTIVE' || remote.version !== before.version || remote.pendingOperation)) throw new DraftStorageError('conflict')
+    // A referenced READY file remains valid after the reservation deadline.
+    if (status.state === 'READY' && remote?.value?.assetId === before.audio.assetId) return uploadCloudRecording(owner, scope)
     const rows = cloudBindings(owner), row = rows[scope]
-    if (row?.audio?.assetId !== before.audio.assetId || row.request) throw new DraftStorageError('conflict')
+    if (row?.audio?.assetId !== before.audio.assetId || row.localRevision !== before.localRevision || row.request?.operationId !== before.request?.operationId) throw new DraftStorageError('conflict')
     const assetId = crypto.randomUUID()
-    rows[scope] = { ...row, value: { ...row.value, assetId }, audio: { ...row.audio, assetId, ready: false }, error: null, dirty: true }
+    rows[scope] = { ...row, value: { ...row.value, assetId }, audio: { ...row.audio, assetId, ready: false }, request: null, error: null, dirty: true }
     saveCloudBindings(owner, rows)
   }
   return uploadCloudRecording(owner, scope)
 }
 export async function syncCloudRecordings(owner: string, retry = false) {
-  for (const row of Object.values(cloudBindings(owner))) if (row.kind === 'recording' && !row.pendingLocal && (!row.error || retry && ['network', 'rate'].includes(row.error))) {
+  for (const row of Object.values(cloudBindings(owner))) if (row.kind === 'recording' && !row.pendingLocal && (!row.error || retry && ['network', 'rate', 'conflict'].includes(row.error))) {
     try { if (retry) await retryCloudRecording(owner, row.scope); else await uploadCloudRecording(owner, row.scope) } catch { captureCloudAccount(owner).check() }
   }
 }

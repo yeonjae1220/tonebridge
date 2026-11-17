@@ -272,3 +272,14 @@ for (const purpose of ['practice', 'example'] as const) test(`restored pending $
   await expect.poll(() => second.evaluate(scope => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner') ?? '{}')[scope], row.scope)).toBeUndefined()
   await other.close()
 })
+
+test('an uploaded orphan that expires before draft linking can recover from local bytes with a new asset', async ({ page, context }) => {
+  const state = server();await routes(context, state);let failing = true
+  await context.route('**/api/users/me/drafts/*', route => route.request().method() === 'PUT' && !route.request().url().endsWith('/settings') && failing ? route.fulfill({ status: 503, json: {} }) : route.fallback())
+  await seedAudio(page);await page.getByRole('button', { name: 'Enable audio sync', exact: true }).click();await page.getByTestId('cloud-audio-panel').getByRole('checkbox').check();await page.getByRole('button', { name: 'Upload selected recordings', exact: true }).click()
+  await expect(page.getByTestId('cloud-local-binding')).toContainText('could not finish');expect(state.rows.size).toBe(0)
+  const orphan = [...state.assets.values()][0];orphan.state = 'DELETED';failing = false
+  await page.getByRole('button', { name: 'Retry cloud sync', exact: true }).click();await expect.poll(() => state.rows.size).toBe(1)
+  expect([...state.rows.values()][0].value?.assetId).not.toBe(orphan.id);expect(state.puts).toBe(2)
+  await expect(page.getByTestId('cloud-local-binding')).toContainText('Synced')
+})
