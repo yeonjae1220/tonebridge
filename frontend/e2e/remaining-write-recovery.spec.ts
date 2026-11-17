@@ -226,3 +226,21 @@ test('review: a late community edit cannot roll back the latest request status',
   await expect(page.getByText(saved.contentText, { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '수정', exact: true })).toHaveCount(0)
 })
+
+
+test('review: failed writes never log the bearer token or submitted note', async ({ page }) => {
+  await page.addInitScript(() => {
+    const logs: string[] = []
+    Object.assign(window, { reviewErrorLogs: logs })
+    const original = console.error
+    console.error = (...args) => { logs.push(JSON.stringify(args)); original(...args) }
+  })
+  await cardApp(page); await note(page)
+  await page.route('**/api/cards/card/note', route => route.fulfill({ status: 503, json: {} }))
+  await page.locator('#card-note').getByRole('button', { name: '저장', exact: true }).click()
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible()
+  const logs = await page.evaluate(() => (window as Window & { reviewErrorLogs?: string[] }).reviewErrorLogs ?? [])
+  expect(logs.some(line => line.includes('[mutation]'))).toBe(true)
+  expect(logs.join('\n')).not.toContain('Bearer fixture')
+  expect(logs.join('\n')).not.toContain('Retained local note')
+})
