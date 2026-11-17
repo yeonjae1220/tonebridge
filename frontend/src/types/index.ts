@@ -6,6 +6,7 @@ export interface UserBadge {
 }
 
 export interface User {
+  onboardingCompleted: boolean
   id: string
   email: string
   username: string

@@ -1,18 +1,18 @@
 'use client'
 
 import { Suspense, useState, useEffect, useRef, type FormEvent } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { loginWithPassword } from '@/lib/api'
-import { isSafeRedirect, resolvePostAuthPath } from '@/lib/authNavigate'
+import { isSafeRedirect } from '@/lib/authNavigate'
 import axios from 'axios'
 import { validateAuth, type AuthErrors } from '@/lib/authValidation'
-import { useAuthStore } from '@/stores/authStore'
+import { PostAuthNavigation } from '@/components/auth/PostAuthNavigation'
+import { RequestTimeoutError } from '@/lib/requestDeadline'
 import { getApiErrorStatus } from '@/lib/apiError'
 
 function LoginInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useI18n()
 
@@ -21,6 +21,7 @@ function LoginInner() {
   const [fieldErrors, setFieldErrors] = useState<AuthErrors>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
   const pendingAuth = useRef<AbortController | null>(null)
   useEffect(() => () => pendingAuth.current?.abort(), [])
 
@@ -53,20 +54,18 @@ function LoginInner() {
     stashRedirect()
     try {
       await loginWithPassword(email.trim(), password, controller.signal)
-      const generation = useAuthStore.getState().sessionGeneration
       if (controller.signal.aborted) return
-      const path = await resolvePostAuthPath()
-      if (controller.signal.aborted || generation !== useAuthStore.getState().sessionGeneration) return
-      router.replace(path)
+      setAuthenticated(true)
     } catch (err) {
       if (controller.signal.aborted || axios.isCancel(err)) return
       // 401(자격증명 오류)과 그 외를 구분해 메시지 노출 (서버는 사유를 통일된 401로 응답)
       const status = getApiErrorStatus(err)
-      if (status !== 401) console.error('[login] 로그인 실패', err)
-      setError(status === 401 ? t('login.failed') : t('login.error'))
+      setError(err instanceof RequestTimeoutError ? t('auth.requestUncertain') : status === 401 ? t('login.failed') : t('login.error'))
       setSubmitting(false)
     }
   }
+
+  if (authenticated) return <PostAuthNavigation />
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -80,6 +79,7 @@ function LoginInner() {
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-gray-700">{t('login.email')}</span>
             <input
+              disabled={submitting}
               type="email"
               autoComplete="email"
               required
@@ -98,6 +98,7 @@ function LoginInner() {
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-gray-700">{t('login.password')}</span>
             <input
+              disabled={submitting}
               type="password"
               autoComplete="current-password"
               required

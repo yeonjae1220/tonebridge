@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { RecordingTimeoutError } from '@/lib/recordingRequest'
 import { useAuthStore } from '@/stores/authStore'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -31,6 +33,12 @@ function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
 }
 
 export default function StudyCardDetailPage() {
+  const { sessionId, cardId } = useParams<{ sessionId: string; cardId: string }>()
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <StudyCardDetail key={`${generation}:${sessionId}:${cardId}`} />
+}
+
+function StudyCardDetail() {
   const router = useRouter()
   const { sessionId, cardId } = useParams<{ sessionId: string; cardId: string }>()
   const { accessToken } = useAuthStore()
@@ -43,6 +51,9 @@ export default function StudyCardDetailPage() {
   const nativeSave = useStudyRecordingSave(cardId, 'example')
   const navigate = useRecordingNavigation()
   const [noteDraft, setNoteDraft] = useState('')
+  const noteDirty = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
   const [nativeModalOpen, setNativeModalOpen] = useState(false)
@@ -78,7 +89,7 @@ export default function StudyCardDetailPage() {
   })
 
   useEffect(() => {
-    if (card) setNoteDraft(card.note ?? '')
+    if (card && !noteDirty.current) setNoteDraft(card.note ?? '')
   }, [card])
 
   const submitAttemptMutation = useMutation({
@@ -117,25 +128,37 @@ export default function StudyCardDetailPage() {
   const updateNoteMutation = useMutation({
     mutationFn: () => {
       setActionError(''); setNotice('')
-      return api.patch(`/cards/${cardId}/note`, { note: noteDraft.trim() || null })
+      return withWriteDeadline(signal => api.patch<StudyCard>(`/cards/${cardId}/note`, { note: noteDraft.trim() || null }, { signal }))
     },
-    onSuccess: () => { setNotice(t('common.saved')); queryClient.invalidateQueries({ queryKey: ['cards', cardId] }) },
-    onError: () => setActionError(t('study.cardDetail.noteSaveFailed')),
+    onSuccess: ({ data }) => {
+      if (mounted.current) {
+        noteDirty.current = false
+        setNoteDraft(data.note ?? '')
+        setNotice(t('common.saved'))
+        updateConfirmedQuery<StudyCard>(queryClient, ['cards', cardId], () => data)
+      }
+      void queryClient.invalidateQueries({ queryKey: ['cards', cardId], exact: true })
+    },
+    onError: error => setActionError(t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'study.cardDetail.noteSaveFailed')),
   })
 
   const addAttemptNoteMutation = useMutation({
     mutationFn: (payload: { attemptId: string; correctionNote: string; score: number | null }) => {
       setActionError(''); setNotice('')
-      return api.patch(`/attempts/${payload.attemptId}/correction`, {
+      return withWriteDeadline(signal => api.patch<LearnerAttempt>(`/attempts/${payload.attemptId}/correction`, {
         correctionNote: payload.correctionNote,
         score: payload.score,
-      })
+      }, { signal }))
     },
-    onSuccess: () => {
-      setNotice(t('common.saved'))
-      queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
-      queryClient.invalidateQueries({ queryKey: ['practice-feedback'] })
-      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
+    onSuccess: ({ data }) => {
+      if (mounted.current) {
+        setNotice(t('common.saved'))
+        updateConfirmedQuery<LearnerAttempt[]>(queryClient, ['cards', cardId, 'attempts'], current =>
+          current?.map(attempt => attempt.id === data.id ? data : attempt))
+      }
+      void queryClient.invalidateQueries({ queryKey: ['cards', cardId, 'attempts'] })
+      void queryClient.invalidateQueries({ queryKey: ['practice-feedback'] })
+      void queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'cards'] })
     },
     onError: () => {}, // The expanded editor displays its error and retains the draft.
   })
@@ -157,10 +180,9 @@ export default function StudyCardDetailPage() {
           <h1 className="text-xl font-bold text-gray-900">{t('study.cardDetail.title')}</h1>
         </div>
 
-        {cardError ? (
-          <QueryError onRetry={() => void refetchCard()} retrying={cardFetching} />
-        ) : isLoading || !card ? (
-          <div className="h-40 rounded-2xl bg-gray-200 animate-pulse" />
+        {cardError && <QueryError onRetry={() => void refetchCard()} retrying={cardFetching} />}
+        {isLoading || !card ? (
+          !cardError && <div className="h-40 rounded-2xl bg-gray-200 animate-pulse" />
         ) : (
           <>
             <section className="bg-surface rounded-2xl border border-gray-100 p-5">
@@ -192,7 +214,8 @@ export default function StudyCardDetailPage() {
             {notice && <p role="status" className="rounded-xl bg-green-50 p-3 text-sm text-green-700">{notice}</p>}
             {actionError && (
               <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-                {actionError}
+                <p>{actionError}</p>
+                <button type="button" onClick={() => { void refetchCard(); void refetchAttempts() }} className="mt-2 underline">{t('access.refresh')}</button>
               </div>
             )}
 
@@ -308,7 +331,8 @@ export default function StudyCardDetailPage() {
               <textarea
                 aria-label={t('study.cardDetail.cardNote')}
                 value={noteDraft}
-                onChange={(event) => setNoteDraft(event.target.value)}
+                onChange={(event) => { noteDirty.current = true; setNoteDraft(event.target.value) }}
+                disabled={updateNoteMutation.isPending}
                 rows={3}
                 placeholder={t('study.cardDetail.cardNotePlaceholder')}
                 className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none"

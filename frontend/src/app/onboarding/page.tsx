@@ -1,13 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { consumePostAuthRedirect } from '@/lib/authNavigate'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { useI18n } from '@/i18n/I18nProvider'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { User } from '@/types'
+import { withRequestDeadline } from '@/lib/requestDeadline'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
+import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorStatus } from '@/lib/apiError'
 
 type Step = 'native' | 'learning'
@@ -15,12 +20,31 @@ type Step = 'native' | 'learning'
 const STEP_ORDER: Step[] = ['native', 'learning']
 
 export default function OnboardingPage() {
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <OnboardingForm key={generation} />
+}
+
+function OnboardingForm() {
   const router = useRouter()
   const accessToken = useAuthStore((s) => s.accessToken)
   const { language, t } = useI18n()
 
   const [step, setStep] = useState<Step>('native')
-  const { data: currentUser } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const userQuery = useQuery<User>({
+    queryKey: ['me'],
+    queryFn: ({ signal }) => withRequestDeadline(signal => api.get<User>('/users/me', { signal }).then(r => r.data), 15_000, signal),
+    enabled: !!accessToken,
+    retry: false,
+    staleTime: 0,
+  })
+  const { data: currentUser } = userQuery
+  const mounted = useRef(true)
+  const saving = useRef(false)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => {
+    if (currentUser?.onboardingCompleted) router.replace(consumePostAuthRedirect())
+  }, [currentUser?.onboardingCompleted, router])
   const [username, setUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [nativeLanguage, setNativeLanguage] = useState('')
@@ -41,29 +65,36 @@ export default function OnboardingPage() {
   }
 
   const handleSubmit = async () => {
+    if (saving.current || !currentUser || currentUser.onboardingCompleted) return
     const validation = validateUsername(username)
     if (validation) { setUsernameError(validation); return }
+    saving.current = true
     setLoading(true)
     setError(null)
     try {
-      await api.patch('/users/me/onboarding', {
+      const { data } = await withWriteDeadline(signal => api.patch<User>('/users/me/onboarding', {
         ...(username ? { username } : {}),
         nativeLanguage,
         uiLanguage: language,
         fluentLanguages,
         learningLanguages,
-      })
-      router.replace(consumePostAuthRedirect())
+      }, { signal }))
+      if (!mounted.current) return
+      updateConfirmedQuery<User>(queryClient, ['me'], () => data)
+      void queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // The completed-user effect owns navigation so the invitation is consumed only once.
     } catch (err: unknown) {
+      if (!mounted.current) return
       const status = getApiErrorStatus(err)
-      if (status !== 409) console.error('[onboarding] 프로필 저장 실패', err)
       if (status === 409) {
         setUsernameError(t('profile.nicknameTaken'))
         setError(t('profile.nicknameTaken'))
       } else {
-        setError(t('profile.saveFailed'))
+        setError(err instanceof WriteOutcomeUnknownError ? t('onboarding.saveUncertain') : t('profile.saveFailed'))
       }
-      setLoading(false)
+    } finally {
+      saving.current = false
+      if (mounted.current) setLoading(false)
     }
   }
 
@@ -112,6 +143,10 @@ export default function OnboardingPage() {
   const current = steps[step]
 
   if (!accessToken) return null
+  if (!currentUser || currentUser.onboardingCompleted) return <main className="min-h-screen flex items-center justify-center p-4">
+    {userQuery.isError ? <QueryError onRetry={() => { void userQuery.refetch() }} retrying={userQuery.isFetching} />
+      : <p role="status">{t('common.loading')}</p>}
+  </main>
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -132,6 +167,7 @@ export default function OnboardingPage() {
           <p className="mt-1 text-sm text-gray-500">{current.subtitle}</p>
         </div>
 
+        <fieldset disabled={loading} className="flex min-w-0 flex-col gap-6">
         {current.content}
         {step === 'learning' && <details open={!!usernameError || undefined} className="rounded-xl border border-gray-200 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-gray-600">{t('onboarding.optional')}</summary>
@@ -145,10 +181,13 @@ export default function OnboardingPage() {
           <LanguagePicker multiSelect value={fluentLanguages} onLanguageChange={setFluentLanguages} excludeCodes={[nativeLanguage]} />
         </details>}
 
+        </fieldset>
+        {userQuery.isError && <QueryError onRetry={() => { void userQuery.refetch() }} retrying={userQuery.isFetching} />}
         {error && (
-          <p className="text-sm text-red-500 text-center">{error}</p>
+          <p role="alert" className="text-sm text-red-500 text-center">{error}</p>
         )}
 
+        {error && <button type="button" disabled={loading || userQuery.isFetching} onClick={() => { void userQuery.refetch() }} className="text-sm text-blue-600">{t('access.refresh')}</button>}
         <div className="flex gap-3">
         {stepIndex > 0 && <button type="button" disabled={loading} onClick={() => { setError(null); setStep(STEP_ORDER[stepIndex - 1]) }}
           className="min-h-11 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-gray-600">{t('common.back')}</button>}

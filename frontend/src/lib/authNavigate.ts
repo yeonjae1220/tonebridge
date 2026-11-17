@@ -1,4 +1,7 @@
 import { api } from './api'
+import axios from 'axios'
+import { useAuthStore } from '@/stores/authStore'
+import { withRequestDeadline } from './requestDeadline'
 
 /** Restrict post-auth navigation to local paths, including after URL decoding. */
 export function isSafeRedirect(path: string): boolean {
@@ -16,14 +19,12 @@ export function consumePostAuthRedirect(): string {
   return explicit && isSafeRedirect(explicit) ? explicit : '/study'
 }
 
-/** Keep the invitation until required profile setup is complete. */
-export async function resolvePostAuthPath(): Promise<string> {
-  try {
-    const { data } = await api.get<{ onboardingCompleted: boolean }>('/users/me')
-    if (!data.onboardingCompleted) return '/onboarding'
-    return consumePostAuthRedirect()
-  } catch (error) {
-    console.error('[auth] Could not load onboarding status', error)
-    return '/onboarding'
-  }
+/** Keep the invitation until a confirmed profile read establishes the destination. */
+export async function resolvePostAuthPath(signal?: AbortSignal): Promise<string> {
+  const generation = useAuthStore.getState().sessionGeneration
+  const { data } = await withRequestDeadline(signal => api.get<{ onboardingCompleted: boolean }>('/users/me', { signal }), 15_000, signal)
+  if (signal?.aborted || generation !== useAuthStore.getState().sessionGeneration) throw new axios.CanceledError('Account changed')
+  if (typeof data.onboardingCompleted !== 'boolean') throw new Error('Invalid onboarding status')
+  if (!data.onboardingCompleted) return '/onboarding'
+  return consumePostAuthRedirect()
 }

@@ -1,20 +1,26 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
-import { resolvePostAuthPath } from '@/lib/authNavigate'
+import { PostAuthNavigation } from '@/components/auth/PostAuthNavigation'
 import { useI18n } from '@/i18n/I18nProvider'
 
 function AuthCallbackInner() {
   const router = useRouter()
-  const setAccessToken = useAuthStore((s) => s.setAccessToken)
+  const beginSession = useAuthStore((s) => s.beginSession)
+  const processed = useRef(false)
+  const [authenticated, setAuthenticated] = useState(false)
   const { t } = useI18n()
 
   useEffect(() => {
+    if (processed.current) return
+    processed.current = true
     // 백엔드는 항상 URL 프래그먼트(#token=...)로 access token을 전달
     const params = new URLSearchParams(window.location.hash.slice(1))
     const token = params.get('token')
+    // Remove credentials from the address bar/history before any follow-up request.
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
 
     if (!token) {
       router.replace('/login?error=missing_token')
@@ -28,9 +34,11 @@ function AuthCallbackInner() {
       return
     }
 
-    setAccessToken(token)
-    void resolvePostAuthPath().then((path) => router.replace(path))
-  }, [router, setAccessToken])
+    beginSession(token)
+    setAuthenticated(true)
+  }, [router, beginSession])
+
+  if (authenticated) return <PostAuthNavigation />
 
   return (
     <main className="min-h-screen flex items-center justify-center">

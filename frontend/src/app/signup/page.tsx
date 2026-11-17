@@ -1,18 +1,16 @@
 'use client'
 
 import { useState, useEffect, useRef, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useI18n } from '@/i18n/I18nProvider'
 import { registerWithPassword } from '@/lib/api'
-import { resolvePostAuthPath } from '@/lib/authNavigate'
 import axios from 'axios'
 import { validateAuth, type AuthErrors } from '@/lib/authValidation'
-import { useAuthStore } from '@/stores/authStore'
+import { PostAuthNavigation } from '@/components/auth/PostAuthNavigation'
+import { RequestTimeoutError } from '@/lib/requestDeadline'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 
 export default function SignupPage() {
-  const router = useRouter()
   const { t } = useI18n()
 
   const [email, setEmail] = useState('')
@@ -21,6 +19,7 @@ export default function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<AuthErrors>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
   const pendingAuth = useRef<AbortController | null>(null)
   useEffect(() => () => pendingAuth.current?.abort(), [])
 
@@ -39,20 +38,18 @@ export default function SignupPage() {
     pendingAuth.current = controller
     try {
       await registerWithPassword(email.trim(), username.trim(), password, controller.signal)
-      const generation = useAuthStore.getState().sessionGeneration
       if (controller.signal.aborted) return
-      const path = await resolvePostAuthPath()
-      if (controller.signal.aborted || generation !== useAuthStore.getState().sessionGeneration) return
-      router.replace(path)
+      setAuthenticated(true)
     } catch (err) {
       if (controller.signal.aborted || axios.isCancel(err)) return
       // 409(이메일/닉네임 중복)는 서버가 제공하는 사유 메시지를 그대로 노출, 그 외는 일반 메시지
       const status = getApiErrorStatus(err)
-      if (status !== 409) console.error('[signup] 가입 실패', err)
-      setError(status === 409 ? getApiErrorMessage(err, t('signup.error')) : t('signup.error'))
+      setError(err instanceof RequestTimeoutError ? t('auth.requestUncertain') : status === 409 ? getApiErrorMessage(err, t('signup.error')) : t('signup.error'))
       setSubmitting(false)
     }
   }
+
+  if (authenticated) return <PostAuthNavigation />
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -66,6 +63,7 @@ export default function SignupPage() {
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-gray-700">{t('signup.email')}</span>
             <input
+              disabled={submitting}
               type="email"
               autoComplete="email"
               required
@@ -84,6 +82,7 @@ export default function SignupPage() {
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-gray-700">{t('signup.username')}</span>
             <input
+              disabled={submitting}
               type="text"
               autoComplete="username"
               required
@@ -105,6 +104,7 @@ export default function SignupPage() {
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-gray-700">{t('signup.password')}</span>
             <input
+              disabled={submitting}
               type="password"
               autoComplete="new-password"
               required
