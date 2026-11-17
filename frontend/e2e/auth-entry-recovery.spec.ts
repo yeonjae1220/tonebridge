@@ -175,3 +175,26 @@ test('late onboarding completion cannot navigate after going back to community',
   await expect(page.waitForURL(/\/feed$/, { timeout: 1000 })).rejects.toThrow()
   expect(await page.evaluate(() => sessionStorage.getItem('auth_redirect'))).toBe('/feed')
 })
+
+
+for (const signedOut of [false, true]) test(`draft entry keeps its destination with ${signedOut ? 'local signout' : 'no session hint'}`, async ({ page }) => {
+  if (signedOut) await page.context().addCookies([
+    { name: 'session', value: 'public-hint', domain: '127.0.0.1', path: '/' },
+    { name: 'tonebridge_signed_out', value: '1', domain: '127.0.0.1', path: '/' },
+  ])
+  const response = await page.request.get('/drafts?from=shortcut', { maxRedirects: 0 })
+  expect(response.status()).toBe(307)
+  const target = new URL(response.headers().location, 'http://127.0.0.1:3100')
+  expect(target.pathname).toBe('/login')
+  expect(target.searchParams.get('redirect')).toBe('/drafts?from=shortcut')
+})
+
+test('expired session hint preserves the draft destination through explicit login', async ({ page }) => {
+  const state = await app(page, true); state.user.onboardingCompleted = true
+  await page.goto('/drafts?from=shortcut')
+  await expect(page.getByLabel('이메일', { exact: true })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('redirect')).toBe('/drafts?from=shortcut')
+  await credentials(page)
+  await expect(page).toHaveURL(/drafts\?from=shortcut$/)
+  expect(state.authWrites).toBe(1)
+})
