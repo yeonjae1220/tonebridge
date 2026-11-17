@@ -46,7 +46,22 @@ useAuthStore.subscribe((state, previous) => {
   authenticationAttempt = null
 })
 
+// This non-secret marker denies silent restoration if remote logout fails. Explicit
+// password login clears it here; the server clears it for successful OAuth as well.
+function locallySignedOut(): boolean {
+  return typeof document !== 'undefined' && document.cookie.split(';').some(cookie => cookie.trim() === 'tonebridge_signed_out=1')
+}
+function setLocalSignout(signedOut: boolean) {
+  if (typeof document === 'undefined') return
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `tonebridge_signed_out=${signedOut ? '1' : ''}; Path=/; Max-Age=${signedOut ? 31536000 : 0}; SameSite=Lax${secure}`
+}
+function requireRestorableSession() {
+  if (locallySignedOut()) throw new axios.CanceledError('Locally signed out')
+}
+
 function refreshAccessToken(generation: number): Promise<string> {
+  requireRestorableSession()
   requireSession(generation)
   if (authenticationAttempt) throw new axios.CanceledError('Authentication in progress')
   if (refreshFlight?.generation === generation) return refreshFlight.promise
@@ -55,6 +70,7 @@ function refreshAccessToken(generation: number): Promise<string> {
   flight.promise = axios.post<{ accessToken: string }>('/api/auth/refresh', null, {
     withCredentials: true, signal: controller.signal,
   }).then(({ data }) => {
+    requireRestorableSession()
     requireSession(generation)
     useAuthStore.getState().setAccessToken(data.accessToken)
     return data.accessToken
@@ -128,6 +144,7 @@ async function authenticate(path: string, payload: Record<string, string>, signa
     })
     requireCurrentAttempt()
     authenticationAttempt = null
+    setLocalSignout(false)
     useAuthStore.getState().beginSession(data.accessToken)
   } finally {
     signal?.removeEventListener('abort', cancel)
@@ -151,7 +168,7 @@ export function registerWithPassword(
 
 /** 페이지 최초 로드 시 accessToken이 없으면 쿠키로 조용히 복원을 시도합니다. */
 export async function tryRestoreSession(): Promise<boolean> {
-  if (logoutFlight || authenticationAttempt) return false
+  if (locallySignedOut() || logoutFlight || authenticationAttempt) return false
   if (useAuthStore.getState().accessToken) return true
   const generation = useAuthStore.getState().sessionGeneration
   try {
@@ -164,6 +181,7 @@ export async function tryRestoreSession(): Promise<boolean> {
 
 /** 로그아웃: 로컬 작업을 즉시 무효화한 뒤 백엔드 쿠키 삭제 */
 export async function logout(): Promise<void> {
+  setLocalSignout(true)
   useAuthStore.getState().logout()
   if (logoutFlight) return logoutFlight
   const flight = (async () => {
