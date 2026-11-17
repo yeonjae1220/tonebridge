@@ -42,7 +42,7 @@ function StudyCardDetail() {
   const router = useRouter()
   const { sessionId, cardId } = useParams<{ sessionId: string; cardId: string }>()
   const { accessToken } = useAuthStore()
-  const { data: currentUser, isLoading: currentUserLoading } = useCurrentUser()
+  const { data: currentUser, isLoading: currentUserLoading, isError: currentUserError, isFetching: currentUserFetching, refetch: refetchCurrentUser } = useCurrentUser()
   const queryClient = useQueryClient()
   const { language, t } = useI18n()
   const attemptRecorder = useAudioRecorder(`practice:${cardId}`)
@@ -236,7 +236,8 @@ function StudyCardDetail() {
               </div>
             )}
             {!permissionReady ? (
-              <section className="h-32 rounded-2xl bg-gray-200 animate-pulse" />
+              currentUserError ? <QueryError retrying={currentUserFetching} onRetry={() => void refetchCurrentUser()} />
+                : <section className="h-32 rounded-2xl bg-gray-200 animate-pulse" />
             ) : recordingPurpose === 'example' ? (
               <section id="recording-panel" className="bg-surface rounded-2xl border border-gray-100 p-5">
                 <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudio')}</h2>

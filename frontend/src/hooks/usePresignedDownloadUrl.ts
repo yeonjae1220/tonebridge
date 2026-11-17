@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { withRequestDeadline } from '@/lib/requestDeadline'
+import { getApiErrorStatus } from '@/lib/apiError'
 
 /**
  * 오디오 키 → 다운로드용 presigned URL.
@@ -16,18 +18,21 @@ export function usePresignedDownloadUrl(audioKey: string | null | undefined) {
     setFailed(false)
     if (!audioKey) return
     let alive = true
-    api
-      .get<{ downloadUrl: string }>('/storage/presigned-download', { params: { key: audioKey } })
+    const controller = new AbortController()
+    withRequestDeadline(signal => api.get<{ downloadUrl: string }>('/storage/presigned-download', {
+      params: { key: audioKey }, signal,
+    }), 15_000, controller.signal)
       .then((r) => {
         if (alive) setUrl(r.data.downloadUrl)
       })
       .catch((e: unknown) => {
         if (!alive) return
-        console.error(`[usePresignedDownloadUrl] 다운로드 URL 조회 실패 (key=${audioKey})`, e)
+        console.error('[audio] Download URL lookup failed', { status: getApiErrorStatus(e) ?? null })
         setFailed(true)
       })
     return () => {
       alive = false
+      controller.abort()
     }
   }, [audioKey, attempt])
 
