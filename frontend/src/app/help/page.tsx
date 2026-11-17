@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { FormEvent, useState } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
+import { withWriteDeadline, WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 
 export default function HelpPage() {
   const { language } = useI18n()
@@ -10,22 +11,23 @@ export default function HelpPage() {
   const [message, setMessage] = useState('')
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<'success' | 'error' | null>(null)
+  const [result, setResult] = useState<'success' | 'error' | 'unknown' | null>(null)
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (sending || !message.trim()) return
     setSending(true)
     setResult(null)
     try {
-      const response = await fetch('/api/feedback', {
+      const response = await withWriteDeadline(signal => fetch('/api/feedback', {
+        signal,
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: message.trim(), email: email.trim(), version: 'mvp-pilot', website: '' }),
-      })
+      }))
       if (!response.ok) throw new Error('Could not send')
       setResult('success')
       setMessage('')
-    } catch {
-      setResult('error')
+    } catch (error) {
+      setResult(error instanceof WriteOutcomeUnknownError || error instanceof TypeError ? 'unknown' : 'error')
     } finally { setSending(false) }
   }
   return (
@@ -55,8 +57,10 @@ export default function HelpPage() {
         </label>
         <p className="text-xs text-gray-500">{ko ? '문제가 생긴 화면과 원하는 조치를 적어 주세요. 비밀번호·토큰·녹음 원본은 보내지 마세요. 답변이 필요하면 이메일을 남기거나 검증 진행자에게 직접 연락해 주세요.' : 'Describe the screen and the action you need. Do not include passwords, tokens, or recordings. Leave an email for a reply, or contact your pilot facilitator directly.'}</p>
         <button disabled={sending || !message.trim()} className="rounded-xl bg-blue-600 text-white px-4 py-2 disabled:opacity-40">{sending ? (ko ? '보내는 중…' : 'Sending…') : (ko ? '문의 보내기' : 'Send message')}</button>
-        {result && <p role={result === 'error' ? 'alert' : 'status'}>{result === 'success'
+        {result && <p role={result === 'success' ? 'status' : 'alert'}>{result === 'success'
           ? (ko ? '문의를 보냈습니다. 삭제나 접근 중단은 확인 후 처리됩니다.' : 'Message sent. Deletion or access changes require verification.')
+          : result === 'unknown'
+            ? (ko ? '접수 여부를 확인하지 못했습니다. 이미 접수되었을 수 있어 자동으로 다시 보내지 않습니다. 내용은 유지됩니다. 검증 진행자에게 확인하거나 필요한 경우 다시 보내 주세요.' : 'Receipt could not be confirmed. Your message may already have arrived, so it will not be sent again automatically. Your input is kept. Check with your pilot facilitator or send again if needed.')
           : (ko ? '보내지 못했습니다. 내용은 유지됩니다. 다시 시도하거나 검증 진행자에게 연락해 주세요.' : 'Could not send. Your message is kept. Retry or contact your pilot facilitator.')}</p>}
       </form>
     </main>

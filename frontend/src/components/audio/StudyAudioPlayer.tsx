@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { withRequestDeadline } from '@/lib/requestDeadline'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from '@/i18n/I18nProvider'
 import { QueryError } from '@/components/ui/QueryError'
@@ -23,10 +24,10 @@ export function StudyAudioPlayer({ attemptId, exampleId, label }: {
   const [needsDuration, setNeedsDuration] = useState(false)
   const query = useQuery({
     queryKey: ['study-audio', generation, exampleId ? 'example' : 'attempt', exampleId ?? attemptId, retry],
-    queryFn: () => (exampleId
-      ? api.get<{ downloadUrl: string }>(`/native-audios/${exampleId}/download-url`)
-      : api.get<{ downloadUrl: string }>(`/attempts/${attemptId}/download-url`)
-    ).then((response) => response.data.downloadUrl),
+    queryFn: ({ signal }) => withRequestDeadline(requestSignal => (exampleId
+      ? api.get<{ downloadUrl: string }>(`/native-audios/${exampleId}/download-url`, { signal: requestSignal })
+      : api.get<{ downloadUrl: string }>(`/attempts/${attemptId}/download-url`, { signal: requestSignal })
+    ).then((response) => response.data.downloadUrl), 15_000, signal),
     enabled: !!(exampleId || attemptId),
     staleTime: 0,
     gcTime: 0,
