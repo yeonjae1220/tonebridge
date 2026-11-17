@@ -95,6 +95,7 @@ export default function DraftsPage() {
   return <main className="min-h-screen bg-gray-50 pb-24 text-gray-900"><div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
     <Link href="/study" className="inline-flex min-h-11 items-center text-blue-500">← {t('study.library')}</Link>
     <header><h1 className="text-2xl font-bold">{t('drafts.title')}</h1><p className="mt-2 text-sm text-gray-600">{t('drafts.intro')}</p></header>
+    <Link href="/drafts/cloud" className={actionClass}>{t('cloud.title')}</Link>
     <details><summary className="min-h-11 cursor-pointer py-3">{t('drafts.details')}</summary><p className="text-sm text-gray-600">{t('editor.retention')}</p></details>
     {(error || userError) && <div role="alert" className={box}><p>{error || t('drafts.changed')}</p><button type="button" className={actionClass} onClick={() => { if (userError) void refetch(); else void refresh() }}>{t('common.retry')}</button></div>}
     {loading && !userError && <p role="status">{t('common.loading')}</p>}

@@ -19,6 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CompositionService implements SaveCompositionUseCase {
     private final UserBlockService userBlocks;
+    private final CloudDraftService cloudDrafts;
     private final CompositionPort receipts;
     private final StudySessionService sessions;
     private final StudyCardService cards;
@@ -97,6 +98,7 @@ public class CompositionService implements SaveCompositionUseCase {
             result = new Result("study", session.id(), card.id(), null);
         }
         receipts.complete(owner, operation, fingerprint, result);
+        cloudDrafts.completeSubmission(owner,operation,"COMPOSITION");
         return result;
     }
 
@@ -113,6 +115,7 @@ public class CompositionService implements SaveCompositionUseCase {
         }
         // Tombstone also blocks a late request from another tab after editing.
         receipts.cancel(owner, operation);
+        cloudDrafts.cancelledSubmission(owner,operation,"COMPOSITION");
         return null;
     }
 

@@ -1,3 +1,4 @@
+import { cloudDraftMessages, type CloudMessageKey } from './cloudDraftMessages'
 import { exportMessages, type ExportMessageKey } from './exportMessages'
 import { blockMessages, type BlockMessageKey } from './blockMessages'
 import { resetMessages, type ResetMessageKey } from './resetMessages'
@@ -3528,7 +3529,7 @@ export function languageDisplayName(code: string, uiLanguage: UiLanguage) {
   }
 }
 
-type MessageKey = ExportMessageKey | BlockMessageKey | KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey | FeedbackMessageKey | AccessMessageKey | ResetMessageKey
+type MessageKey = CloudMessageKey | ExportMessageKey | BlockMessageKey | KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey | FeedbackMessageKey | AccessMessageKey | ResetMessageKey
 
 export type { MessageKey }
 
@@ -3678,3 +3679,5 @@ for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language],
 for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], blockMessages[language])
 
 for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], exportMessages[language])
+
+for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], cloudDraftMessages[language])

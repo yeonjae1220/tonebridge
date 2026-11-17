@@ -153,6 +153,12 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
           recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:correction-reference:${requestId}`)?.id, signal)
       }
       requireSameAccount()
+      const receipt = await draft.preparePending(pending, signal)
+      requireSameAccount()
+      if (receipt) {
+        if (receipt.type === 'cancelled' || receipt.type === 'unavailable') { await draft.resumeEditing(signal); return null }
+        return pending
+      }
       await api.post('/corrections', pending.payload, { signal, headers: { 'Idempotency-Key': pending.operation } })
       requireSameAccount()
       return pending

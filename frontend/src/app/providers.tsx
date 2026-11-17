@@ -11,6 +11,7 @@ import { ErrorToast } from '@/components/ui/ErrorToast'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
 import { useErrorToastStore } from '@/stores/errorToastStore'
 import { PWAProvider } from '@/hooks/usePWAInstall'
+import { CloudDraftSyncAgent } from '@/components/recorder/CloudDraftSyncAgent'
 import { RecordingNavigationGuard } from '@/hooks/useRecordingNavigation'
 
 /**
@@ -65,6 +66,7 @@ export function Providers({
         {sessionReady ? (
           <I18nProvider initialLanguage={initialLanguage}>
             <RecordingNavigationGuard />
+            <CloudDraftSyncAgent />
             {children}
             <ErrorToast />
           </I18nProvider>

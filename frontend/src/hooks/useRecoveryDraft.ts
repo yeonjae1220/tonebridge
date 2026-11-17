@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SetStat
 import { useI18n } from '@/i18n/I18nProvider'
 import { useAuthStore } from '@/stores/authStore'
 import { openRecovery, writeRecovery, type PendingSubmission, type RecoveryHandle, type RecoveryValue } from '@/lib/recoveryDraft'
+import { prepareCloudSubmission } from '@/lib/cloudDraftSync'
 import { DraftStorageError, draftStorageIssue, type DraftStorageIssue } from '@/lib/draftStorageError'
 
 export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefined, scope: string, initial: T, valid: (value: unknown) => value is T) {
@@ -79,6 +80,10 @@ export function useRecoveryDraft<T extends RecoveryValue>(owner: string | undefi
   }, [status, t])
   const setValue = (next: SetStateAction<T>) => { if (!pendingRef.current) { dirty.current = true; setState(next) } }
   return { value, setValue, pending, ready, restored, status, issue,
+    preparePending: async (submission: PendingSubmission, signal?: AbortSignal) => {
+      if (!owner) throw new DraftStorageError('unavailable')
+      return prepareCloudSubmission(owner, scope, submission.operation, 'SUBMISSION', submission.payload, signal)
+    },
     confirmLeave: () => (status !== 'error' && status !== 'saving') || window.confirm(t('editor.leave')),
     retry: () => handle.current ? persist(latest.current) : initialize(),
     begin: (payload: Record<string, unknown>, recordingId?: string, signal?: AbortSignal): Promise<PendingSubmission> => {

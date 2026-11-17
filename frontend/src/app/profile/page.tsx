@@ -292,6 +292,7 @@ function ProfileDetail() {
             <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
           <InstallBanner persistent className="mb-5" />
+          <Link href="/drafts/cloud" className="mb-5 block min-h-11 text-blue-600">{t('cloud.title')}</Link>
           <Link href="/profile/export" className="mb-5 block min-h-11 text-blue-600">{t('exports.title')}</Link>
           <Link href="/profile/blocked" className="mb-5 block min-h-11 text-blue-600">{t('blocks.title')}</Link>
           {meQuery.isError && <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} />}
@@ -412,6 +413,7 @@ function ProfileDetail() {
         </div>
 
         <InstallBanner persistent className="mb-5" />
+          <Link href="/drafts/cloud" className="mb-5 block min-h-11 text-blue-600">{t('cloud.title')}</Link>
           <Link href="/profile/export" className="mb-5 block min-h-11 text-blue-600">{t('exports.title')}</Link>
           <Link href="/profile/blocked" className="mb-5 block min-h-11 text-blue-600">{t('blocks.title')}</Link>
         {profileQuery.isError && <QueryError retrying={profileQuery.isFetching} onRetry={() => void profileQuery.refetch()} />}
