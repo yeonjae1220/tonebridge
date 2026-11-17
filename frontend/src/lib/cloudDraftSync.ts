@@ -51,6 +51,16 @@ export async function setCloudSettings(owner: string, input: { operationId: stri
   if (current.settings && current.settings.version > value.version) return current.settings
   current.settings = value; cacheCloudSettings(owner, value); cloudChanged(); return value
 }
+export async function setCloudAudioSettings(owner: string, input: { operationId: string; expectedVersion: number; enabled: boolean }) {
+  const current = capture(owner)
+  const value = await write<CloudSettings>(current, 'put', base + '/settings/audio', input)
+  if (current.settings && current.settings.version > value.version) return current.settings
+  current.settings = value; cacheCloudSettings(owner, value); cloudChanged(); return value
+}
+export function captureCloudAccount(owner: string) {
+  const current = capture(owner)
+  return { signal: current.controller.signal, check: () => guard(current) }
+}
 export function listCloudDrafts(owner: string) { return read<RemoteDraft[]>(capture(owner), base) }
 export function readCloudDraft(owner: string, id: string) { return read<RemoteDraft>(capture(owner), base + '/' + id) }
 export function readCloudHistory(owner: string, id: string) { return read<CloudRevision[]>(capture(owner), `${base}/${id}/history`) }
@@ -93,6 +103,7 @@ export async function synchronizeCloudDraft(owner: string, scope: string, force 
   const current = capture(owner)
   return locked(current, scope, async signal => {
     let binding = cloudBindings(owner)[scope]
+    if (binding?.kind === 'recording' && !binding.audio?.ready) return
     if (!binding || (!force && (binding.error || binding.pendingLocal))) return
     try {
       if (!current.settings) await readCloudSettings(owner, signal)
@@ -107,7 +118,7 @@ export async function synchronizeCloudDraft(owner: string, scope: string, force 
         }
       }
       binding = cloudBindings(owner)[scope]
-      if (!binding?.dirty || !current.settings?.enabled) return
+      if (!binding?.dirty || !current.settings?.enabled || (binding.kind === 'recording' && !current.settings.audioEnabled)) return
       if (!binding.request) binding = update(current, scope, binding.id, row => ({ ...row, request: {
         operationId: crypto.randomUUID(), epoch: row.epoch, expectedVersion: row.version, kind: row.kind, scope, value: row.value, editedAt: row.updatedAt,
       } }))
@@ -169,7 +180,7 @@ export async function prepareCloudSubmission(owner: string, scope: string, opera
   await synchronizeCloudDraft(owner, scope, true, parent)
   binding = cloudBindings(owner)[scope]
   update(current, scope, binding.id, row => ({ ...row, submissionOperation: operation, pendingLocal: true }))
-  const transportPayload = current.settings?.enabled && !(kind === 'COMPOSITION' && payload.kind === 'AUDIO') ? payload : null
+  const transportPayload = current.settings?.enabled && (payload.kind !== 'AUDIO' || binding.kind === 'recording') ? payload : null
   const prepared = await write<RemoteDraft>(current, 'post', `${base}/${binding.id}/prepare-submission`, {
     epoch: binding.epoch, expectedVersion: binding.version, operation, kind, payload: transportPayload,
   }, parent)

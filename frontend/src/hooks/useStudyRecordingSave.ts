@@ -1,3 +1,7 @@
+import { cloudBindings, saveCloudBindings, finishCloudSubmission } from '@/lib/cloudDraftLocal'
+import { prepareCloudSubmission } from '@/lib/cloudDraftSync'
+import { uploadCloudRecording } from '@/lib/cloudAudioSync'
+import { getApiErrorStatus } from '@/lib/apiError'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
 import { useState } from 'react'
 import { api } from '@/lib/api'
@@ -19,13 +23,30 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
   const save = async (blob: Blob) => {
     const generation = useAuthStore.getState().sessionGeneration
     const requireSameAccount = captureAccountGuard()
+    const scope = `audio:${purpose}:${cardId}`
+    const owner = recordingDrafts.ownerOf(blob)
+    let operation: string | undefined
+    if (owner) {
+      const rows = cloudBindings(owner), row = rows[scope]
+      if (row) {
+        operation = row.submissionOperation ?? crypto.randomUUID()
+        rows[scope] = { ...row, submissionOperation: operation }; saveCloudBindings(owner, rows)
+        try {
+          const receipt = await recordingRequest(signal => api.get<{ type: string }>('/submissions/' + operation, { signal }))
+          requireSameAccount()
+          if (receipt.data.type !== purpose) throw new Error('Submission is no longer available')
+          finishCloudSubmission(owner, scope, operation); return receipt
+        } catch (e) { if (getApiErrorStatus(e) !== 404) throw e }
+        await uploadCloudRecording(owner, scope); requireSameAccount()
+      }
+    }
     const key = `${generation}:${cardId}:${purpose}`
     let entries = checkpoints.get(blob)
     if (!entries) { entries = new Map(); checkpoints.set(blob, entries) }
     let checkpoint = entries.get(key)
     const recovered = recordingDrafts.getUpload(blob)
     if (!checkpoint && recovered) { checkpoint = { ...recovered, uploadUrl: '' }; entries.set(key, checkpoint) }
-    const extension = blob.type === 'audio/mp4' ? 'm4a' : blob.type === 'audio/ogg' ? 'ogg' : 'webm'
+    const extension = blob.type === 'audio/mp4' ? 'm4a' : blob.type === 'audio/ogg' ? 'ogg' : blob.type === 'audio/wav' ? 'wav' : 'webm'
     const file = new File([blob], `recording.${extension}`, { type: blob.type })
     // A lost PUT response is safe to repeat. Never replace a key after confirm was attempted.
     if (!checkpoint || (!checkpoint.uploaded && Date.now() - checkpoint.createdAt > 10 * 60_000)) {
@@ -48,11 +69,17 @@ export function useStudyRecordingSave(cardId: string, purpose: 'practice' | 'exa
     requireSameAccount()
     setStage('saving')
     requireSameAccount()
+    if (owner && operation) {
+      const receipt = await prepareCloudSubmission(owner, scope, operation, 'SUBMISSION', { audioKey: checkpoint.audioKey, cardId, purpose }, undefined, true)
+      requireSameAccount()
+      if (receipt) { finishCloudSubmission(owner, scope, operation); return { data: receipt } }
+    }
     const response = await recordingRequest((signal) => api.post(
       `/cards/${cardId}/${purpose === 'practice' ? 'attempts' : 'native-audios'}`,
-      { audioKey: checkpoint!.audioKey }, { signal },
+      { audioKey: checkpoint!.audioKey }, { signal, headers: operation ? { 'Idempotency-Key': operation } : undefined },
     ))
     requireSameAccount()
+    if (owner && operation) finishCloudSubmission(owner, scope, operation)
     suggestInstall()
     return response
   }

@@ -1,5 +1,6 @@
 import { DraftStorageError, draftStorageIssue, type DraftStorageIssue } from './draftStorageError'
 import { useAuthStore } from '@/stores/authStore'
+import { beforeCloudLocalDelete } from './cloudDraftLocal'
 import { finalizeRecording } from '@/lib/audioDuration'
 
 export type RecordingDraft = { blob: Blob; duration: number; interrupted?: boolean }
@@ -207,6 +208,8 @@ export const recordingDrafts = {
     const allowed = () => !!useAuthStore.getState().accessToken && authenticatedOwner === snapshot.owner
       && useAuthStore.getState().sessionGeneration === generation && revocation(snapshot.owner) === snapshot.revocation
     if (!allowed()) throw new DraftStorageError('conflict')
+    await beforeCloudLocalDelete(snapshot.owner, 'audio:' + snapshot.scope, snapshot.id)
+    if (!allowed()) throw new DraftStorageError('conflict')
     const revision = crypto.randomUUID()
     await serial(() => transaction<void>((rows, owners, done) => {
       const epoch = owners.get(snapshot.owner)
@@ -231,6 +234,46 @@ export const recordingDrafts = {
     }
     channel?.postMessage({ type: 'removed', owner: snapshot.owner, scope: snapshot.scope, id: snapshot.id, revision })
     emit()
+  },
+  async revision(owner: string, scope: string): Promise<{ id: string; updatedAt: number } | undefined> {
+    const generation = useAuthStore.getState().sessionGeneration
+    if (authenticatedOwner !== owner || !useAuthStore.getState().accessToken) throw new DraftStorageError('conflict')
+    const result = await serial(() => transaction<{ id: string; updatedAt: number } | undefined>((rows, _owners, done) => {
+      const request = rows.get(JSON.stringify([owner, scope]))
+      request.onsuccess = () => { const row = request.result as Row | undefined; done(row ? { id: row.id, updatedAt: row.updatedAt } : undefined) }
+    }))
+    if (generation !== useAuthStore.getState().sessionGeneration) throw new DraftStorageError('conflict')
+    return result
+  },
+  async restore(owner: string, scope: string, draft: RecordingDraft, expected: { id: string; updatedAt: number } | undefined, upload?: SavedUpload) {
+    const generation = useAuthStore.getState().sessionGeneration, token = revocation(owner)
+    const key = `${generation}:${scope}`
+    const allowed = () => !!useAuthStore.getState().accessToken && authenticatedOwner === owner && generation === useAuthStore.getState().sessionGeneration && revocation(owner) === token && !active.has(key)
+    if (!allowed() || draft.blob.size > MAX_BYTES) throw new DraftStorageError('conflict')
+    const id = crypto.randomUUID()
+    await serial(() => transaction<void>((rows, owners, done) => {
+      const epoch = owners.get(owner)
+      epoch.onsuccess = () => {
+        const epochValue = epoch.result ?? crypto.randomUUID()
+        const request = rows.get(JSON.stringify([owner, scope]))
+        request.onsuccess = () => {
+          const previous = request.result as Row | undefined
+          if (!allowed() || previous?.id !== expected?.id || (expected && previous?.updatedAt !== expected.updatedAt)) { rows.transaction.abort(); return }
+          let bytes = draft.blob.size
+          const cursor = rows.openCursor()
+          cursor.onsuccess = () => {
+            if (cursor.result) { const row = cursor.result.value as Row; if (row.key !== previous?.key) bytes += row.draft?.blob.size ?? 0; cursor.result.continue(); return }
+            if (!allowed() || bytes > 100 * 1024 * 1024) { rows.transaction.abort(); return }
+            if (!epoch.result) owners.put(epochValue, owner)
+            rows.put({ key: JSON.stringify([owner, scope]), owner, scope, id, epoch: epochValue, revocation: token, updatedAt: Date.now(), draft, upload } satisfies Row)
+            done()
+          }
+        }
+      }
+    }))
+    if (!allowed()) throw new DraftStorageError('conflict')
+    entries.delete(key); await recordingDrafts.load(key, owner, scope); emit()
+    return id
   },
   bindOwner(owner: string) { authenticatedOwner = owner; connect() },
   settled: () => queue,
@@ -278,12 +321,17 @@ export const recordingDrafts = {
     if (checkpoint && entry.status === 'saving') return
     entry.draft = draft
     if (!checkpoint) active.delete(key)
-    void persist(key, entry)
+    void persist(key, entry).then(ok => { if (ok && !checkpoint && !draft.interrupted && current(key) && entry.draft === draft) window.dispatchEvent(new CustomEvent('tonebridge-recording-complete', { detail: { owner: entry.owner, scope: entry.scope, id: entry.id } })) })
   },
-  delete(key: string) {
+  async delete(key: string, preserveCloud = false) {
     const entry = entries.get(key)
     active.delete(key)
     if (!entry || !current(key)) return
+    const expected = entry.id
+    if (!preserveCloud) {
+      await beforeCloudLocalDelete(entry.owner, 'audio:' + entry.scope, expected)
+      if (!current(key) || entries.get(key) !== entry || entry.id !== expected) throw new DraftStorageError('conflict')
+    }
     entry.draft = undefined; entry.upload = undefined; entry.restored = false
     const removedId = entry.id
     // Tombstone keeps stale tabs from resurrecting an explicitly discarded recording.
@@ -322,6 +370,7 @@ export const recordingDrafts = {
     entry.upload = upload
     if (entry.status === 'saved' && !await persist(key, entry)) throw new Error('Draft checkpoint failed')
   },
+  ownerOf: (blob: Blob) => [...entries.values()].find(entry => entry.draft?.blob === blob)?.owner,
   getUpload: (blob: Blob) => [...entries.values()].find((entry) => entry.draft?.blob === blob)?.upload,
   hasUnsaved: () => active.size > 0 || [...entries.values()].some((entry) => !!entry.draft),
   subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },

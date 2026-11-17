@@ -1,13 +1,13 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
 
-export type CloudKind = 'editor' | 'feedback' | 'card'
-export type CloudSettings = { enabled: boolean; epoch: string | null; version: number }
+export type CloudKind = 'editor' | 'feedback' | 'card' | 'recording'
+export type CloudSettings = { enabled: boolean; epoch: string | null; version: number; audioEnabled?: boolean }
 export type CloudValue = Record<string, unknown>
 export type CloudWrite = { operationId: string; epoch: string; expectedVersion: number; kind: CloudKind; scope: string; value: CloudValue; editedAt: number }
 export type CloudBinding = { id: string; epoch: string; version: number; kind: CloudKind; scope: string; value: CloudValue;
   localRevision: string; updatedAt: number; synced: string | null; dirty: boolean; pendingLocal: boolean;
-  request: CloudWrite | null; submissionOperation?: string; error: 'conflict' | 'network' | 'limit' | 'storage' | 'expired' | 'rate' | null }
+  audio?: { sourceId: string; sourceUpdatedAt: number; assetId: string; sha256: string; byteSize: number; contentType: string; ready: boolean }; request: CloudWrite | null; submissionOperation?: string; error: 'conflict' | 'network' | 'limit' | 'storage' | 'expired' | 'rate' | null }
 const prefix = 'tonebridge-cloud-bindings:'
 const preferencesPrefix = 'tonebridge-cloud-preferences:'
 const eventName = 'tonebridge-cloud-change'
@@ -27,13 +27,14 @@ export function cloudBindings(owner: string): Record<string, CloudBinding> {
   if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).length > 50) throw new DraftStorageError('corrupt')
   for (const [scope, row] of Object.entries(value)) {
     if (!row || row.scope !== scope || !/^[0-9a-f-]{36}$/i.test(row.id) || !/^[0-9a-f-]{36}$/i.test(row.epoch)
-      || !Number.isSafeInteger(row.version) || row.version < 0 || !['editor', 'feedback', 'card'].includes(row.kind)
+      || !Number.isSafeInteger(row.version) || row.version < 0 || !['editor', 'feedback', 'card', 'recording'].includes(row.kind)
       || !row.value || typeof row.value !== 'object' || typeof row.localRevision !== 'string' || !Number.isFinite(row.updatedAt)) throw new DraftStorageError('corrupt')
   }
   return value
 }
 export function saveCloudBindings(owner: string, rows: Record<string, CloudBinding>) {
   owners.add(owner)
+  if (Object.keys(rows).length > 50) throw new DraftStorageError('quota')
   const raw = JSON.stringify(rows)
   if (raw.length > 4_000_000) throw new DraftStorageError('quota')
   localStorage.setItem(prefix + owner, raw)
@@ -75,6 +76,15 @@ export function selectCloudDraft(owner: string, scope: string, kind: CloudKind, 
   saveCloudBindings(owner, rows)
 }
 export function observeCloudDraft(owner: string, scope: string, kind: CloudKind, value: CloudValue | null, revision: string, isNew: boolean, pending = false) {
+  if (value && (kind === 'feedback' || kind === 'editor' && value.kind === 'AUDIO')) {
+    try {
+      const rows = cloudBindings(owner), audioScope = kind === 'editor' ? 'audio:compose' : 'audio:correction-reference:' + scope.split(':')[1], audio = rows[audioScope]
+      if (audio && !audio.pendingLocal) {
+        const next = { ...audio.value, [kind === 'editor' ? 'editor' : 'feedback']: value }
+        if (canonical(next) !== canonical(audio.value)) { rows[audioScope] = { ...audio, value: next, updatedAt: Date.now(), dirty: canonical(next) !== audio.synced }; saveCloudBindings(owner, rows) }
+      }
+    } catch { metadataError = true; cloudChanged() }
+  }
   if (!value || (kind === 'editor' && value.kind !== 'TEXT')) return
   try {
     const settings = cachedCloudSettings(owner)
@@ -95,7 +105,8 @@ export function attachCloudDeletionBridge(bridge: typeof deleteBridge) { deleteB
 export async function beforeCloudLocalDelete(owner: string, scope: string, revision?: string) {
   const binding = cloudBindings(owner)[scope]
   if (!binding) return
-  if (scope === 'compose' && localStorage.getItem('tonebridge-composition:' + owner)) return // Durable pending composition is retired with its server receipt.
+  if ((scope === 'compose' || scope === 'audio:compose') && localStorage.getItem('tonebridge-composition:' + owner)) return // Durable pending composition is retired with its server receipt.
+  if (binding.kind === 'recording' && binding.localRevision !== revision) return // A newer local recording does not delete the older linked cloud draft.
   if (binding.localRevision !== revision) throw new DraftStorageError('conflict')
   if (!deleteBridge) throw new DraftStorageError('unavailable')
   await deleteBridge(owner, scope, revision)

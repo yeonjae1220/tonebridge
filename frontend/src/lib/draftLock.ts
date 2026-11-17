@@ -1,5 +1,5 @@
 /** Cancel the queued lock request, so a suspended tab cannot cause a late stale write. */
-export async function withDraftLock(name: string, write: () => void, signal?: AbortSignal) {
+export async function withDraftLock(name: string, write: () => void | Promise<void>, signal?: AbortSignal) {
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })
@@ -8,7 +8,7 @@ export async function withDraftLock(name: string, write: () => void, signal?: Ab
   try {
     await navigator.locks.request(name, { signal: controller.signal }, () => {
       controller.signal.throwIfAborted()
-      write()
+      return write()
     })
   } finally {
     clearTimeout(timer)

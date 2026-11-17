@@ -64,6 +64,12 @@ public class PersonalExportData {
             WHERE EXISTS(SELECT 1 FROM audio_upload_owners u WHERE u.audio_key=n.audio_key AND u.owner_id=:owner)
                OR EXISTS(SELECT 1 FROM composition_receipts p WHERE p.audio_key=n.audio_key AND p.owner_id=:owner AND p.fingerprint IS NOT NULL)
             """,owner,budget));
+        var cloudFiles=jdbc.queryForList("SELECT id::text,object_key FROM cloud_audio_assets WHERE owner_id=:owner AND state='READY'",Map.of("owner",owner));
+        Map<String,String> cloudKeys=new HashMap<>();
+        for(var file:cloudFiles)cloudKeys.put((String)file.get("id"),(String)file.get("object_key"));
+        for(var row:java.util.stream.Stream.concat(cloud.stream(),revisions.stream()).toList()) {
+            if(row.get("value") instanceof Map<?,?> value && value.get("assetId") instanceof String id && cloudKeys.containsKey(id))row.put("_audio",cloudKeys.get(id));
+        }
         var candidates=new LinkedHashSet<String>();
         for(Object section:data.values()) if(section instanceof List<?> list) for(Object item:list) {
             if(item instanceof Map<?,?> row && row.get("_audio") instanceof String key) candidates.add(key);
@@ -72,6 +78,7 @@ public class PersonalExportData {
         if(!candidates.isEmpty()) owned=new HashSet<>(jdbc.queryForList("""
             SELECT audio_key FROM audio_upload_owners WHERE owner_id=:owner AND audio_key IN (:keys)
             UNION SELECT audio_key FROM composition_receipts WHERE owner_id=:owner AND fingerprint IS NOT NULL AND audio_key IN (:keys)
+            UNION SELECT object_key FROM cloud_audio_assets WHERE owner_id=:owner AND state='READY' AND object_key IN (:keys)
             """,Map.of("owner",owner,"keys",candidates),String.class));
         Map<String,String> entries=new LinkedHashMap<>();
         int omitted=0;
