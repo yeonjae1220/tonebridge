@@ -86,7 +86,8 @@ export function observeCloudDraft(owner: string, scope: string, kind: CloudKind,
       row = cloudBindings(owner)[scope]
       if (!pending) return
     }
-    rows[scope] = { ...row, value, localRevision: revision, updatedAt: Date.now(), pendingLocal: pending, dirty: canonical(value) !== row.synced }
+    rows[scope] = { ...row, value, localRevision: revision, updatedAt: Date.now(), pendingLocal: pending, dirty: canonical(value) !== row.synced,
+      error: row.error === 'expired' ? 'conflict' : row.error }
     saveCloudBindings(owner, rows)
   } catch { metadataError = true; cloudChanged() } // Local text has already been saved independently.
 }

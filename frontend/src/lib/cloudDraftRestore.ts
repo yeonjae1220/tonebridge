@@ -7,7 +7,10 @@ import { cloudBindings, saveCloudBindings, canonical, type CloudSettings } from 
 import { type RemoteDraft } from './cloudDraftSync'
 import { DraftStorageError } from './draftStorageError'
 
-export async function restoreCloudOnDevice(owner: string, remote: RemoteDraft, settings: CloudSettings) {
+export function cloudLocalRevision(owner: string, remote: RemoteDraft) {
+  return remote.kind === 'editor' ? openEditor(owner).handle.revision : openRecovery(owner, remote.scope).handle.revision
+}
+export async function restoreCloudOnDevice(owner: string, remote: RemoteDraft, settings: CloudSettings, expectedLocalRevision: string | undefined) {
   const generation = useAuthStore.getState().sessionGeneration
   const same = () => { if (!useAuthStore.getState().accessToken || generation !== useAuthStore.getState().sessionGeneration) throw new DraftStorageError('conflict') }
   if (!settings.epoch || remote.state !== 'ACTIVE' || !remote.value || !remote.expiresAt || Date.parse(remote.expiresAt) <= Date.now()) throw new DraftStorageError('conflict')
@@ -19,6 +22,7 @@ export async function restoreCloudOnDevice(owner: string, remote: RemoteDraft, s
     const pending = loadComposition(owner)
     if (pending && pending.operation !== remote.pendingOperation) throw new DraftStorageError('conflict')
     const opened = openEditor(owner)
+    if (opened.handle.revision !== expectedLocalRevision) throw new DraftStorageError('conflict')
     if (remote.pendingOperation) {
       const input = remote.pendingPayload as CompositionInput
       const portable = input && input.kind === 'TEXT' && validEditor({ ...value, kind: input.kind, destination: input.destination, selectedFriendId: input.friendId ?? '', targetLanguage: input.targetLanguage, targetVariant: input.targetVariant,
@@ -33,6 +37,7 @@ export async function restoreCloudOnDevice(owner: string, remote: RemoteDraft, s
   } else {
     if (!(remote.kind === 'feedback' ? validFeedback(remote.value) : validCardDraft(remote.value))) throw new DraftStorageError('corrupt')
     const opened = openRecovery(owner, remote.scope)
+    if (opened.handle.revision !== expectedLocalRevision) throw new DraftStorageError('conflict')
     if (opened.row?.pending && opened.row.pending.operation !== remote.pendingOperation) throw new DraftStorageError('conflict')
     if (remote.pendingOperation) {
       const payload = remote.pendingPayload!

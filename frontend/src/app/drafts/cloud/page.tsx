@@ -18,7 +18,7 @@ import { cloudBindings, onCloudChange, selectCloudDraft, canonical, saveCloudBin
   type CloudSettings, type CloudBinding, type CloudKind, type CloudValue, type CloudWrite } from '@/lib/cloudDraftLocal'
 import { cloudSessionReady, readCloudSettings, setCloudSettings, readCloudOperation, listCloudDrafts, readCloudDraft, readCloudHistory,
   restoreCloudRevision, deleteRemoteDraft, writeCloudCopy, synchronizeAllCloudDrafts, type RemoteDraft, type CloudRevision } from '@/lib/cloudDraftSync'
-import { restoreCloudOnDevice, cloudDraftRoute } from '@/lib/cloudDraftRestore'
+import { restoreCloudOnDevice, cloudDraftRoute, cloudLocalRevision } from '@/lib/cloudDraftRestore'
 
 type LocalDraft = { scope: string; kind: CloudKind; value: CloudValue; revision: string; updatedAt: number }
 type Action = { kind: 'settings'; body: { operationId: string; expectedVersion: number; enabled: boolean; erase: boolean }; createdAt: number }
@@ -114,7 +114,7 @@ function CloudDraftContent() {
     if (action.kind === 'settings') {
       preferences ??= await readCloudSettings(me.id)
       if (!current()) return
-      if (action.body.erase) { eraseLocalCloudMetadata(me.id); cacheCloudSettings(me.id, preferences); setNotice(t('cloud.eraseDone')) }
+      if (action.body.erase && preferences.version === applied.version && !preferences.enabled) { eraseLocalCloudMetadata(me.id); cacheCloudSettings(me.id, preferences); setNotice(t('cloud.eraseDone')) }
       setSettings(preferences)
     } else if (action.kind === 'write') {
       const rows = cloudBindings(me.id), row = rows[action.body.scope]
@@ -151,10 +151,11 @@ function CloudDraftContent() {
   })
   const applyRemote = (row: RemoteDraft) => void run(async () => {
     if (!me || !settings || !window.confirm(t('cloud.replaceConfirm'))) return
-    // Fetch again before restoration; the local writer also performs its own CAS.
+    // Capture the local revision at confirmation, before the network read can delay restoration.
+    const localRevision = cloudLocalRevision(me.id, row)
     const fresh = await readCloudDraft(me.id, row.id)
     if (!current() || fresh.version !== row.version) throw new DraftStorageError('conflict')
-    await restoreCloudOnDevice(me.id, fresh, settings)
+    await restoreCloudOnDevice(me.id, fresh, settings, localRevision)
     if (current()) router.push(cloudDraftRoute(fresh))
   })
   const resolve = (row: CloudBinding, copy: boolean) => {

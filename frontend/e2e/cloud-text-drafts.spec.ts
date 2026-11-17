@@ -277,3 +277,69 @@ test('review: a restored pending composition claims and submits exactly its orig
   expect(await page.evaluate(() => localStorage.getItem('tonebridge-composition:owner'))).toBeNull()
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner') ?? '{}').compose)).toBeUndefined()
 })
+
+test('review: editing after local expiry offers an explicit new copy without reviving the expired ID', async ({ page, context }) => {
+  const state = server();await routes(context, state);await enableAndSelect(page, state)
+  const row = [...state.rows.values()][0];row.state = 'EXPIRED';row.value = null;row.version++
+  await page.evaluate(() => {
+    const key = 'tonebridge-cloud-bindings:owner', rows = JSON.parse(localStorage.getItem(key)!)
+    rows.compose.updatedAt = Date.now() - 8 * 86400000;localStorage.setItem(key, JSON.stringify(rows))
+    const editorKey = 'tonebridge-compose-editor:owner', draft = JSON.parse(localStorage.getItem(editorKey)!)
+    draft.updatedAt = Date.now() - 8 * 86400000;localStorage.setItem(editorKey, JSON.stringify(draft))
+  })
+  await page.reload();await expect(page.getByTestId('cloud-local-binding')).toContainText('7-day retention')
+  await page.goto('/request');await page.locator('textarea').first().fill('New text after expiry')
+  await page.goto('/drafts/cloud');await expect(page.getByTestId('cloud-local-binding')).toContainText('New text after expiry')
+  await page.getByRole('button', { name: 'Save my text as a separate cloud draft', exact: true }).click()
+  await expect.poll(() => [...state.rows.values()].filter(value => value.state === 'ACTIVE').length).toBe(1)
+  expect(state.rows.get(row.id)?.state).toBe('EXPIRED')
+  expect([...state.rows.values()].find(value => value.state === 'ACTIVE')?.value?.contentText).toBe('New text after expiry')
+})
+
+test('review: retrying an old erase receipt cannot remove drafts selected after newer consent', async ({ page, context }) => {
+  const state = server();await routes(context, state);await enableAndSelect(page, state)
+  let erased = false
+  await page.route('**/api/users/me/drafts/settings', route => {
+    if (route.request().method() !== 'PUT') return route.fallback()
+    const input = route.request().postDataJSON()
+    if (!input.erase) return route.fallback()
+    state.settings = { enabled: false, epoch: randomUUID(), version: 2 };state.rows.clear()
+    state.operations.set(input.operationId, { id: null, version: 2 });erased = true
+  })
+  await page.clock.install();page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: 'Erase cloud drafts and stop sync', exact: true }).click();await expect.poll(() => erased).toBe(true)
+  await page.clock.fastForward(30001)
+  state.settings = { ...state.settings, enabled: true, version: 3 }
+  const id = randomUUID();save(state, id, { operationId: randomUUID(), kind: 'editor', scope: 'compose', value: editor('Chosen after consent') })
+  await page.evaluate(({ id, settings }) => {
+    const key = 'tonebridge-cloud-bindings:owner', rows = JSON.parse(localStorage.getItem(key)!)
+    rows.compose.id = id;rows.compose.epoch = settings.epoch;rows.compose.version = 1
+    rows.compose.value.contentText = 'Chosen after consent';rows.compose.dirty = false;rows.compose.request = null;rows.compose.error = null
+    localStorage.setItem(key, JSON.stringify(rows));localStorage.setItem('tonebridge-cloud-preferences:owner', JSON.stringify(settings))
+  }, { id, settings: state.settings })
+  await page.reload();await expect(page.getByText('Sync enabled', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('tonebridge-cloud-manager:owner'))).toBeNull()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner')!).compose.id)).toBe(id)
+  expect(state.rows.get(id)?.state).toBe('ACTIVE')
+})
+
+test('review: restoration cannot overwrite edits made while the cloud read is delayed', async ({ page, context }) => {
+  const state = server();await routes(context, state);await enableAndSelect(page, state)
+  const row = [...state.rows.values()][0];let held: Route | undefined
+  await page.route('**/api/users/me/drafts/' + row.id, route => {
+    if (route.request().method() === 'GET' && !held) { held = route;return }
+    return route.fallback()
+  })
+  page.once('dialog', dialog => dialog.accept());await page.getByRole('button', { name: 'Use cloud version on this device', exact: true }).click()
+  await expect.poll(() => !!held).toBe(true)
+  await page.evaluate(() => {
+    const key = 'tonebridge-compose-editor:owner', draft = JSON.parse(localStorage.getItem(key)!)
+    draft.revision = 'another-tab-after-confirmation';draft.value.contentText = 'Latest local edit during cloud read';draft.updatedAt = Date.now()
+    localStorage.setItem(key, JSON.stringify(draft))
+  })
+  await held!.fulfill({ json: row })
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('cloud version changed')
+  await expect(page).toHaveURL(/\/drafts\/cloud$/)
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-compose-editor:owner')!).value.contentText)).toBe('Latest local edit during cloud read')
+})
