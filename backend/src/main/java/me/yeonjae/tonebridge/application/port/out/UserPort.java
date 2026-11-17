@@ -14,7 +14,7 @@ public interface UserPort {
     boolean existsByUsername(String username);
     Optional<User> findById(UUID id);
     List<User> findAllByIds(Collection<UUID> ids);
-    List<User> searchByUsernamePrefix(String prefix, int limit);
+    List<User> searchByUsernamePrefix(String prefix, int limit, UUID viewerId);
     Optional<User> findByEmailForUpdate(String email);
     Optional<User> findByIdForUpdate(UUID id);
     long credentialsVersion(UUID id);

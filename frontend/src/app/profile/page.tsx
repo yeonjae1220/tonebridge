@@ -292,6 +292,7 @@ function ProfileDetail() {
             <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           </div>
           <InstallBanner persistent className="mb-5" />
+          <Link href="/profile/blocked" className="mb-5 block min-h-11 text-blue-600">{t('blocks.title')}</Link>
           {meQuery.isError && <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} />}
 
           <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden">
@@ -410,6 +411,7 @@ function ProfileDetail() {
         </div>
 
         <InstallBanner persistent className="mb-5" />
+          <Link href="/profile/blocked" className="mb-5 block min-h-11 text-blue-600">{t('blocks.title')}</Link>
         {profileQuery.isError && <QueryError retrying={profileQuery.isFetching} onRetry={() => void profileQuery.refetch()} />}
         {profileLoading && (
           <div className="flex flex-col gap-4">

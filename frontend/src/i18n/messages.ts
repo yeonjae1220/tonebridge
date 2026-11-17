@@ -1,3 +1,4 @@
+import { blockMessages, type BlockMessageKey } from './blockMessages'
 import { resetMessages, type ResetMessageKey } from './resetMessages'
 import { accessMessages, type AccessMessageKey } from './accessMessages'
 import { feedbackMessages, type FeedbackMessageKey } from './feedbackMessages'
@@ -3526,7 +3527,7 @@ export function languageDisplayName(code: string, uiLanguage: UiLanguage) {
   }
 }
 
-type MessageKey = KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey | FeedbackMessageKey | AccessMessageKey | ResetMessageKey
+type MessageKey = BlockMessageKey | KnownMessageKey | keyof typeof defaultExtraMessages | UxMessageKey | FeedbackMessageKey | AccessMessageKey | ResetMessageKey
 
 export type { MessageKey }
 
@@ -3672,3 +3673,5 @@ for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language],
 for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], accessMessages[language])
 
 for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], resetMessages[language])
+
+for (const language of SUPPORTED_UI_LANGUAGES) Object.assign(messages[language], blockMessages[language])

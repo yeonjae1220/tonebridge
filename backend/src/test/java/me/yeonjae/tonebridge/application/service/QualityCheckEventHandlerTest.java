@@ -44,7 +44,7 @@ class QualityCheckEventHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new QualityCheckEventHandler(
+        handler = new QualityCheckEventHandler(org.mockito.Mockito.mock(UserBlockService.class),
                 correctionPort, notificationPort, fcmNotificationPort,
                 streakService, badgeService);
     }

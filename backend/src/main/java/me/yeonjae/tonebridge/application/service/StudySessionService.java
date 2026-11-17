@@ -31,6 +31,7 @@ public class StudySessionService implements
         DeleteStudySessionUseCase,
         LeaveStudySessionUseCase {
 
+    private final UserBlockService userBlocks;
     private final StudySessionPort sessionPort;
     private final UserPort userPort;
     private final FriendPort friendPort;
@@ -51,6 +52,8 @@ public class StudySessionService implements
 
         userPort.findById(command.friendId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
+
+        userBlocks.lockAllowed(command.creatorId(), command.friendId());
 
         // Ensure the two users are actually friends before creating a shared session
         friendPort.lockAcceptedBetween(command.creatorId(), command.friendId())

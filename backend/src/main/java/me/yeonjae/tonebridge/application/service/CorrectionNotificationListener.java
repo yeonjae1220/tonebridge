@@ -17,6 +17,7 @@ public class CorrectionNotificationListener {
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 1_000;
 
+    private final UserBlockService userBlocks;
     private final FcmNotificationPort fcmNotificationPort;
 
     @Async("fcmNotificationExecutor")
@@ -24,6 +25,7 @@ public class CorrectionNotificationListener {
     public void onCorrectionNoteAdded(CorrectionNoteAddedEvent event) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
+                if (userBlocks.blocked(event.learnerId(), event.reviewerId())) return;
                 fcmNotificationPort.sendCorrectionNoteAdded(
                         event.learnerId(), event.sessionId(), event.cardId(), event.reviewerUsername());
                 return; // success
@@ -32,6 +34,7 @@ public class CorrectionNotificationListener {
                         attempt, MAX_ATTEMPTS, event.cardId(), event.learnerId(), e);
                 if (attempt < MAX_ATTEMPTS) {
                     try {
+                if (userBlocks.blocked(event.learnerId(), event.reviewerId())) return;
                         Thread.sleep(RETRY_DELAY_MS * attempt); // linear back-off
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();

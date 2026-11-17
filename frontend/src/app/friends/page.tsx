@@ -1,5 +1,7 @@
 'use client'
 
+import { BlockUserButton } from '@/components/privacy/BlockUserButton'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -273,6 +275,7 @@ function FriendsContent() {
                         <p className="break-all text-sm font-semibold text-gray-800">{user.username}</p>
                         <p className="text-xs text-gray-500">{langLabel(user.nativeLanguage)}</p>
                       </div>
+                      <BlockUserButton userId={user.id} username={user.username} />
                       {isFriend ? (
                         <span className="shrink-0 text-xs text-green-600 font-medium">{t('friends.alreadyFriends')}</span>
                       ) : isWaiting ? <span className="text-xs text-gray-500">{t('access.waiting')}</span> : (
@@ -321,6 +324,7 @@ function FriendsContent() {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <BlockUserButton userId={req.senderId} username={req.senderUsername} />
                     <button
                       onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
                       disabled={acceptMutation.isPending || declineMutation.isPending}
@@ -380,6 +384,7 @@ function FriendsContent() {
                       <p className="text-xs text-gray-500">{langLabel(friend.nativeLanguage)}</p>
                     </div>
                   </div>
+                  <BlockUserButton userId={friend.id} username={friend.username} />
                   <button type="button"
                     disabled={practiceMutation.isPending}
                     onClick={() => practiceMutation.mutate(friend.id, { onSuccess: id => router.push('/study/' + id) })}

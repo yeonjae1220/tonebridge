@@ -50,7 +50,7 @@ class CorrectionRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CorrectionRequestService(
+        service = new CorrectionRequestService(org.mockito.Mockito.mock(UserBlockService.class),
                 correctionRequestPort,
                 correctionPort,
                 userPort,

@@ -1,5 +1,7 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
+import me.yeonjae.tonebridge.domain.correction.CorrectionType;
+
 import me.yeonjae.tonebridge.domain.correction.CorrectionStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -38,7 +40,7 @@ public interface CorrectionJpaRepository extends JpaRepository<CorrectionEntity,
             """)
     long countApprovedAudioByCorrector(@Param("correctorId") UUID correctorId,
                                        @Param("status") CorrectionStatus status,
-                                       @Param("requestType") String requestType);
+                                       @Param("requestType") CorrectionType requestType);
 
     @Query("""
             SELECT c.createdAt, r.createdAt

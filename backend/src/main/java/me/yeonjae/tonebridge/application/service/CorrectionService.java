@@ -35,6 +35,7 @@ public class CorrectionService implements
         AcceptCorrectionUseCase,
         LikeCorrectionUseCase {
 
+    private final UserBlockService userBlocks;
     private final CorrectionRequestPort correctionRequestPort;
     private final CorrectionPort correctionPort;
     private final RatingPort ratingPort;
@@ -46,6 +47,7 @@ public class CorrectionService implements
         CorrectionRequest request = correctionRequestPort.findById(command.requestId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
 
+        userBlocks.lockAllowed(command.correctorId(), request.requesterId());
         if (!request.isPending()) {
             throw new ToneBridgeException(ErrorCode.REQUEST_ALREADY_COMPLETED);
         }
@@ -89,6 +91,7 @@ public class CorrectionService implements
         if (!request.isOwnedBy(command.raterId())) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
+        userBlocks.requireAllowed(command.raterId(), correction.correctorId());
         if (ratingPort.existsByCorrection(command.correctionId())) {
             throw new ToneBridgeException(ErrorCode.ALREADY_RATED);
         }
@@ -104,6 +107,7 @@ public class CorrectionService implements
     public List<CorrectionWithStats> getResult(UUID requestId, UUID userId) {
         CorrectionRequest request = correctionRequestPort.findById(requestId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        userBlocks.requireAllowed(userId, request.requesterId());
         List<Correction> corrections = correctionPort.findByRequestId(requestId);
 
         List<Correction> visible;
@@ -118,6 +122,7 @@ public class CorrectionService implements
             }
         }
 
+        visible = visible.stream().filter(c -> !userBlocks.blocked(userId, c.correctorId())).toList();
         List<UUID> ids = visible.stream().map(Correction::id).toList();
         Map<UUID, Long> likeCounts = correctionPort.findLikeCountsByCorrectionIds(ids);
         Set<UUID> likedByUser = correctionPort.findLikedCorrectionIds(ids, userId);
@@ -142,6 +147,9 @@ public class CorrectionService implements
         if (!command.correctorId().equals(correction.correctorId())) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
+        var request = correctionRequestPort.findById(correction.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        userBlocks.requireAllowed(command.correctorId(), request.requesterId());
         return correctionPort.updateContent(
                 command.correctionId(),
                 command.correctedText(),
@@ -166,6 +174,7 @@ public class CorrectionService implements
         if (!request.isOwnedBy(command.requesterId())) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
+        userBlocks.requireAllowed(command.requesterId(), correction.correctorId());
         if (request.acceptedCorrectionId() != null
                 || request.status() == RequestStatus.EXPIRED
                 || request.status() == RequestStatus.AI_COMPLETED) {
@@ -186,14 +195,14 @@ public class CorrectionService implements
 
     @Override
     public LikeCorrectionUseCase.Result like(LikeCorrectionUseCase.Command command) {
-        requireCorrection(command.correctionId());
+        requireCorrection(command.correctionId(), command.userId());
         correctionPort.addLike(command.correctionId(), command.userId());
         return likeResult(command.correctionId(), true);
     }
 
     @Override
     public LikeCorrectionUseCase.Result unlike(LikeCorrectionUseCase.Command command) {
-        requireCorrection(command.correctionId());
+        requireCorrection(command.correctionId(), command.userId());
         correctionPort.removeLike(command.correctionId(), command.userId());
         return likeResult(command.correctionId(), false);
     }
@@ -207,9 +216,13 @@ public class CorrectionService implements
         return alreadyLiked ? unlike(command) : like(command);
     }
 
-    private void requireCorrection(UUID correctionId) {
-        correctionPort.findById(correctionId)
+    private void requireCorrection(UUID correctionId, UUID viewer) {
+        var correction = correctionPort.findById(correctionId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
+        var request = correctionRequestPort.findById(correction.requestId())
+                .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
+        userBlocks.requireAllowed(viewer, correction.correctorId());
+        userBlocks.requireAllowed(viewer, request.requesterId());
     }
 
     private LikeCorrectionUseCase.Result likeResult(UUID correctionId, boolean liked) {

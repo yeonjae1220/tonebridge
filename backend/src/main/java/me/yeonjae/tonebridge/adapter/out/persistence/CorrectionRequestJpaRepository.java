@@ -23,6 +23,9 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
             WHERE r.status = 'PENDING'
               AND r.deletedAt IS NULL
               AND r.requesterId <> :correctorId
+              AND NOT EXISTS (SELECT b.id FROM UserBlockEntity b
+                  WHERE (b.blockerId = :correctorId AND b.blockedId = r.requesterId)
+                     OR (b.blockedId = :correctorId AND b.blockerId = r.requesterId))
               AND r.targetLanguage IN :languages
             ORDER BY CASE WHEN r.targetVariant IN :variants THEN 1 ELSE 0 END DESC, r.createdAt DESC, r.id DESC
             """)
@@ -40,6 +43,9 @@ public interface CorrectionRequestJpaRepository extends JpaRepository<Correction
             WHERE r.status = 'PENDING'
               AND r.deletedAt IS NULL
               AND r.requesterId <> :correctorId
+              AND NOT EXISTS (SELECT b.id FROM UserBlockEntity b
+                  WHERE (b.blockerId = :correctorId AND b.blockedId = r.requesterId)
+                     OR (b.blockedId = :correctorId AND b.blockerId = r.requesterId))
               AND r.targetLanguage IN :languages
               AND (
                     CASE WHEN r.targetVariant IN :variants THEN 1 ELSE 0 END < :cursorPreferred

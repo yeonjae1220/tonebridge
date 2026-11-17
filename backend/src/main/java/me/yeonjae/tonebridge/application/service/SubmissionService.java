@@ -19,6 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubmissionService {
     public record Result(String type, UUID resourceId, UUID parentId) {}
+    private final UserBlockService userBlocks;
     private final SubmissionPort receipts;
     private final SubmitCorrectionUseCase corrections;
     private final CreateStudyCardUseCase cards;
@@ -30,6 +31,8 @@ public class SubmissionService {
     public Correction submit(UUID operation, SubmitCorrectionUseCase.Command command) {
         if (operation == null) return corrections.submit(command); // Older clients remain compatible.
         UUID owner = command.correctorId();
+        // Preserve receipt replay semantics for deleted parents, while ordering pair locks first.
+        requests.findById(command.requestId()).ifPresent(request -> userBlocks.lockAllowed(owner, request.requesterId()));
         receipts.lockOwner(owner);
         String fingerprint = fingerprint(command);
         var receipt = matching(owner, operation, "CORRECTION", fingerprint);
