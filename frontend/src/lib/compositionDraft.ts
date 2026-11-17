@@ -1,3 +1,4 @@
+import { withDraftLock } from './draftLock'
 import { DraftStorageError } from './draftStorageError'
 import { useAuthStore } from '@/stores/authStore'
 import { recordingDrafts, type RecordingDraft } from '@/lib/recordingDrafts'
@@ -94,3 +95,14 @@ useAuthStore.subscribe((next, previous) => {
   }
   activeOwner = undefined
 })
+
+export async function restorePendingComposition(owner: string, operation: string, input: CompositionInput, createdAt: number) {
+  const generation = useAuthStore.getState().sessionGeneration
+  if (input.kind !== 'TEXT' || !/^[0-9a-f-]{36}$/i.test(operation) || !Number.isFinite(createdAt) || Date.now() - createdAt > 7 * 86400000) throw new DraftStorageError('corrupt')
+  await withDraftLock(prefix + owner, () => {
+    if (!useAuthStore.getState().accessToken || generation !== useAuthStore.getState().sessionGeneration) throw new DraftStorageError('conflict')
+    const previous = loadComposition(owner)
+    if (previous && previous.operation !== operation) throw new DraftStorageError('conflict')
+    localStorage.setItem(prefix + owner, JSON.stringify({ owner, operation, input, createdAt, uploaded: false, revocation: revocation(owner) } satisfies CompositionDraft))
+  })
+}

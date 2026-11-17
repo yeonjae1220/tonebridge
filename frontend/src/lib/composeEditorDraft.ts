@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
 import { withDraftLock } from './draftLock'
+import { observeCloudDraft, beforeCloudLocalDelete } from './cloudDraftLocal'
 
 export type EditorValue = {
   kind: 'TEXT' | 'AUDIO'; destination: 'PERSONAL' | 'FRIEND' | 'COMMUNITY'
@@ -15,7 +16,7 @@ const owners = new Set<string>()
 export function bindEditorOwner(owner: string) { owners.add(owner) }
 const marker = (owner: string) => localStorage.getItem(`tonebridge-draft-revoked:${owner}`) ?? ''
 const string = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
-function valid(v: EditorValue) {
+export function validEditor(v: EditorValue) {
   return v && ['TEXT', 'AUDIO'].includes(v.kind) && ['PERSONAL', 'FRIEND', 'COMMUNITY'].includes(v.destination)
     && string(v.selectedFriendId, 100) && string(v.targetLanguage, 50) && (v.targetVariant === null || string(v.targetVariant, 100))
     && string(v.contentText, 10000) && string(v.context, 10000) && Array.isArray(v.selectedGoals)
@@ -28,7 +29,7 @@ function read(owner: string): Row | undefined {
   if (json.length > 150000) throw new DraftStorageError('corrupt')
   const row = JSON.parse(json) as Row
   if (!row || row.version !== 1 || row.owner !== owner || !string(row.revision, 100) || !Number.isFinite(row.updatedAt) || !Number.isFinite(new Date(row.updatedAt).getTime())
-    || (row.value !== null && !valid(row.value))) throw new DraftStorageError('corrupt')
+    || (row.value !== null && !validEditor(row.value))) throw new DraftStorageError('corrupt')
   if (row.revocation !== marker(owner) || Date.now() - row.updatedAt > ttl) return
   return row
 }
@@ -56,7 +57,9 @@ function guard(handle: EditorHandle) {
 // Web Locks serialize compare-and-write across tabs. A stale editor never silently
 // replaces a newer draft, including a tombstone left by submission or discard.
 export async function writeEditor(handle: EditorHandle, value: EditorValue | null, replace = false) {
-  if (value && !valid(value)) throw new DraftStorageError('corrupt')
+  guard(handle)
+  if (value === null) await beforeCloudLocalDelete(handle.owner, 'compose', handle.revision)
+  if (value && !validEditor(value)) throw new DraftStorageError('corrupt')
   return withDraftLock(prefix + handle.owner, () => {
     guard(handle)
     let previous: Row | undefined
@@ -76,6 +79,7 @@ export async function writeEditor(handle: EditorHandle, value: EditorValue | nul
       return
     }
     handle.revision = revision
+    observeCloudDraft(handle.owner, 'compose', 'editor', value, revision, !previous?.value)
   })
 }
 

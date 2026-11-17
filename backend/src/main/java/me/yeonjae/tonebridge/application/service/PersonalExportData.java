@@ -52,6 +52,12 @@ public class PersonalExportData {
         data.put("receivedCorrections",received); checks.put("receivedCorrections",ids(received));
         var feedback=rows("SELECT a.id,a.card_id,a.correction_note,a.score,a.correction_updated_at "+FEEDBACK,owner,budget);
         data.put("receivedPracticeFeedback",feedback); checks.put("receivedPracticeFeedback",ids(feedback));
+        var cloud=rows("SELECT id,kind,scope,version,value,updated_at,expires_at,pending_operation,pending_kind FROM cloud_drafts WHERE owner_id=:owner AND state='ACTIVE' AND expires_at>now()",owner,budget);
+        data.put("cloudDrafts",cloud);checks.put("cloudDrafts",ids(cloud));
+        var revisions=rows("SELECT r.draft_id::text || ':' || r.version::text AS id,r.draft_id,r.version,r.value,r.created_at,r.expires_at FROM cloud_draft_revisions r JOIN cloud_drafts d ON d.owner_id=r.owner_id AND d.id=r.draft_id WHERE r.owner_id=:owner AND d.state='ACTIVE' AND d.expires_at>now() AND r.expires_at>now()",owner,budget);
+        data.put("cloudDraftHistory",revisions);checks.put("cloudDraftHistory",ids(revisions));
+        // Pending operation identity is portable, but its transport payload may contain
+        // raw storage keys. Export only the explicitly allowed editor value above.
         // Ownership is proven by a server-generated upload registration or committed composition receipt.
         data.put("ownedExampleAudio",rows("""
             SELECT n.id,n.card_id,n.created_at,n.audio_key AS _audio FROM card_native_audio n
@@ -86,6 +92,12 @@ public class PersonalExportData {
     @Transactional(readOnly=true)
     public void verify(UUID owner,Map<String,List<String>> checks) {
         if(!Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM users WHERE id=:owner)",Map.of("owner",owner),Boolean.class))) throw new ToneBridgeException(ErrorCode.RESOURCE_NOT_FOUND);
+        verifyIds(owner,checks.getOrDefault("cloudDrafts",List.of()),"SELECT id::text FROM cloud_drafts WHERE owner_id=:owner AND state='ACTIVE' AND expires_at>now() AND id IN (:ids)");
+        var history=checks.getOrDefault("cloudDraftHistory",List.of());
+        if(!history.isEmpty()) {
+            var allowed=new HashSet<>(jdbc.queryForList("SELECT r.draft_id::text || ':' || r.version::text FROM cloud_draft_revisions r JOIN cloud_drafts d ON d.owner_id=r.owner_id AND d.id=r.draft_id WHERE r.owner_id=:owner AND d.state='ACTIVE' AND d.expires_at>now() AND r.expires_at>now() AND (r.draft_id::text || ':' || r.version::text) IN (:ids)",Map.of("owner",owner,"ids",history),String.class));
+            if(!allowed.containsAll(history))throw new ToneBridgeException(ErrorCode.EXPORT_ACCESS_CHANGED);
+        }
         verifyIds(owner,checks.getOrDefault("receivedCorrections",List.of()),"SELECT c.id::text "+RECEIVED+" AND c.id IN (:ids)");
         verifyIds(owner,checks.getOrDefault("receivedPracticeFeedback",List.of()),"SELECT a.id::text "+FEEDBACK+" AND a.id IN (:ids)");
     }
@@ -106,9 +118,13 @@ public class PersonalExportData {
             var meta=rs.getMetaData();
             for(int col=1;col<=meta.getColumnCount();col++) {
                 Object value=rs.getObject(col);
-                if(value instanceof Timestamp timestamp) value=timestamp.toInstant().toString();
+                if(value!=null && Set.of("json","jsonb").contains(meta.getColumnTypeName(col))) {
+                    try { value=JSON.readValue(value.toString(),Object.class); }
+                    catch(java.io.IOException ex) { throw new IllegalStateException("Export JSON decoding failed"); }
+                } else if(value instanceof java.sql.Array array) value=Arrays.asList((Object[])array.getArray());
+                else if(value instanceof Timestamp timestamp) value=timestamp.toInstant().toString();
                 else if(value instanceof UUID) value=value.toString();
-                else if(value!=null && !(value instanceof String || value instanceof Number || value instanceof Boolean)) value=value.toString();
+                else if(value!=null && !(value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof Map || value instanceof List)) value=value.toString();
                 row.put(meta.getColumnLabel(col),value);
             }
             try { budget.bytes+=JSON.writeValueAsBytes(row).length; }

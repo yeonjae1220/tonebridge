@@ -20,6 +20,7 @@ import java.util.UUID;
 public class SubmissionService {
     public record Result(String type, UUID resourceId, UUID parentId) {}
     private final UserBlockService userBlocks;
+    private final CloudDraftService cloudDrafts;
     private final SubmissionPort receipts;
     private final SubmitCorrectionUseCase corrections;
     private final CreateStudyCardUseCase cards;
@@ -39,6 +40,7 @@ public class SubmissionService {
         if (receipt != null) return correction(owner, receipt.resourceId());
         var result = corrections.submit(command);
         receipts.complete(owner, operation, "CORRECTION", fingerprint, result.id());
+        cloudDrafts.completeSubmission(owner,operation,"SUBMISSION");
         return result;
     }
     public StudyCard create(UUID operation, CreateStudyCardUseCase.Command command) {
@@ -50,6 +52,7 @@ public class SubmissionService {
         if (receipt != null) return card(owner, receipt.resourceId());
         var result = cards.create(command);
         receipts.complete(owner, operation, "CARD", fingerprint, result.id());
+        cloudDrafts.completeSubmission(owner,operation,"SUBMISSION");
         return result;
     }
     private SubmissionPort.Receipt matching(UUID owner, UUID operation, String kind, String fingerprint) {
@@ -74,7 +77,8 @@ public class SubmissionService {
                 throw exception;
             }
         }
-        receipts.cancel(owner, operation); // Also blocks a request still on its way to the server.
+        receipts.cancel(owner, operation);
+        cloudDrafts.cancelledSubmission(owner,operation,"SUBMISSION"); // Also blocks a request still on its way to the server.
         return new Result("cancelled", null, null);
     }
     private Result result(UUID owner, SubmissionPort.Receipt receipt) {

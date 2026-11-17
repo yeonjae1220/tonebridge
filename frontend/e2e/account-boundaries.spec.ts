@@ -73,7 +73,8 @@ for (const first of ['login', 'signup'] as const) {
       const beforeReload = reads.length
       await page.reload()
       await expect.poll(() => reads.length).toBeGreaterThan(beforeReload)
-      expect(reads.slice(beforeReload)).toEqual(['new-account'])
+      // The cloud queue verifies identity independently of the UI user cache. Every read must still use only the new account.
+      expect([...new Set(reads.slice(beforeReload))]).toEqual(['new-account'])
       await expect(page).toHaveURL(/\/study$/)
     })
   }

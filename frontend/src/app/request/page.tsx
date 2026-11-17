@@ -10,6 +10,8 @@ import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostic
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { isAxiosError } from 'axios'
+import { prepareCloudSubmission } from '@/lib/cloudDraftSync'
+import { finishCloudSubmission } from '@/lib/cloudDraftLocal'
 import { clearComposition, compositionFile, createComposition, isCompositionSource, loadComposition, markCompositionUploaded, PendingCompositionError, type CompositionDraft } from '@/lib/compositionDraft'
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
@@ -173,6 +175,9 @@ export default function RequestPage() {
         requireSameAccount()
         if (!isAxiosError(error) || error.response?.status !== 404) throw error
       }
+      const cloudReceipt = await recordingRequest(signal => prepareCloudSubmission(draft.owner, 'compose', draft.operation, 'COMPOSITION', draft.input, signal, true))
+      requireSameAccount()
+      if (cloudReceipt) return cloudReceipt as SubmitResult
       if (draft.input.kind === 'AUDIO' && !draft.uploaded) {
         const file = await compositionFile(draft)
         requireSameAccount()
@@ -199,6 +204,7 @@ export default function RequestPage() {
         if (result.type === 'unavailable') setError(t('compose.unavailable'))
         editor.resume(); setEditorRestored(true); setStep(0); return
       }
+      finishCloudSubmission(payload.draft.owner, 'compose', payload.draft.operation)
       if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
       suggestInstall()
       queryClient.invalidateQueries({ queryKey: ['sessions'] })

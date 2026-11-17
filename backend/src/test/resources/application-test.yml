@@ -32,6 +32,10 @@ jwt:
   refresh-token-ttl-minutes: 43200
 
 tonebridge:
+  exports:
+    scheduler-enabled: false
+  cloud-drafts:
+    scheduler-enabled: false
   storage:
     endpoint: http://localhost:9000
     access-key: minioadmin

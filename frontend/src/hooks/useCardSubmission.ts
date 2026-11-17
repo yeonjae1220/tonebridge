@@ -22,6 +22,12 @@ export function useCardSubmission(draft: ReturnType<typeof useRecoveryDraft<Card
       const { sessionId, phrase, context, tags } = draft.value
       const submission = await draft.begin({ sessionId, phrase: phrase.trim(), context: context.trim() || null, tags }, undefined, signal)
       sameAccount()
+      const receipt = await draft.preparePending(submission, signal)
+      sameAccount()
+      if (receipt) {
+        if (receipt.type === 'cancelled' || receipt.type === 'unavailable') { await draft.resumeEditing(signal); return null }
+        return { id: String(receipt.resourceId), sessionId: String(receipt.parentId) }
+      }
       const payload = submission.payload
       const { data } = await api.post(`/sessions/${encodeURIComponent(String(payload.sessionId))}/cards`, {
         phrase: payload.phrase, context: payload.context, tags: payload.tags,

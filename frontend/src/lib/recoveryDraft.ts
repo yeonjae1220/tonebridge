@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import { DraftStorageError } from './draftStorageError'
 import { withDraftLock } from './draftLock'
+import { observeCloudDraft, beforeCloudLocalDelete } from './cloudDraftLocal'
 import { validFeedback, validCardDraft } from './feedbackDraft'
 
 export type PendingSubmission = { operation: string; payload: Record<string, unknown>; recordingId?: string }
@@ -37,6 +38,9 @@ function guard(handle: RecoveryHandle) {
     throw new DraftStorageError('conflict')
 }
 export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue | null, pending: PendingSubmission | null, signal?: AbortSignal) {
+  guard(handle)
+  if (value === null) await beforeCloudLocalDelete(handle.owner, handle.scope, handle.revision)
+  signal?.throwIfAborted()
   return withDraftLock(key(handle.owner, handle.scope), () => {
     guard(handle)
     const row = read(handle.owner, handle.scope)
@@ -47,6 +51,7 @@ export async function writeRecovery(handle: RecoveryHandle, value: RecoveryValue
     if (raw.length > 300000) throw new DraftStorageError('quota')
     localStorage.setItem(key(handle.owner, handle.scope), raw)
     handle.revision = revision
+    if (value) observeCloudDraft(handle.owner, handle.scope, value.kind, value, revision, !row?.value, !!pending)
   }, signal)
 }
 export function recoverySnapshots(owner: string, onError: () => void) {
