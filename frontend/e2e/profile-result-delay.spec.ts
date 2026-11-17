@@ -293,7 +293,12 @@ for (const outcome of ['failure', 'timeout']) test(`review: ${outcome} during lo
   const before = refreshes
   await page.reload(); await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeVisible()
   expect(refreshes).toBe(before)
-  await page.goto('/profile'); await expect(page).toHaveURL(/login\?redirect=%2Fprofile$/)
+  // Assert middleware separately: Next normalizes loopback hosts in redirects,
+  // while real cookie-restoration behavior above must stay on the original origin.
+  const redirect = await page.request.get('/profile', { maxRedirects: 0 })
+  expect(redirect.status()).toBe(307)
+  const target = new URL(redirect.headers().location, page.url())
+  expect(target.pathname).toBe('/login'); expect(target.searchParams.get('redirect')).toBe('/profile')
   expect(refreshes).toBe(before)
 })
 
