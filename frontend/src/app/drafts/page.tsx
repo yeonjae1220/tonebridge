@@ -13,6 +13,7 @@ import { compositionFile, loadComposition, type CompositionDraft } from '@/lib/c
 import { recordingDrafts, type RecordingDraftSnapshot } from '@/lib/recordingDrafts'
 import { DraftExportButton, audioExtension, downloadDraftBlob } from '@/components/recorder/DraftExportButton'
 import { api } from '@/lib/api'
+import { withRequestDeadline } from '@/lib/requestDeadline'
 import type { StudyCard, CorrectionRequest } from '@/types'
 
 type Snapshot = { account: string; editor: ReturnType<typeof editorSnapshot>; pending: CompositionDraft | null; recordings: RecordingDraftSnapshot[]; recovery: ReturnType<typeof recoverySnapshots> }
@@ -21,7 +22,7 @@ function CardLabel({ scope }: { scope: string }) {
   const cardId = scope === 'compose' ? null : scope.split(':')[1]
   const generation = useAuthStore(s => s.sessionGeneration)
   const feedback = scope.startsWith('correction-reference:')
-  const { data, isError } = useQuery<StudyCard & CorrectionRequest>({ queryKey: ['draft-card', generation, scope], queryFn: () => api.get(`${feedback ? '/correction-requests' : '/cards'}/${encodeURIComponent(cardId!)}`).then(r => r.data), enabled: !!cardId, retry: false })
+  const { data, isError } = useQuery<StudyCard & CorrectionRequest>({ queryKey: ['draft-card', generation, scope], queryFn: ({ signal }) => withRequestDeadline(requestSignal => api.get(`${feedback ? '/correction-requests' : '/cards'}/${encodeURIComponent(cardId!)}`, { signal: requestSignal }).then(r => r.data), 15_000, signal), enabled: !!cardId, retry: false })
   if (scope === 'compose') return null
   return <p className="line-clamp-2 break-words text-sm">{isError ? t('drafts.unavailable') : data ? data.phrase || data.contentText || t('common.audio') : t('common.loading')}</p>
 }
@@ -38,6 +39,12 @@ export default function DraftsPage() {
   const sequence = useRef(0)
   const invalidate = useCallback(() => { sequence.current++ }, [])
   const current = useRef(account); current.current = account
+  const mounted = useRef(true)
+  const resumeController = useRef<AbortController | null>(null)
+  useEffect(() => {
+    mounted.current = true; setBusy(false)
+    return () => { mounted.current = false; resumeController.current?.abort() }
+  }, [account])
   const refresh = useCallback(async () => {
     if (!accessToken || !user?.id) return
     const serial = ++sequence.current
@@ -61,20 +68,24 @@ export default function DraftsPage() {
     return () => { invalidate(); window.removeEventListener('storage', update); window.removeEventListener('focus', update); unsubscribe() }
   }, [accessToken, router, refresh, invalidate])
   const run = async (action: () => Promise<void>, failure = 'drafts.changed' as 'drafts.changed' | 'drafts.unavailable') => {
-    if (busy || !accessToken || current.current !== account) return
+    if (busy || !mounted.current || !accessToken || current.current !== account) return
     setBusy(true); setError('')
-    try { await action(); if (current.current === account) await refresh() }
-    catch { if (current.current === account) setError(t(failure)) }
-    finally { if (current.current === account) setBusy(false) }
+    try { await action(); if (mounted.current && current.current === account) await refresh() }
+    catch { if (mounted.current && current.current === account) setError(t(failure)) }
+    finally { if (mounted.current && current.current === account) setBusy(false) }
   }
   const resumeRecording = async (row: RecordingDraftSnapshot) => {
     if (row.scope === 'compose') { router.push('/request'); return }
     if (row.scope.startsWith('correction-reference:')) { router.push(`/correct/${encodeURIComponent(row.scope.split(':')[1])}`); return }
     const cardId = row.scope.split(':')[1]
-    const { data: card } = await api.get<StudyCard>(`/cards/${encodeURIComponent(cardId)}`)
-    if (current.current !== account || !useAuthStore.getState().accessToken) return
-    if (!card?.sessionId || card.deletedAt) throw new Error('Card unavailable')
-    router.push(`/study/${encodeURIComponent(card.sessionId)}/cards/${encodeURIComponent(cardId)}`)
+    const controller = new AbortController()
+    resumeController.current?.abort(); resumeController.current = controller
+    try {
+      const { data: card } = await withRequestDeadline(signal => api.get<StudyCard>(`/cards/${encodeURIComponent(cardId)}`, { signal }), 15_000, controller.signal)
+      if (!mounted.current || controller.signal.aborted || current.current !== account || !useAuthStore.getState().accessToken) return
+      if (!card?.sessionId || card.deletedAt) throw new Error('Card unavailable')
+      router.push(`/study/${encodeURIComponent(card.sessionId)}/cards/${encodeURIComponent(cardId)}`)
+    } finally { if (resumeController.current === controller) resumeController.current = null }
   }
   if (!accessToken) return null
   const visible = snapshot?.account === account ? snapshot : null
@@ -90,7 +101,7 @@ export default function DraftsPage() {
     {!loading && visible && !error && !visible.editor && !visible.pending && visible.recordings.length === 0 && visible.recovery.length === 0 && <div className={box}><p>{t('drafts.empty')}</p><Link href="/request" className={actionClass}>{t('drafts.new')}</Link></div>}
     {visible?.pending && <section className={box} data-testid="pending-draft"><h2 className="font-bold">{t('drafts.pending')}</h2><p className="text-sm text-gray-600">{t('drafts.pendingHelp')}</p><p className="text-xs">{t('drafts.updated')}: {timestamp(visible.pending.createdAt)}</p><div className="flex flex-wrap gap-3"><Link href="/request" className={actionClass}>{t('drafts.continue')}</Link>
       <DraftExportButton value={{ ...visible.pending.input, selectedFriendId: visible.pending.input.friendId ?? '', selectedGoals: visible.pending.input.goals, sourceCardId: null, step: 2 }} />
-      {visible.pending.input.kind === 'AUDIO' && <button type="button" className={actionClass} disabled={busy} onClick={() => void run(async () => { const file = await compositionFile(visible.pending!); if (current.current === account) downloadDraftBlob(file, `tonebridge-recording.${audioExtension(file.type)}`) })}>{t('recording.download')}</button>}
+      {visible.pending.input.kind === 'AUDIO' && <button type="button" className={actionClass} disabled={busy} onClick={() => void run(async () => { const file = await compositionFile(visible.pending!); if (mounted.current && current.current === account) downloadDraftBlob(file, `tonebridge-recording.${audioExtension(file.type)}`) })}>{t('recording.download')}</button>}
       </div></section>}
     {visible?.editor && <section className={box} data-testid="managed-editor"><h2 className="font-bold">{t('drafts.editor')}</h2>
       <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm">{visible.editor.value.contentText || visible.editor.value.context || t('drafts.editor')}</p>
