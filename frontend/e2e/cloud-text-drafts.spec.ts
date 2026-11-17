@@ -124,6 +124,7 @@ test('enabling never uploads an unselected existing draft, while a new draft syn
   await page.goto('/request');await page.locator('textarea').first().fill('Still local after editing')
   await page.waitForTimeout(1300);expect(state.writes).toHaveLength(0)
   await page.goto('/drafts');page.once('dialog', dialog => dialog.accept());await page.getByTestId('managed-editor').getByRole('button', { name: /Discard/ }).click()
+  await expect(page.getByTestId('managed-editor')).toHaveCount(0)
   await page.goto('/request');await page.locator('textarea').first().fill('A new synced draft')
   await expect.poll(() => [...state.rows.values()][0]?.value?.contentText).toBe('A new synced draft')
 })

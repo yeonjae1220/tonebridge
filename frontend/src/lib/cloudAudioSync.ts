@@ -11,14 +11,16 @@ import { captureCloudAccount, readCloudSettings, readCloudDraft, readCloudOperat
 type Asset = { id: string; state: string; byteSize: number; contentType: string; sha256: string; expiresAt?: string }
 const root = '/users/me/draft-audio/'
 export async function audioDigest(blob: Blob) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(v => v.toString(16).padStart(2, '0')).join('') }
-export async function selectCloudRecording(owner: string, source: RecordingDraftSnapshot, settings: CloudSettings) {
+export async function selectCloudRecording(owner: string, source: RecordingDraftSnapshot, settings: CloudSettings, asCopy = false) {
   const account = captureCloudAccount(owner), scope = 'audio:' + source.scope
   if (!settings.enabled || !settings.audioEnabled || !settings.epoch || source.draft.interrupted || source.draft.blob.size > 50 * 1024 * 1024) throw new DraftStorageError('unavailable')
   const sha256 = await audioDigest(source.draft.blob); account.check()
   const fresh = (await recordingDrafts.list(owner)).find(row => row.scope === source.scope)
   if (fresh?.id !== source.id || fresh.updatedAt !== source.updatedAt) throw new DraftStorageError('conflict')
-  const rows = cloudBindings(owner), previous = rows[scope]
-  if (previous?.pendingLocal || previous?.request || previous?.error === 'conflict' || previous?.epoch !== undefined && previous.epoch !== settings.epoch) throw new DraftStorageError('conflict')
+  const rows = cloudBindings(owner)
+  if (asCopy && rows[scope]?.pendingLocal) throw new DraftStorageError('conflict')
+  const previous = asCopy ? undefined : rows[scope]
+  if (previous?.pendingLocal || previous?.request || previous?.epoch !== undefined && previous.epoch !== settings.epoch) throw new DraftStorageError('conflict')
   const asset = previous?.audio?.sha256 === sha256 ? previous.audio : { sourceId: source.id, sourceUpdatedAt: source.updatedAt, assetId: crypto.randomUUID(), sha256, byteSize: source.draft.blob.size, contentType: source.draft.blob.type.split(';')[0], ready: false }
   const value: Record<string, unknown> = { assetId: asset.assetId, duration: source.draft.duration }
   const editor = source.scope === 'compose' ? editorSnapshot(owner)?.value : null
@@ -26,8 +28,8 @@ export async function selectCloudRecording(owner: string, source: RecordingDraft
   const feedback = source.scope.startsWith('correction-reference:') ? openRecovery(owner, 'feedback:' + source.scope.split(':')[1]).row?.value : null
   if (feedback) value.feedback = feedback
   rows[scope] = { id: previous?.id ?? crypto.randomUUID(), epoch: settings.epoch, version: previous?.version ?? 0, kind: 'recording', scope, value,
-    localRevision: source.id, updatedAt: source.updatedAt, synced: previous?.synced ?? null, dirty: canonical(value) !== previous?.synced, pendingLocal: false,
-    request: null, error: null, audio: { ...asset, sourceId: source.id, sourceUpdatedAt: source.updatedAt } }
+    localRevision: source.id, updatedAt: asCopy ? Date.now() : source.updatedAt, synced: previous?.synced ?? null, dirty: canonical(value) !== previous?.synced, pendingLocal: false,
+    request: null, error: previous?.error === 'conflict' ? 'conflict' : null, audio: { ...asset, sourceId: source.id, sourceUpdatedAt: source.updatedAt } }
   account.check(); saveCloudBindings(owner, rows)
 }
 export async function uploadCloudRecording(owner: string, scope: string) {
@@ -87,6 +89,19 @@ export async function retryCloudRecording(owner: string, scope: string) {
   return uploadCloudRecording(owner, scope)
 }
 export async function syncCloudRecordings(owner: string, retry = false) {
+  if (!Object.values(cloudBindings(owner)).some(row => row.kind === 'recording')) return
+  const settings = await readCloudSettings(owner)
+  if (settings.enabled && settings.audioEnabled) {
+    const sources = await recordingDrafts.list(owner)
+    for (const before of Object.values(cloudBindings(owner))) if (before.kind === 'recording' && !before.pendingLocal) {
+      const source = sources.find(item => 'audio:' + item.scope === before.scope && !item.draft.interrupted)
+      if (!source || source.id === before.audio?.sourceId) continue
+      // Settle the immutable old write before linking newer local bytes to its draft.
+      if (before.request) { try { await synchronizeCloudDraft(owner, before.scope, true) } catch { captureCloudAccount(owner).check() } }
+      if (cloudBindings(owner)[before.scope]?.request) continue
+      try { await selectCloudRecording(owner, source, settings) } catch { captureCloudAccount(owner).check() }
+    }
+  }
   for (const row of Object.values(cloudBindings(owner))) if (row.kind === 'recording' && !row.pendingLocal && (!row.error || retry && ['network', 'rate', 'conflict'].includes(row.error))) {
     try { if (retry) await retryCloudRecording(owner, row.scope); else await uploadCloudRecording(owner, row.scope) } catch { captureCloudAccount(owner).check() }
   }

@@ -3,7 +3,7 @@
 import { CloudAudioPanel, CloudAudioPlayer, useAudioMessages } from '@/components/recorder/CloudAudioPanel'
 import { recordingDrafts } from '@/lib/recordingDrafts'
 import { restoreCloudAudioOnDevice } from '@/lib/cloudAudioRestore'
-import { syncCloudRecordings } from '@/lib/cloudAudioSync'
+import { syncCloudRecordings, selectCloudRecording, uploadCloudRecording } from '@/lib/cloudAudioSync'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -168,6 +168,14 @@ function CloudDraftContent() {
   })
   const resolve = (row: CloudBinding, copy: boolean) => {
     if (!settings?.epoch || !settings.enabled || pending) return
+    if (copy && row.kind === 'recording') {
+      void run(async () => {
+        const source = (await recordingDrafts.list(me!.id)).find(item => 'audio:' + item.scope === row.scope && item.id === row.localRevision)
+        if (!source) throw new DraftStorageError('conflict')
+        const fresh = await readCloudSettings(me!.id)
+        await selectCloudRecording(me!.id, source, fresh, true); await uploadCloudRecording(me!.id, row.scope); await refresh()
+      }); return
+    }
     const latest = remote?.find(item => item.id === row.id)
     if (!copy && (!latest || latest.pendingOperation)) return
     action({ kind: 'write', id: copy ? crypto.randomUUID() : row.id, sourceId: row.id, createdAt: Date.now(), body: {
@@ -208,7 +216,7 @@ function CloudDraftContent() {
         <p>{t(row.error === 'expired' ? 'cloud.localExpired' : row.error === 'conflict' ? 'cloud.conflict' : row.error === 'limit' ? 'cloud.limit' : row.error === 'rate' ? 'cloud.rate' : row.error ? 'cloud.network' : row.pendingLocal ? 'cloud.pending' : row.dirty || row.request ? 'cloud.waiting' : 'cloud.synced')}</p>
         <div className="flex flex-wrap gap-2"><button className={button} disabled={row.error === 'expired'} onClick={() => { if (row.kind === 'recording') void run(async () => { const source = (await recordingDrafts.list(me!.id)).find(item => item.scope === row.scope.slice(6) && item.id === row.localRevision); if (!source) throw new DraftStorageError('conflict'); downloadDraftBlob(source.draft.blob, 'tonebridge-recording.' + (source.draft.blob.type === 'audio/mp4' ? 'm4a' : source.draft.blob.type.split('/')[1])) }); else downloadDraftBlob(new Blob([JSON.stringify(row.value, null, 2)], { type: 'application/json' }), 'tonebridge-local-draft.json') }}>{row.kind === 'recording' ? audioMessages[6] : t('cloud.localDownload')}</button>
           {(row.error === 'network' || row.error === 'rate' || row.kind === 'recording' && row.error === 'conflict' && !row.pendingLocal) && <button className={button} disabled={disabled} onClick={() => void run(async () => { await syncCloudRecordings(me!.id, true); await synchronizeAllCloudDrafts(me!.id, true) })}>{t('cloud.retry')}</button>}
-          {row.error === 'conflict' && <><button className={button} disabled={disabled || !settings?.enabled || !remote?.some(item => item.id === row.id && !item.pendingOperation)} onClick={() => resolve(row, false)}>{t(row.kind === 'recording' ? 'recording.keepCloud' : 'cloud.keepMine')}</button><button className={button} disabled={disabled || !settings?.enabled || row.pendingLocal || (row.kind === 'recording' && !row.audio?.ready)} onClick={() => resolve(row, true)}>{t(row.kind === 'recording' ? 'recording.copyCloud' : 'cloud.copy')}</button></>}
+          {row.error === 'conflict' && <><button className={button} disabled={disabled || !settings?.enabled || row.kind === 'recording' && !row.audio?.ready || !remote?.some(item => item.id === row.id && !item.pendingOperation)} onClick={() => resolve(row, false)}>{t(row.kind === 'recording' ? 'recording.keepCloud' : 'cloud.keepMine')}</button><button className={button} disabled={disabled || !settings?.enabled || row.pendingLocal || (row.kind === 'recording' && !settings.audioEnabled)} onClick={() => resolve(row, true)}>{t(row.kind === 'recording' ? 'recording.copyCloud' : 'cloud.copy')}</button></>}
         </div></article>)}
     </section>
     <section className="space-y-3"><h2 className="text-lg font-bold">{t('cloud.remote')}</h2>

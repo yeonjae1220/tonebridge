@@ -121,9 +121,9 @@ async function routes(context: BrowserContext, state: ReturnType<typeof server>)
     return route.fallback()
   })
 }
-async function seedAudio(page: Page, interrupted = false) {
+async function seedAudio(page: Page, interrupted = false, changed = false) {
   await page.goto('/drafts/cloud');await expect(page.getByTestId('cloud-audio-panel')).toBeVisible()
-  const id = randomUUID(), bytes = [...wave()]
+  const id = randomUUID(), bytes = [...wave()];if (changed) bytes[60] ^= 1
   await page.evaluate(async ({ id, bytes, interrupted }) => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open('tonebridge-recording-drafts', 1)
@@ -282,4 +282,31 @@ test('an uploaded orphan that expires before draft linking can recover from loca
   await page.getByRole('button', { name: 'Retry cloud sync', exact: true }).click();await expect.poll(() => state.rows.size).toBe(1)
   expect([...state.rows.values()][0].value?.assetId).not.toBe(orphan.id);expect(state.puts).toBe(2)
   await expect(page.getByTestId('cloud-local-binding')).toContainText('Synced')
+})
+
+test('after a remote conflict a newer local recording is used by explicit keep-mine without overwriting automatically', async ({ page, context }) => {
+  const state = server();await routes(context, state);await selected(page, state)
+  const old = [...state.rows.values()][0], originalAsset = old.value!.assetId
+  save(state, old.id, { operationId: randomUUID(), kind: old.kind, scope: old.scope, value: { ...old.value, duration: 2 } })
+  await page.reload();await expect(page.getByTestId('cloud-local-binding')).toContainText('cloud version changed')
+  await seedAudio(page, false, true)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tonebridge-cloud-bindings:owner')!)['audio:compose'].audio.ready)).toBe(false)
+  expect(state.puts).toBe(1);expect(state.rows.get(old.id)?.value?.duration).toBe(2)
+  await page.getByRole('button', { name: 'Retry cloud sync', exact: true }).click();await expect.poll(() => state.puts).toBe(2)
+  expect(state.rows.get(old.id)?.value?.duration).toBe(2)
+  await page.getByRole('button', { name: 'Replace cloud version with my recording', exact: true }).click()
+  await expect.poll(() => state.rows.get(old.id)?.value?.assetId).not.toBe(originalAsset)
+  expect(state.rows.get(old.id)?.value?.duration).toBe(1)
+})
+
+test('explicit separate copy after cloud erasure uploads a new asset under the new consent epoch', async ({ page, context }) => {
+  const state = server();await routes(context, state);await selected(page, state)
+  const old = [...state.rows.values()][0], oldAsset = old.value!.assetId
+  old.state = 'DELETED';old.value = null;old.version++;state.settings.epoch = randomUUID();state.settings.version++
+  for (const asset of state.assets.values()) asset.state = 'DELETED'
+  await page.reload();await expect(page.getByTestId('cloud-local-binding')).toContainText('cloud version changed')
+  await page.getByRole('button', { name: 'Save my recording as a separate cloud draft', exact: true }).click()
+  await expect.poll(() => [...state.rows.values()].filter(row => row.state === 'ACTIVE').length).toBe(1)
+  const copied = [...state.rows.values()].find(row => row.state === 'ACTIVE')!
+  expect(copied.id).not.toBe(old.id);expect(copied.value?.assetId).not.toBe(oldAsset);expect(old.state).toBe('DELETED');expect(state.puts).toBe(2)
 })
