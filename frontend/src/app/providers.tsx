@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { tryRestoreSession } from '@/lib/api'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import type { UiLanguage } from '@/i18n/messages'
+import { messages, DEFAULT_UI_LANGUAGE, type UiLanguage } from '@/i18n/messages'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ErrorToast } from '@/components/ui/ErrorToast'
 import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiError'
@@ -67,7 +67,9 @@ export function Providers({
             {children}
             <ErrorToast />
           </I18nProvider>
-        ) : null}
+        ) : <main className="min-h-screen flex items-center justify-center p-4">
+          <p role="status" className="text-sm text-gray-500">{messages[initialLanguage ?? DEFAULT_UI_LANGUAGE]['common.loading']}</p>
+        </main>}
       </QueryClientProvider>
     </ThemeProvider></PWAProvider>
   )

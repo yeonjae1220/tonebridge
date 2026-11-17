@@ -19,7 +19,7 @@ async function app(page: Page) {
   const attempt = { id: 'attempt-1', cardId: 'card-1', learnerId: 'me', audioUrl: 'practice.webm', correctionNote: '첫 음절을 조금 길게 말해보세요.', score: null, attemptedAt: '2026-10-29T01:00:00Z' }
   const state = {
     card: { id: 'card-1', sessionId: 'shared', createdByUserId: 'me', phrase: 'こんにちは', context: '친구와 인사할 때', tags: [], note: 'private note', position: 0, createdAt: session.createdAt, latestAttempt: attempt },
-    fail: new Set<string>(), empty: false, guest: false,
+    fail: new Set<string>(), empty: false, guest: false, onboarded: true,
     writes: [] as { path: string; body: Record<string, unknown> }[],
     audioKeys: [] as string[],
   }
@@ -34,12 +34,13 @@ async function app(page: Page) {
       state.writes.push({ path, body })
       if (path === '/api/cards/card-1') state.card = { ...state.card, ...body }
       if (path === '/api/sessions') return ok(session)
+      if (path === '/api/users/me/onboarding') { state.onboarded = true; return ok({ id: 'me', username: 'learner', ...body, onboardingCompleted: true }) }
       if (path.startsWith('/api/compositions/')) return ok({ type: 'community', requestId: 'composed' })
       return ok({ ...state.card, ...body })
     }
     if (path.startsWith('/api/compositions/')) return route.fulfill({ status: 404, json: {} })
     if (path === '/api/practice-feedback') return ok({ items: state.empty ? [] : [{ ...attempt, attemptId: attempt.id, sessionId: session.id, sessionTitle: session.title, phrase: state.card.phrase, correctionAuthorId: null, correctionAuthorName: null, correctionUpdatedAt: null }], nextPage: null })
-    if (path === '/api/users/me') return ok({ id: 'me', username: 'learner', uiLanguage: 'ko', nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'], onboardingCompleted: true, credits: 0 })
+    if (path === '/api/users/me') return ok({ id: 'me', username: 'learner', uiLanguage: 'ko', nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'], onboardingCompleted: state.onboarded, credits: 0 })
     if (path === '/api/sessions') return ok(state.empty ? [] : [session])
     if (path === '/api/sessions/shared') return ok(session)
     if (path === '/api/sessions/shared/cards') return ok([state.card])
@@ -205,6 +206,7 @@ for (const theme of ['light', 'dark']) {
 
 test('two-step onboarding supports back, retains language choices, and optional fields stay optional', async ({ page }) => {
   const state = await app(page)
+  state.onboarded = false
   await page.goto('/onboarding')
   await page.getByRole('button', { name: /한국어/ }).click()
   await page.getByRole('button', { name: '다음', exact: true }).click()

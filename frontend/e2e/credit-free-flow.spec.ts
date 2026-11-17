@@ -19,7 +19,10 @@ async function mockApp(page: Page, loggedIn = true, onboarded = true, partnerUse
     }
     if (req.method() !== 'GET') {
       state.writes.push({ path, body: req.postDataJSON() ?? {} })
-      if (path === '/api/users/me/onboarding') state.onboarded = true
+      if (path === '/api/users/me/onboarding') {
+        state.onboarded = true
+        return route.fulfill({ json: { id: 'me', username: 'learner', ...req.postDataJSON(), onboardingCompleted: true } })
+      }
       return route.fulfill({ status: 200, json: {} })
     }
     if (path === '/api/practice-feedback') return route.fulfill({ json: { items: [], nextPage: null } })

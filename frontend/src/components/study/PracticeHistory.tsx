@@ -6,29 +6,30 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate } from '@/lib/dateUtils'
 import { QueryError } from '@/components/ui/QueryError'
 import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
+import { WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { StudyScore } from './StudyScore'
 
 type FeedbackPayload = { attemptId: string; correctionNote: string; score: number | null }
 
-function FeedbackEditor({ attempt, onSave }: { attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown> }) {
+function FeedbackEditor({ attempt, onSave, onRetry }: { onRetry: () => void; attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown> }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState(attempt.correctionNote ?? '')
   const [score, setScore] = useState<number | null>(attempt.score ?? null)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (!note.trim() || pending) return
-    setPending(true); setError(false)
+    setPending(true); setError(null)
     try {
       await onSave({ attemptId: attempt.id, correctionNote: note.trim(), score })
       setOpen(false)
-    } catch { setError(true) } finally { setPending(false) }
+    } catch (error) { setError(t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'study.cardDetail.feedbackSaveFailed')) } finally { setPending(false) }
   }
   return <div className="mt-3">
     {!open ? <button type="button" className="min-h-11 text-sm font-semibold text-blue-600"
-      onClick={() => { setNote(attempt.correctionNote ?? ''); setScore(attempt.score ?? null); setError(false); setOpen(true) }}>
+      onClick={() => { setNote(attempt.correctionNote ?? ''); setScore(attempt.score ?? null); setError(null); setOpen(true) }}>
       {t(attempt.correctionNote ? 'history.edit' : 'history.write')}
     </button> : <form onSubmit={save} className="space-y-3">
       <textarea aria-label={t('study.cardDetail.notePlaceholder')} placeholder={t('study.cardDetail.notePlaceholder')} value={note}
@@ -48,7 +49,8 @@ function FeedbackEditor({ attempt, onSave }: { attempt: LearnerAttempt; onSave: 
         <button type="button" disabled={pending} onClick={() => setOpen(false)}
           className="min-h-11 rounded-xl border border-gray-200 px-4 text-sm">{t('common.cancel')}</button>
       </div>
-      {error && <p role="alert" className="text-sm text-red-600">{t('study.cardDetail.feedbackSaveFailed')}</p>}
+      {error && <div role="alert" className="text-sm text-red-600"><p>{error}</p>
+        <button type="button" onClick={onRetry} disabled={pending} className="mt-2 underline">{t('access.refresh')}</button></div>}
     </form>}
   </div>
 }
@@ -90,7 +92,8 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
         {t(`history.${value}`)}
       </button>)}
     </div>
-    {failed ? <QueryError onRetry={onRetry} /> : loading ? <p role="status">{t('common.loading')}</p> : <>
+    {failed && <QueryError onRetry={onRetry} />}
+    {failed && attempts.length === 0 ? null : loading ? <p role="status">{t('common.loading')}</p> : <>
       {target && targetIndex < 0 && <p role="status" className="mb-3 text-sm text-gray-600">{t('history.missing')}</p>}
       {filtered.length === 0 ? <p className="text-sm text-gray-500">{t('study.cardDetail.noAttempts')}</p> :
         <div className="space-y-3">{filtered.slice(0, visibleCount).map(attempt =>
@@ -116,7 +119,7 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
               onClick={onPractice} className="mt-3 min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">
               {t('study.retryWithFeedback')}
             </button>}
-            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} />}
+            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} onRetry={onRetry} />}
           </article>
         )}</div>}
       {filtered.length > visibleCount && <button type="button" onClick={() => setCount(visibleCount + 5)}

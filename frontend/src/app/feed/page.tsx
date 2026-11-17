@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
+import { updateConfirmedQuery } from '@/lib/confirmedWriteCache'
 import { CorrectionFeedPage, CorrectionRequest, LanguageVariant } from '@/types'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ALL_LANG_LABELS } from '@/constants/languages'
@@ -58,12 +59,19 @@ function GuestBanner() {
 }
 
 export default function FeedPage() {
+  const generation = useAuthStore(s => s.sessionGeneration)
+  return <FeedDetail key={generation} />
+}
+
+function FeedDetail() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { accessToken } = useAuthStore()
   const { t } = useI18n()
   const isGuest = !accessToken
   const [tab, setTab] = useState<FeedTab>('help')
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [editingRequest, setEditingRequest] = useState<CorrectionRequest | null>(null)
 
   const { data: currentUser } = useCurrentUser()
@@ -107,21 +115,42 @@ export default function FeedPage() {
     enabled: !isGuest,
   })
 
+  const confirmRequest = (id: string, saved?: CorrectionRequest) => {
+    const update = (requests: CorrectionRequest[]) => saved
+      ? requests.map(request => request.id === id ? saved : request)
+      : requests.filter(request => request.id !== id)
+    // An edit completed after leaving may be older than a save on the new screen.
+    if (!saved || mounted.current) {
+      updateConfirmedQuery<CorrectionRequest[]>(queryClient, ['my-requests'], current => current && update(current))
+      updateConfirmedQuery<InfiniteData<CorrectionFeedPage>>(queryClient, ['correction-feed-page'], current => current && {
+        ...current, pages: current.pages.map(page => ({ ...page, items: update(page.items) })),
+      })
+    }
+    void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+    void queryClient.invalidateQueries({ queryKey: ['correction-feed-page'] })
+    void queryClient.invalidateQueries({ queryKey: ['correction-request', id] })
+  }
+
   const updateRequestMutation = useMutation({
-    mutationFn: (payload: CorrectionRequest) => withWriteDeadline(signal => api.patch(`/correction-requests/${payload.id}`, {
+    mutationFn: (payload: CorrectionRequest) => withWriteDeadline(signal => api.patch<CorrectionRequest>(`/correction-requests/${payload.id}`, {
       targetLanguage: payload.targetLanguage,
       targetVariant: payload.targetVariant,
       contentText: payload.type === 'TEXT' ? payload.contentText : null,
       context: payload.context,
       feedbackGoals: payload.feedbackGoals,
     }, { signal })),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['my-requests'] }) },
+    onSuccess: ({ data }, payload) => confirmRequest(payload.id, data),
     onError: () => {}, // The dialog keeps the error beside the retained input.
   })
 
   const deleteRequestMutation = useMutation({
-    mutationFn: (requestId: string) => api.delete(`/correction-requests/${requestId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-requests'] }),
+    mutationFn: (requestId: string) => withWriteDeadline(signal => api.delete(`/correction-requests/${requestId}`, { signal })),
+    onSuccess: (_data, id) => {
+      confirmRequest(id)
+      queryClient.removeQueries({ queryKey: ['correction-request', id], exact: true })
+      queryClient.removeQueries({ queryKey: ['corrections', id], exact: true })
+    },
+    onError: () => {}, // Keep recovery beside the list, without replaying the delete.
   })
 
   const correctorVariants = new Set<string>([
@@ -138,6 +167,7 @@ export default function FeedPage() {
   }
 
   const handleDelete = (requestId: string) => {
+    if (deleteRequestMutation.isPending || updateRequestMutation.isPending) return
     if (window.confirm(t('request.deleteConfirm'))) {
       deleteRequestMutation.mutate(requestId)
     }
@@ -153,6 +183,10 @@ export default function FeedPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8">
+        {deleteRequestMutation.isError && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <p>{t(deleteRequestMutation.error instanceof WriteOutcomeUnknownError ? 'common.actionUncertain' : 'error.unexpected')}</p>
+          <button type="button" onClick={() => { void myRequestsQuery.refetch(); void feedQuery.refetch() }} className="mt-2 underline">{t('access.refresh')}</button>
+        </div>}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('feed.title')}</h1>
@@ -242,8 +276,9 @@ export default function FeedPage() {
             variantLabel={variantLabel}
             onCardClick={(req) => router.push(`/result/${req.id}`)}
             mine
-            onEdit={(req) => { updateRequestMutation.reset(); setEditingRequest(req) }}
+            onEdit={(req) => { deleteRequestMutation.reset(); updateRequestMutation.reset(); setEditingRequest(req) }}
             onDelete={handleDelete}
+            writePending={deleteRequestMutation.isPending || updateRequestMutation.isPending}
           />
         ) : (
           <RequestList
@@ -328,7 +363,9 @@ function RequestList({
   completed = false,
   onEdit,
   onDelete,
+  writePending = false,
 }: {
+  writePending?: boolean
   requests?: CorrectionRequest[]
   isLoading: boolean
   emptyMessage: string
@@ -377,6 +414,7 @@ function RequestList({
             onEdit={req.status === 'PENDING' ? () => onEdit?.(req) : undefined}
             onDelete={req.status === 'PENDING' ? () => onDelete?.(req.id) : undefined}
             t={t}
+            writePending={writePending}
           />
         )
       })}
@@ -393,8 +431,10 @@ function RequestCard({
   completed,
   onEdit,
   onDelete,
+  writePending,
   t,
 }: {
+  writePending: boolean
   request: CorrectionRequest
   isDialectMatch: boolean
   variantLabel: (code: string) => string
@@ -487,6 +527,7 @@ function RequestCard({
           {onEdit && (
             <button
               type="button"
+              disabled={writePending}
               onClick={(event) => {
                 event.stopPropagation()
                 onEdit()
@@ -499,6 +540,7 @@ function RequestCard({
           {onDelete && (
             <button
               type="button"
+              disabled={writePending}
               onClick={(event) => {
                 event.stopPropagation()
                 onDelete()

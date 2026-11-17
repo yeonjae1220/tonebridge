@@ -4,6 +4,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { recordingDrafts } from '@/lib/recordingDrafts'
 import { withWriteDeadline } from '@/lib/writeDeadline'
+import { withRequestDeadline } from '@/lib/requestDeadline'
 
 // _retry 필드를 Axios 타입에 병합 — AxiosRequestConfig에 없는 필드를 안전하게 사용
 declare module 'axios' {
@@ -67,9 +68,9 @@ function refreshAccessToken(generation: number): Promise<string> {
   if (refreshFlight?.generation === generation) return refreshFlight.promise
   const controller = new AbortController()
   const flight: RefreshFlight = { generation, controller, promise: Promise.resolve('') }
-  flight.promise = axios.post<{ accessToken: string }>('/api/auth/refresh', null, {
-    withCredentials: true, signal: controller.signal,
-  }).then(({ data }) => {
+  flight.promise = withRequestDeadline(signal => axios.post<{ accessToken: string }>('/api/auth/refresh', null, {
+    withCredentials: true, signal,
+  }), 15_000, controller.signal).then(({ data }) => {
     requireRestorableSession()
     requireSession(generation)
     useAuthStore.getState().setAccessToken(data.accessToken)
@@ -139,9 +140,9 @@ async function authenticate(path: string, payload: Record<string, string>, signa
     // Cookie deletion must finish before a new login/register response sets its cookie.
     await logoutFlight
     requireCurrentAttempt()
-    const { data } = await axios.post<{ accessToken: string }>(path, payload, {
-      withCredentials: true, signal: controller.signal,
-    })
+    const { data } = await withRequestDeadline(signal => axios.post<{ accessToken: string }>(path, payload, {
+      withCredentials: true, signal,
+    }), 30_000, controller.signal)
     requireCurrentAttempt()
     authenticationAttempt = null
     setLocalSignout(false)
