@@ -31,6 +31,7 @@ public class MinioStorageAdapter implements StoragePort {
 
     @Override
     public PresignedUpload presignUploadKey(String audioKey, String contentType, Duration expiry) {
+        requireAudioKey(audioKey);
         String bucket = properties.getStorage().getBucket();
 
         PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -51,6 +52,7 @@ public class MinioStorageAdapter implements StoragePort {
 
     @Override
     public boolean hasValidAudio(String audioKey, String contentType) {
+        requireAudioKey(audioKey);
         try {
             var metadata = s3Client.headObject(request -> request.bucket(properties.getStorage().getBucket())
                     .key(audioKey).overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(10))));
@@ -64,6 +66,7 @@ public class MinioStorageAdapter implements StoragePort {
 
     @Override
     public String generatePresignedDownloadUrl(String audioKey, Duration expiry) {
+        requireAudioKey(audioKey);
         String bucket = properties.getStorage().getBucket();
 
         GetObjectRequest getRequest = GetObjectRequest.builder()
@@ -81,10 +84,19 @@ public class MinioStorageAdapter implements StoragePort {
 
     @Override
     public void deleteObject(String audioKey) {
+        requireAudioKey(audioKey);
         s3Client.deleteObject(DeleteObjectRequest.builder()
                 .bucket(properties.getStorage().getBucket())
                 .key(audioKey)
                 .build());
+    }
+
+    // All legacy card/attempt routes share this boundary. Private exports must never
+    // become public signed URLs or be deleted through a caller-supplied audio key.
+    private static void requireAudioKey(String key) {
+        if (key == null || !key.matches("^audio/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[a-zA-Z0-9._-]+$"))
+            throw new me.yeonjae.tonebridge.shared.exception.ToneBridgeException(
+                    me.yeonjae.tonebridge.shared.exception.ErrorCode.INVALID_AUDIO_KEY);
     }
 
     private static String sanitize(String fileName) {

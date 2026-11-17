@@ -178,6 +178,20 @@ class PersonalExportIntegrationTest extends PostgresIntegrationTest {
         jdbc.update("UPDATE corrections SET deleted_at=now() WHERE id=?",correction);
         mvc.perform(get(path(operation)+"/download").with(as(owner))).andExpect(status().isConflict());
     }
+    @Test void everyLegacyStorageOperationRejectsThePrivateArchiveNamespace() throws Exception {
+        create(owner,operation,false,202);worker.processOne();
+        var storage=context.getBean(me.yeonjae.tonebridge.application.port.out.StoragePort.class);
+        String key=PersonalExportWorker.key(operation);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> storage.generatePresignedDownloadUrl(key,java.time.Duration.ofMinutes(15))).isInstanceOf(me.yeonjae.tonebridge.shared.exception.ToneBridgeException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> storage.presignUploadKey(key,"audio/webm",java.time.Duration.ofMinutes(15))).isInstanceOf(me.yeonjae.tonebridge.shared.exception.ToneBridgeException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> storage.hasValidAudio(key,"application/zip")).isInstanceOf(me.yeonjae.tonebridge.shared.exception.ToneBridgeException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> storage.deleteObject(key)).isInstanceOf(me.yeonjae.tonebridge.shared.exception.ToneBridgeException.class);
+        assertThat(s3.headObject(b -> b.bucket("export-tests").key(key)).contentLength()).isPositive();
+        // Normal audio keys still receive valid signatures and may be deleted.
+        assertThat(storage.presignUploadKey(audioKey,"audio/webm",java.time.Duration.ofMinutes(15)).uploadUrl()).contains("X-Amz-Signature");
+        assertThat(storage.generatePresignedDownloadUrl(audioKey,java.time.Duration.ofMinutes(15))).contains("X-Amz-Signature");
+        storage.deleteObject(audioKey);
+    }
     private String create(UUID who,UUID id,boolean audio,int expected) throws Exception {
         return mvc.perform(post("/api/users/me/exports").with(as(who)).contentType(MediaType.APPLICATION_JSON).content("{\"operationId\":\""+id+"\",\"includeAudio\":"+audio+"}"))
                 .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString();
