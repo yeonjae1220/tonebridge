@@ -1,5 +1,9 @@
 'use client'
 
+import { CloudAudioPanel, CloudAudioPlayer, useAudioMessages } from '@/components/recorder/CloudAudioPanel'
+import { recordingDrafts } from '@/lib/recordingDrafts'
+import { restoreCloudAudioOnDevice } from '@/lib/cloudAudioRestore'
+import { syncCloudRecordings, selectCloudRecording, uploadCloudRecording } from '@/lib/cloudAudioSync'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -16,12 +20,13 @@ import { DraftStorageError } from '@/lib/draftStorageError'
 import { downloadDraftBlob } from '@/components/recorder/DraftExportButton'
 import { cloudBindings, onCloudChange, selectCloudDraft, canonical, saveCloudBindings, cacheCloudSettings, eraseLocalCloudMetadata,
   type CloudSettings, type CloudBinding, type CloudKind, type CloudValue, type CloudWrite } from '@/lib/cloudDraftLocal'
-import { cloudSessionReady, readCloudSettings, setCloudSettings, readCloudOperation, listCloudDrafts, readCloudDraft, readCloudHistory,
+import { cloudSessionReady, readCloudSettings, setCloudSettings, setCloudAudioSettings, readCloudOperation, listCloudDrafts, readCloudDraft, readCloudHistory,
   restoreCloudRevision, deleteRemoteDraft, writeCloudCopy, synchronizeAllCloudDrafts, type RemoteDraft, type CloudRevision } from '@/lib/cloudDraftSync'
 import { restoreCloudOnDevice, cloudDraftRoute, cloudLocalRevision } from '@/lib/cloudDraftRestore'
 
 type LocalDraft = { scope: string; kind: CloudKind; value: CloudValue; revision: string; updatedAt: number }
 type Action = { kind: 'settings'; body: { operationId: string; expectedVersion: number; enabled: boolean; erase: boolean }; createdAt: number }
+  | { kind: 'audio-settings'; body: { operationId: string; expectedVersion: number; enabled: boolean }; createdAt: number }
   | { kind: 'write'; id: string; body: CloudWrite; sourceId?: string; createdAt: number }
   | { kind: 'delete' | 'restore'; id: string; revision?: number; body: { operationId: string; epoch: string; expectedVersion: number }; createdAt: number }
 const preview = (value: CloudValue | null) => String(value?.contentText || value?.explanation || value?.phrase || '')
@@ -43,6 +48,7 @@ function CloudDraftContent() {
   const { sessionGeneration, accessToken } = useAuthStore()
   const { t, language } = useI18n()
   const router = useRouter()
+  const audioMessages = useAudioMessages()
   const [settings, setSettings] = useState<CloudSettings | null>(null)
   const [remote, setRemote] = useState<RemoteDraft[] | null>(null)
   const [locals, setLocals] = useState<LocalDraft[]>([])
@@ -106,15 +112,16 @@ function CloudDraftContent() {
     let preferences: CloudSettings | undefined
     if (!applied) {
       if (action.kind === 'settings') { preferences = await setCloudSettings(me.id, action.body); applied = { id: null, version: preferences.version } }
+      else if (action.kind === 'audio-settings') { preferences = await setCloudAudioSettings(me.id, action.body); applied = { id: null, version: preferences.version } }
       else if (action.kind === 'write') applied = await writeCloudCopy(me.id, action.id, action.body)
       else if (action.kind === 'delete') applied = await deleteRemoteDraft(me.id, action.id, action.body)
       else applied = await restoreCloudRevision(me.id, action.id, action.revision!, action.body)
     }
     if (!current()) return
-    if (action.kind === 'settings') {
+    if (action.kind === 'settings' || action.kind === 'audio-settings') {
       preferences ??= await readCloudSettings(me.id)
       if (!current()) return
-      if (action.body.erase && preferences.version === applied.version && !preferences.enabled) { eraseLocalCloudMetadata(me.id); cacheCloudSettings(me.id, preferences); setNotice(t('cloud.eraseDone')) }
+      if (action.kind === 'settings' && action.body.erase && preferences.version === applied.version && !preferences.enabled) { eraseLocalCloudMetadata(me.id); cacheCloudSettings(me.id, preferences); setNotice(t('cloud.eraseDone')) }
       setSettings(preferences)
     } else if (action.kind === 'write') {
       const rows = cloudBindings(me.id), row = rows[action.body.scope]
@@ -150,7 +157,8 @@ function CloudDraftContent() {
     setSelected([])
   })
   const applyRemote = (row: RemoteDraft) => void run(async () => {
-    if (!me || !settings || !window.confirm(t('cloud.replaceConfirm'))) return
+    if (!me || !settings || !window.confirm(t(row.kind === 'recording' ? 'recording.replaceCloudConfirm' : 'cloud.replaceConfirm'))) return
+    if (row.kind === 'recording') { const route = await restoreCloudAudioOnDevice(me.id, row, settings); if (current()) router.push(route); return }
     // Capture the local revision at confirmation, before the network read can delay restoration.
     const localRevision = cloudLocalRevision(me.id, row)
     const fresh = await readCloudDraft(me.id, row.id)
@@ -160,6 +168,14 @@ function CloudDraftContent() {
   })
   const resolve = (row: CloudBinding, copy: boolean) => {
     if (!settings?.epoch || !settings.enabled || pending) return
+    if (copy && row.kind === 'recording') {
+      void run(async () => {
+        const source = (await recordingDrafts.list(me!.id)).find(item => 'audio:' + item.scope === row.scope && item.id === row.localRevision)
+        if (!source) throw new DraftStorageError('conflict')
+        const fresh = await readCloudSettings(me!.id)
+        await selectCloudRecording(me!.id, source, fresh, true); await uploadCloudRecording(me!.id, row.scope); await refresh()
+      }); return
+    }
     const latest = remote?.find(item => item.id === row.id)
     if (!copy && (!latest || latest.pendingOperation)) return
     action({ kind: 'write', id: copy ? crypto.randomUUID() : row.id, sourceId: row.id, createdAt: Date.now(), body: {
@@ -177,7 +193,7 @@ function CloudDraftContent() {
   if (!accessToken) return <main className="p-6"><Link href="/login?redirect=%2Fdrafts%2Fcloud">{t('cloud.title')}</Link></main>
   const button = 'min-h-11 rounded-lg border px-3 py-2 text-sm disabled:opacity-40'
   const disabled = busy || !ready || !!pending
-  const title = (kind: CloudKind) => t(kind === 'editor' ? 'drafts.editor' : kind === 'feedback' ? 'recovery.feedback' : 'recovery.card')
+  const title = (kind: CloudKind) => kind === 'recording' ? audioMessages[0] : t(kind === 'editor' ? 'drafts.editor' : kind === 'feedback' ? 'recovery.feedback' : 'recovery.card')
   return <main className="mx-auto max-w-3xl space-y-5 px-4 py-8 pb-24">
     <Link href="/drafts" className="text-blue-600">← {t('drafts.title')}</Link>
     <h1 className="text-2xl font-bold">{t('cloud.title')}</h1>
@@ -185,6 +201,7 @@ function CloudDraftContent() {
     {settings && <section className="space-y-3 rounded-xl border p-4"><p className="font-semibold">{t(settings.enabled ? 'cloud.enabled' : 'cloud.disabled')}</p>
       <div className="flex flex-wrap gap-2"><button className={button} disabled={disabled} onClick={() => changeSettings(!settings.enabled)}>{t(settings.enabled ? 'cloud.disable' : 'cloud.enable')}</button>
         <button className={button} disabled={disabled} onClick={() => changeSettings(false, true)}>{t('cloud.erase')}</button></div></section>}
+    {me && settings && <CloudAudioPanel owner={me.id} settings={settings} disabled={disabled} change={() => action({ kind: 'audio-settings', createdAt: Date.now(), body: { operationId: crypto.randomUUID(), expectedVersion: settings.version, enabled: !settings.audioEnabled } })} />}
     <button className={button} disabled={busy || loading || !ready} onClick={() => void refresh()}>{t('cloud.refresh')}</button>
     {ownerError && <button className={button} onClick={() => void retryOwner()}>{t('common.retry')}</button>}
     {(loading && !ownerError) && <p role="status">{t('cloud.loading')}</p>}
@@ -197,14 +214,15 @@ function CloudDraftContent() {
       <button className={button} disabled={disabled || !settings?.enabled || !selected.length} onClick={uploadSelected}>{t('cloud.select')}</button>
       {Object.values(bindings).map(row => <article key={row.scope} className="space-y-2 rounded-xl border p-4" data-testid="cloud-local-binding"><h3 className="font-semibold">{title(row.kind)}</h3><p className="whitespace-pre-wrap break-words text-sm">{preview(row.value).slice(0, 300)}</p>
         <p>{t(row.error === 'expired' ? 'cloud.localExpired' : row.error === 'conflict' ? 'cloud.conflict' : row.error === 'limit' ? 'cloud.limit' : row.error === 'rate' ? 'cloud.rate' : row.error ? 'cloud.network' : row.pendingLocal ? 'cloud.pending' : row.dirty || row.request ? 'cloud.waiting' : 'cloud.synced')}</p>
-        <div className="flex flex-wrap gap-2"><button className={button} disabled={row.error === 'expired'} onClick={() => downloadDraftBlob(new Blob([JSON.stringify(row.value, null, 2)], { type: 'application/json' }), 'tonebridge-local-draft.json')}>{t('cloud.localDownload')}</button>
-          {(row.error === 'network' || row.error === 'rate') && <button className={button} disabled={disabled} onClick={() => void run(() => synchronizeAllCloudDrafts(me!.id, true))}>{t('cloud.retry')}</button>}
-          {row.error === 'conflict' && <><button className={button} disabled={disabled || !settings?.enabled || !remote?.some(item => item.id === row.id && !item.pendingOperation)} onClick={() => resolve(row, false)}>{t('cloud.keepMine')}</button><button className={button} disabled={disabled || !settings?.enabled || row.pendingLocal} onClick={() => resolve(row, true)}>{t('cloud.copy')}</button></>}
+        <div className="flex flex-wrap gap-2"><button className={button} disabled={row.error === 'expired'} onClick={() => { if (row.kind === 'recording') void run(async () => { const source = (await recordingDrafts.list(me!.id)).find(item => item.scope === row.scope.slice(6) && item.id === row.localRevision); if (!source) throw new DraftStorageError('conflict'); downloadDraftBlob(source.draft.blob, 'tonebridge-recording.' + (source.draft.blob.type === 'audio/mp4' ? 'm4a' : source.draft.blob.type.split('/')[1])) }); else downloadDraftBlob(new Blob([JSON.stringify(row.value, null, 2)], { type: 'application/json' }), 'tonebridge-local-draft.json') }}>{row.kind === 'recording' ? audioMessages[6] : t('cloud.localDownload')}</button>
+          {(row.error === 'network' || row.error === 'rate' || row.kind === 'recording' && row.error === 'conflict' && !row.pendingLocal) && <button className={button} disabled={disabled} onClick={() => void run(async () => { await syncCloudRecordings(me!.id, true); await synchronizeAllCloudDrafts(me!.id, true) })}>{t('cloud.retry')}</button>}
+          {row.error === 'conflict' && <><button className={button} disabled={disabled || !settings?.enabled || row.kind === 'recording' && !row.audio?.ready || !remote?.some(item => item.id === row.id && !item.pendingOperation)} onClick={() => resolve(row, false)}>{t(row.kind === 'recording' ? 'recording.keepCloud' : 'cloud.keepMine')}</button><button className={button} disabled={disabled || !settings?.enabled || row.pendingLocal || (row.kind === 'recording' && !settings.audioEnabled)} onClick={() => resolve(row, true)}>{t(row.kind === 'recording' ? 'recording.copyCloud' : 'cloud.copy')}</button></>}
         </div></article>)}
     </section>
     <section className="space-y-3"><h2 className="text-lg font-bold">{t('cloud.remote')}</h2>
       {remote?.length === 0 && !error && <p>{t('cloud.empty')}</p>}
       {remote?.map(row => <article key={row.id} className="space-y-3 rounded-xl border p-4" data-testid="cloud-remote-draft"><h3 className="font-semibold">{title(row.kind)}</h3><p className="whitespace-pre-wrap break-words text-sm">{preview(row.value).slice(0, 500)}</p>
+        {row.kind === 'recording' && !!row.value?.assetId && <CloudAudioPlayer key={String(row.value.assetId)} owner={me!.id} asset={String(row.value.assetId)} />}
         <p className="text-xs">{t('cloud.updated')}: {new Date(row.updatedAt).toLocaleString(language)}</p>
         {row.pendingOperation && <p>{t(row.pendingPayload ? 'cloud.pending' : 'cloud.pendingReadOnly')}</p>}
         <div className="flex flex-wrap gap-2"><button className={button} disabled={disabled || (!!row.pendingOperation && !row.pendingPayload)} onClick={() => applyRemote(row)}>{t('cloud.useRemote')}</button>
@@ -212,7 +230,7 @@ function CloudDraftContent() {
           {!row.pendingOperation && <button className={button} disabled={disabled || !settings?.epoch} onClick={() => { if (window.confirm(t('cloud.deleteConfirm'))) action({ kind: 'delete', id: row.id, createdAt: Date.now(), body: { operationId: crypto.randomUUID(), epoch: settings!.epoch!, expectedVersion: row.version } }) }}>{t('cloud.delete')}</button>}
           {row.pendingOperation && <><button className={button} disabled={disabled} onClick={() => submission(row, false)}>{t('cloud.check')}</button><button className={button} disabled={disabled} onClick={() => submission(row, true)}>{t('cloud.cancel')}</button></>}
         </div>
-        {histories[row.id]?.map(revision => <div key={revision.version} className="space-y-2 border-t pt-3"><p className="text-xs">{new Date(revision.createdAt).toLocaleString(language)}</p><p className="whitespace-pre-wrap break-words text-sm">{preview(revision.value).slice(0, 300)}</p><button className={button} disabled={disabled || !settings?.enabled || !!row.pendingOperation} onClick={() => action({ kind: 'restore', id: row.id, revision: revision.version, createdAt: Date.now(), body: { operationId: crypto.randomUUID(), epoch: settings!.epoch!, expectedVersion: row.version } })}>{t('cloud.restore')}</button></div>)}
+        {histories[row.id]?.map(revision => <div key={revision.version} className="space-y-2 border-t pt-3"><p className="text-xs">{new Date(revision.createdAt).toLocaleString(language)}</p><p className="whitespace-pre-wrap break-words text-sm">{preview(revision.value).slice(0, 300)}</p>{row.kind === 'recording' && <CloudAudioPlayer owner={me!.id} asset={String(revision.value.assetId)} />}<button className={button} disabled={disabled || !settings?.enabled || !!row.pendingOperation} onClick={() => action({ kind: 'restore', id: row.id, revision: revision.version, createdAt: Date.now(), body: { operationId: crypto.randomUUID(), epoch: settings!.epoch!, expectedVersion: row.version } })}>{t('cloud.restore')}</button></div>)}
       </article>)}
     </section>
   </main>

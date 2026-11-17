@@ -17,6 +17,7 @@ public class CloudDraftController {
     private static <T> ResponseEntity<T> privateResponse(T body) {return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);}
     @GetMapping("/settings") public ResponseEntity<Settings> settings(@AuthenticationPrincipal UUID owner) {return privateResponse(drafts.settings(owner));}
     @PutMapping("/settings") public ResponseEntity<Settings> preferences(@AuthenticationPrincipal UUID owner,@Valid @RequestBody Preferences input) {return privateResponse(drafts.preferences(owner,input));}
+    @PutMapping("/settings/audio") public ResponseEntity<Settings> audioPreferences(@AuthenticationPrincipal UUID owner,@Valid @RequestBody AudioPreferences input) {return privateResponse(drafts.audioPreferences(owner,input));}
     @GetMapping("/operations/{operation}") public ResponseEntity<Applied> operation(@AuthenticationPrincipal UUID owner,@PathVariable UUID operation) {return privateResponse(drafts.operation(owner,operation));}
     @GetMapping public ResponseEntity<List<Draft>> list(@AuthenticationPrincipal UUID owner) {return privateResponse(drafts.list(owner));}
     @GetMapping("/{id}") public ResponseEntity<Draft> get(@AuthenticationPrincipal UUID owner,@PathVariable UUID id) {return privateResponse(drafts.get(owner,id));}

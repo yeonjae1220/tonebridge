@@ -355,7 +355,7 @@ function CorrectionEditor({ requestId }: { requestId: string }) {
               {refRecorder.state === 'stopped' && refRecorder.audioUrl && (
                 <div className="flex-1 flex gap-2 items-center">
                   <audio controls src={refRecorder.audioUrl} className="flex-1 h-8" />
-                  <button onClick={() => { if (window.confirm(t('recording.discard'))) refRecorder.reset() }} className="text-xs text-gray-400 hover:text-gray-600">{t('correct.recordAgainShort')}</button>
+                  <button onClick={() => { if (window.confirm(t('recording.discard'))) void refRecorder.reset(true) }} className="text-xs text-gray-400 hover:text-gray-600">{t('correct.recordAgainShort')}</button>
                 </div>
               )}
             </div>

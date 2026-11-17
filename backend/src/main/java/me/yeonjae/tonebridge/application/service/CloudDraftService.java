@@ -19,7 +19,10 @@ import java.security.MessageDigest;
 @Transactional
 @RequiredArgsConstructor
 public class CloudDraftService {
-    public record Settings(boolean enabled,UUID epoch,long version) {}
+    public record Settings(boolean enabled,UUID epoch,long version,boolean audioEnabled) {
+        public Settings(boolean enabled,UUID epoch,long version){this(enabled,epoch,version,false);}
+    }
+    public record AudioPreferences(@NotNull UUID operationId,@Min(0) long expectedVersion,boolean enabled) {}
     public record Preferences(@NotNull UUID operationId,@Min(0) long expectedVersion,boolean enabled,boolean erase) {}
     public record Write(@NotNull UUID operationId,@NotNull UUID epoch,@Min(0) long expectedVersion,
                         @NotBlank String kind,@NotBlank String scope,@NotNull Map<String,Object> value,@NotNull Long editedAt) {
@@ -35,14 +38,15 @@ public class CloudDraftService {
                         Instant updatedAt,Instant expiresAt,UUID pendingOperation,String pendingKind,Map<String,Object> pendingPayload) {}
     public record Revision(long version,Map<String,Object> value,Instant createdAt,Instant expiresAt) {}
     private final JdbcTemplate jdbc;
+    private final CloudAudioFiles audioFiles;
     private static final ObjectMapper JSON=new ObjectMapper().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     private static final long MAX_TEXT_BYTES=25L*1024*1024;
     private static final RowMapper<Draft> ROW=(rs,n) -> new Draft(rs.getObject("id",UUID.class),rs.getString("kind"),rs.getString("scope"),rs.getLong("version"),rs.getString("state"),decode(rs.getString("value")),rs.getTimestamp("updated_at").toInstant(),rs.getTimestamp("expires_at")==null?null:rs.getTimestamp("expires_at").toInstant(),rs.getObject("pending_operation",UUID.class),rs.getString("pending_kind"),decode(rs.getString("pending_payload")));
 
     @Transactional(readOnly=true)
     public Settings settings(UUID owner) {
-        return jdbc.query("SELECT enabled,epoch,version FROM cloud_draft_settings WHERE owner_id=?",
-                (rs,n) -> new Settings(rs.getBoolean(1),rs.getObject(2,UUID.class),rs.getLong(3)),owner)
+        return jdbc.query("SELECT enabled,epoch,version,audio_enabled FROM cloud_draft_settings WHERE owner_id=?",
+                (rs,n) -> new Settings(rs.getBoolean(1),rs.getObject(2,UUID.class),rs.getLong(3),rs.getBoolean(4)),owner)
                 .stream().findFirst().orElse(new Settings(false,null,0));
     }
     public Settings preferences(UUID owner,Preferences input) {
@@ -63,9 +67,19 @@ public class CloudDraftService {
             jdbc.update("UPDATE personal_exports SET state='EXPIRED',expires_at=now(),access_checks=NULL WHERE owner_id=? AND state='READY' AND jsonb_exists(access_checks,'cloudDrafts')",owner);
         }
         long version=current.version()+1;
-        jdbc.update("INSERT INTO cloud_draft_settings(owner_id,enabled,epoch,version) VALUES (?,?,?,?) ON CONFLICT(owner_id) DO UPDATE SET enabled=excluded.enabled,epoch=excluded.epoch,version=excluded.version",owner,input.enabled(),epoch,version);
+        jdbc.update("INSERT INTO cloud_draft_settings(owner_id,enabled,epoch,version,audio_enabled) VALUES (?,?,?,?,?) ON CONFLICT(owner_id) DO UPDATE SET enabled=excluded.enabled,epoch=excluded.epoch,version=excluded.version,audio_enabled=excluded.audio_enabled",owner,input.enabled(),epoch,version,input.enabled() && current.audioEnabled());
         remember(owner,input.operationId(),hash,null,version);
-        return new Settings(input.enabled(),epoch,version);
+        return new Settings(input.enabled(),epoch,version,input.enabled() && current.audioEnabled());
+    }
+    public Settings audioPreferences(UUID owner,AudioPreferences input) {
+        lock(owner);String hash=hash(Arrays.asList("audio-preferences",input));
+        if(replay(owner,input.operationId(),hash)!=null)return settings(owner);
+        var current=settings(owner);
+        if(current.version()!=input.expectedVersion() || (input.enabled() && !current.enabled()))conflict();
+        if(current.audioEnabled()==input.enabled())return current;
+        if(input.enabled() && jdbc.queryForObject("SELECT count(*) FROM cloud_draft_operations WHERE owner_id=? AND draft_id IS NULL AND created_at>now()-interval '1 minute'",Integer.class,owner)>=30)throw new ToneBridgeException(ErrorCode.TOO_MANY_REQUESTS);
+        jdbc.update("UPDATE cloud_draft_settings SET audio_enabled=?,version=version+1 WHERE owner_id=?",input.enabled(),owner);
+        remember(owner,input.operationId(),hash,null,current.version()+1);return settings(owner);
     }
     @Transactional(readOnly=true)
     public Applied operation(UUID owner,UUID operation) {
@@ -84,6 +98,7 @@ public class CloudDraftService {
         String hash=hash(Arrays.asList("write",id,input));var replay=replay(owner,input.operationId(),hash);if(replay!=null)return replay;
         checkWriteRate(owner);
         validate(input.kind(),input.scope(),input.value());
+        if(input.kind().equals("recording"))audioFiles.requireReady(owner,UUID.fromString((String)input.value().get("assetId")));
         Instant edited=editTime(input.editedAt());
         var previous=find(owner,id);
         if(previous==null) {
@@ -109,7 +124,9 @@ public class CloudDraftService {
         var draft=required(owner,id);editable(draft,input.expectedVersion());
         var values=jdbc.queryForList("SELECT value::text FROM cloud_draft_revisions WHERE owner_id=? AND draft_id=? AND version=? AND expires_at>now()",String.class,owner,id,revision);
         if(values.isEmpty()) missing();
-        long version=draft.version()+1;saveVersion(owner,id,version,decode(values.getFirst()),Instant.now());
+        var value=decode(values.getFirst());
+        if(draft.kind().equals("recording"))audioFiles.requireReady(owner,UUID.fromString((String)value.get("assetId")));
+        long version=draft.version()+1;saveVersion(owner,id,version,value,Instant.now());
         remember(owner,input.operationId(),hash,id,version);return new Applied(id,version);
     }
     public Applied delete(UUID owner,UUID id,Change input) {
@@ -123,7 +140,7 @@ public class CloudDraftService {
     public Draft prepare(UUID owner,UUID id,Prepare input) {
         lock(owner);var preferences=requireEpoch(owner,input.epoch(),false);expire(owner);
         var draft=required(owner,id);
-        if(!Set.of("COMPOSITION","SUBMISSION").contains(input.kind()) || (draft.kind().equals("editor")!=input.kind().equals("COMPOSITION"))) invalid();
+        if(!Set.of("COMPOSITION","SUBMISSION").contains(input.kind()) || ((draft.kind().equals("editor") || draft.scope().equals("audio:compose"))!=input.kind().equals("COMPOSITION"))) invalid();
         if(input.payload()!=null && encode(input.payload()).getBytes(StandardCharsets.UTF_8).length>200000) throw new ToneBridgeException(ErrorCode.PAYLOAD_TOO_LARGE);
         if(draft.pendingOperation()!=null) {
             if(!draft.pendingOperation().equals(input.operation()) || !draft.pendingKind().equals(input.kind())) conflict();
@@ -131,8 +148,7 @@ public class CloudDraftService {
             return draft;
         }
         editable(draft,input.expectedVersion());
-        var already=jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM cloud_drafts WHERE owner_id=? AND pending_kind=? AND pending_operation=?)",Boolean.class,owner,input.kind(),input.operation());
-        if(Boolean.TRUE.equals(already)) conflict();
+        for(var other:pending(owner,input.operation(),input.kind())) if(other.kind().equals(draft.kind()) || !submissionScope(other).equals(submissionScope(draft)))conflict();
         String receiptTable=input.kind().equals("COMPOSITION")?"composition_receipts":"submission_receipts";
         var receipts=jdbc.queryForList("SELECT cancelled,fingerprint FROM "+receiptTable+" WHERE owner_id=? AND operation_id=?",owner,input.operation());
         if(!receipts.isEmpty()) {
@@ -140,7 +156,7 @@ public class CloudDraftService {
             if(receipts.getFirst().get("fingerprint")!=null) {retire(owner,draft,"SUBMITTED");return required(owner,id);}
         }
         // Turning sync off preserves cloud data but prevents uploading any further text.
-        String payload=preferences.enabled() && input.payload()!=null?encode(input.payload()):null;
+        String payload=preferences.enabled() && (!draft.kind().equals("recording") || preferences.audioEnabled()) && input.payload()!=null?encode(input.payload()):null;
         jdbc.update("UPDATE cloud_drafts SET version=version+1,pending_operation=?,pending_kind=?,pending_payload=?::jsonb WHERE owner_id=? AND id=?",input.operation(),input.kind(),payload,owner,id);
         return required(owner,id);
     }
@@ -170,8 +186,12 @@ public class CloudDraftService {
     }
     private void cancelReceipt(UUID owner,Draft draft) {
         if(draft.pendingOperation()==null)return;
+        cancelledSubmission(owner,draft.pendingOperation(),draft.pendingKind());
         if("COMPOSITION".equals(draft.pendingKind())) jdbc.update("INSERT INTO composition_receipts(owner_id,operation_id,cancelled) VALUES (?,?,true) ON CONFLICT(owner_id,operation_id) DO UPDATE SET cancelled=true WHERE composition_receipts.fingerprint IS NULL",owner,draft.pendingOperation());
         else jdbc.update("INSERT INTO submission_receipts(owner_id,operation_id,cancelled) VALUES (?,?,true) ON CONFLICT(owner_id,operation_id) DO NOTHING",owner,draft.pendingOperation());
+    }
+    private String submissionScope(Draft draft) {
+        return draft.scope().equals("audio:compose") ? "compose" : draft.scope().replace("audio:correction-reference:","feedback:");
     }
     private List<Draft> pending(UUID owner,UUID operation,String kind) {return jdbc.query("SELECT * FROM cloud_drafts WHERE owner_id=? AND pending_operation=? AND pending_kind=? AND state='ACTIVE'",ROW,owner,operation,kind);}
     private List<Draft> allActive(UUID owner) {return jdbc.query("SELECT * FROM cloud_drafts WHERE owner_id=? AND state='ACTIVE' ORDER BY updated_at DESC,id LIMIT 50",ROW,owner);}
@@ -251,6 +271,22 @@ public class CloudDraftService {
                 if(!scope.matches("card-new:"+uuid+"|card:"+uuid+":"+uuid) || !"card".equals(value.get("kind")))invalid();
                 keys=Set.of("kind","sessionId","phrase","context","tags","tagText");
                 text(value,"sessionId",100,false);text(value,"phrase",500,false);text(value,"context",10000,false);text(value,"tagText",2200,true);strings(value.get("tags"),20,100);
+            }
+            case "recording" -> {
+                if(!scope.matches("audio:compose|audio:(practice|example|correction-reference):"+uuid))invalid();
+                keys=Set.of("assetId","duration","editor","feedback");
+                if(!(value.get("assetId") instanceof String asset) || !asset.matches(uuid))invalid();
+                if(!(value.get("duration") instanceof Number duration) || !Double.isFinite(duration.doubleValue()) || duration.doubleValue()<0 || duration.doubleValue()>86400)invalid();
+                if(value.containsKey("editor")) {
+                    if(!scope.equals("audio:compose") || !(value.get("editor") instanceof Map<?,?>))invalid();
+                    @SuppressWarnings("unchecked") var editor=new HashMap<>((Map<String,Object>)value.get("editor"));
+                    if(!"AUDIO".equals(editor.get("kind")))invalid();editor.put("kind","TEXT");validate("editor","compose",editor);
+                }
+                if(value.containsKey("feedback")) {
+                    if(!scope.startsWith("audio:correction-reference:") || !(value.get("feedback") instanceof Map<?,?>))invalid();
+                    @SuppressWarnings("unchecked") var feedback=(Map<String,Object>)value.get("feedback");
+                    validate("feedback",scope.replace("audio:correction-reference:","feedback:"),feedback);
+                }
             }
             default -> {invalid();return;}
         }

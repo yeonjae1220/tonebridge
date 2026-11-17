@@ -10,6 +10,7 @@ import { captureAccountGuard, uploadRecording } from '@/lib/validationDiagnostic
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { isAxiosError } from 'axios'
+import { uploadCloudRecording } from '@/lib/cloudAudioSync'
 import { prepareCloudSubmission } from '@/lib/cloudDraftSync'
 import { finishCloudSubmission } from '@/lib/cloudDraftLocal'
 import { clearComposition, compositionFile, createComposition, isCompositionSource, loadComposition, markCompositionUploaded, PendingCompositionError, type CompositionDraft } from '@/lib/compositionDraft'
@@ -175,7 +176,8 @@ export default function RequestPage() {
         requireSameAccount()
         if (!isAxiosError(error) || error.response?.status !== 404) throw error
       }
-      const cloudReceipt = await recordingRequest(signal => prepareCloudSubmission(draft.owner, 'compose', draft.operation, 'COMPOSITION', draft.input, signal, true))
+      if (draft.input.kind === 'AUDIO') await uploadCloudRecording(draft.owner, 'audio:compose')
+      const cloudReceipt = await recordingRequest(signal => prepareCloudSubmission(draft.owner, draft.input.kind === 'AUDIO' ? 'audio:compose' : 'compose', draft.operation, 'COMPOSITION', draft.input, signal, true))
       requireSameAccount()
       if (cloudReceipt) return cloudReceipt as SubmitResult
       if (draft.input.kind === 'AUDIO' && !draft.uploaded) {
@@ -204,7 +206,7 @@ export default function RequestPage() {
         if (result.type === 'unavailable') setError(t('compose.unavailable'))
         editor.resume(); setEditorRestored(true); setStep(0); return
       }
-      finishCloudSubmission(payload.draft.owner, 'compose', payload.draft.operation)
+      finishCloudSubmission(payload.draft.owner, payload.draft.input.kind === 'AUDIO' ? 'audio:compose' : 'compose', payload.draft.operation)
       if (payload.draft.input.kind === 'AUDIO' && isCompositionSource(payload.draft)) recorder.clearSaved(recorder.audioBlob)
       suggestInstall()
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -360,7 +362,7 @@ export default function RequestPage() {
                     <RecordedAudioPreview
                       audioUrl={recorder.audioUrl}
                       onReset={() => {
-                        recorder.reset()
+                        void recorder.reset(true)
                         setRecordSheetOpen(true)
                       }}
                     />

@@ -94,6 +94,29 @@ class SubmissionIntegrationTest extends PostgresIntegrationTest {
         save(correction, owner, operation, body(correction), 201);
         assertThat(count(correction)).isEqualTo(1);
     }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void audioReceiptsReplayOneSaveRetireCloudClaimsAndRejectChangedOrRevokedRequests(boolean practice) throws Exception {
+        UUID card=UUID.randomUUID(),draft=UUID.randomUUID(),epoch=UUID.randomUUID();String key="audio/"+UUID.randomUUID()+"/recording.webm";
+        jdbc.update("INSERT INTO study_cards(id,session_id,created_by_user_id,phrase) VALUES (?,?,?,'Audio')",card,session,owner);
+        jdbc.update("INSERT INTO audio_upload_owners(audio_key,owner_id) VALUES (?,?)",key,owner);
+        jdbc.update("INSERT INTO cloud_draft_settings(owner_id,enabled,epoch,version,audio_enabled) VALUES (?,true,?,2,true)",owner,epoch);
+        jdbc.update("INSERT INTO cloud_drafts(owner_id,id,kind,scope,version,state,value,expires_at,pending_operation,pending_kind,pending_payload) VALUES (?,?,'recording',?,1,'ACTIVE','{}',now()+interval '7 days',?,'SUBMISSION','{}')",owner,draft,"audio:"+(practice?"practice:":"example:")+card,operation);
+        String path="/api/cards/"+card+(practice?"/attempts":"/native-audios"),body="{\"audioKey\":\""+key+"\"}";
+        var start=new CountDownLatch(1);
+        try(var executor=Executors.newFixedThreadPool(2)) {
+            Callable<String> save=() -> {start.await();return id(mvc.perform(post(path).with(as(owner)).header("Idempotency-Key",operation).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());};
+            var first=executor.submit(save);var second=executor.submit(save);start.countDown();assertThat(second.get(15,TimeUnit.SECONDS)).isEqualTo(first.get(15,TimeUnit.SECONDS));
+        }
+        assertThat(jdbc.queryForObject("SELECT state FROM cloud_drafts WHERE owner_id=? AND id=?",String.class,owner,draft)).isEqualTo("SUBMITTED");
+        mvc.perform(get("/api/submissions/{id}",operation).with(as(owner))).andExpect(status().isOk()).andExpect(jsonPath("$.type").value(practice?"practice":"example"));
+        mvc.perform(get("/api/submissions/{id}",operation).with(as(requester))).andExpect(status().isNotFound());
+        mvc.perform(post(path).with(as(owner)).header("Idempotency-Key",operation).contentType(MediaType.APPLICATION_JSON).content(body.replace("recording","changed"))).andExpect(status().isConflict());
+        jdbc.update("DELETE FROM session_members WHERE session_id=? AND user_id=?",session,owner);
+        mvc.perform(get("/api/submissions/{id}",operation).with(as(owner))).andExpect(status().isForbidden());
+        jdbc.update("INSERT INTO session_members(session_id,user_id) VALUES (?,?)",session,owner);
+        jdbc.update("UPDATE study_cards SET deleted_at=now() WHERE id=?",card);
+        mvc.perform(post(path).with(as(owner)).header("Idempotency-Key",operation).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isConflict());
+    }
     @Test void identitiesAreAccountScopedAndCannotRevealOtherOwnersResults() throws Exception {
         save(false, owner, operation, body(false), 201);
         mvc.perform(get("/api/submissions/{id}", operation).with(as(requester))).andExpect(status().isNotFound());

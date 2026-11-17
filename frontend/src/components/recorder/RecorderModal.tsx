@@ -86,7 +86,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
   const { t } = useI18n()
   const heading = title ?? t('request.recordingLabel')
   const close = () => {
-    if (recorder.starting) recorder.reset()
+    if (recorder.starting) void recorder.reset(true)
     onClose()
   }
 
@@ -128,7 +128,7 @@ export function RecorderModal({ recorder, onClose, title }: RecorderModalProps) 
 
         {recorder.state === 'stopped' && recorder.audioUrl && (
           <>
-            <RecordedAudioPreview audioUrl={recorder.audioUrl} onReset={recorder.reset} />
+            <RecordedAudioPreview audioUrl={recorder.audioUrl} onReset={() => { void recorder.reset(true) }} />
             <button
               type="button"
               onClick={onClose}

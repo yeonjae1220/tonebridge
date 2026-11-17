@@ -82,7 +82,7 @@ export async function compositionFile(draft: CompositionDraft) {
 }
 async function discardAudio(draft: CompositionDraft) {
   if (draft.input.kind !== 'AUDIO') return
-  try { recordingDrafts.delete(await audioKey(draft)) } catch { /* Existing epoch/TTL cleanup also revokes this snapshot. */ }
+  try { await recordingDrafts.delete(await audioKey(draft)) } catch { /* Existing epoch/TTL cleanup also revokes this snapshot. */ }
 }
 export function isCompositionSource(draft: CompositionDraft) {
   return !!draft.sourceRecordingId && draft.sourceRecordingId === recordingDrafts.info(`${useAuthStore.getState().sessionGeneration}:compose`)?.id
@@ -96,13 +96,18 @@ useAuthStore.subscribe((next, previous) => {
   activeOwner = undefined
 })
 
-export async function restorePendingComposition(owner: string, operation: string, input: CompositionInput, createdAt: number) {
+export async function restorePendingComposition(owner: string, operation: string, input: CompositionInput, createdAt: number, recording?: RecordingDraft) {
   const generation = useAuthStore.getState().sessionGeneration
-  if (input.kind !== 'TEXT' || !/^[0-9a-f-]{36}$/i.test(operation) || !Number.isFinite(createdAt) || Date.now() - createdAt > 7 * 86400000) throw new DraftStorageError('corrupt')
-  await withDraftLock(prefix + owner, () => {
+  if ((input.kind !== 'TEXT' && !(input.kind === 'AUDIO' && recording)) || !/^[0-9a-f-]{36}$/i.test(operation) || !Number.isFinite(createdAt) || Date.now() - createdAt > 7 * 86400000) throw new DraftStorageError('corrupt')
+  await withDraftLock(prefix + owner, async () => {
     if (!useAuthStore.getState().accessToken || generation !== useAuthStore.getState().sessionGeneration) throw new DraftStorageError('conflict')
     const previous = loadComposition(owner)
     if (previous && previous.operation !== operation) throw new DraftStorageError('conflict')
-    localStorage.setItem(prefix + owner, JSON.stringify({ owner, operation, input, createdAt, uploaded: false, revocation: revocation(owner) } satisfies CompositionDraft))
+    const restored: CompositionDraft = { owner, operation, input, createdAt, uploaded: false, revocation: revocation(owner), sourceRecordingId: recordingDrafts.info(`${generation}:compose`)?.id }
+    if (recording && input.kind === 'AUDIO') {
+      const key = await audioKey(restored); recordingDrafts.set(key, recording); await recordingDrafts.settled()
+      if (generation !== useAuthStore.getState().sessionGeneration || recordingDrafts.info(key)?.status !== 'saved') throw new DraftStorageError('conflict')
+    }
+    localStorage.setItem(prefix + owner, JSON.stringify(restored))
   })
 }

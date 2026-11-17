@@ -121,8 +121,9 @@ public class StudyCardController {
     public ResponseEntity<LearnerAttemptResponse> submitAttempt(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID cardId,
+            @RequestHeader(value="Idempotency-Key",required=false) UUID operation,
             @Valid @RequestBody SubmitAttemptDto dto) {
-        var attempt = submitAttemptUseCase.submit(
+        var attempt = submissions.attempt(operation,
                 new SubmitLearnerAttemptUseCase.Command(cardId, userId, dto.audioKey()));
         return ResponseEntity.status(HttpStatus.CREATED).body(LearnerAttemptResponse.from(attempt));
     }
@@ -170,8 +171,9 @@ public class StudyCardController {
     public ResponseEntity<CardNativeAudioResponse> confirmNativeAudioV2(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID cardId,
+            @RequestHeader(value="Idempotency-Key",required=false) UUID operation,
             @Valid @RequestBody ConfirmAudioDto dto) {
-        var audio = addNativeAudioUseCase.confirm(
+        var audio = submissions.example(operation,
                 new AddCardNativeAudioUseCase.ConfirmCommand(cardId, userId, dto.audioKey()));
         return ResponseEntity.status(HttpStatus.CREATED).body(CardNativeAudioResponse.from(audio));
     }

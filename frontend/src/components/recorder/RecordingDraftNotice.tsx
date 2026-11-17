@@ -17,6 +17,7 @@ export function RecordingDraftNotice({ recorder }: { recorder: ReturnType<typeof
   const extension = audioExtension(audioBlob?.type ?? '')
   return <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600" data-testid="draft-notice">
     <p role={draftStatus === 'error' ? 'alert' : 'status'}>{t(message)}</p>
+    {recorder.discardError && <p role="alert">{t('recording.discardFailed')}</p>}
     {restored && interrupted && <p>{t('recording.interrupted')}</p>}
     <details key={draftStatus === 'error' ? 'error' : restored ? 'restored' : 'normal'} open={draftStatus === 'error' || restored || interrupted}>
     <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('drafts.details')}</summary>
