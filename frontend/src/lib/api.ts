@@ -108,8 +108,10 @@ api.interceptors.response.use(
     try {
       await refreshAccessToken(original._sessionGeneration!)
     } catch (refreshError) {
-      // A cancelled/late refresh belongs to its original account only.
-      if (!axios.isCancel(refreshError) && original._sessionGeneration === useAuthStore.getState().sessionGeneration) {
+      // Only a definitive credential rejection expires the session. A timeout,
+      // network failure or 5xx must not revoke this account's retained drafts.
+      if (axios.isAxiosError(refreshError) && refreshError.response?.status === 401
+        && original._sessionGeneration === useAuthStore.getState().sessionGeneration) {
         expireSession(original._sessionGeneration)
       }
       return Promise.reject(refreshError)

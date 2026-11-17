@@ -233,3 +233,18 @@ test('an already cancelled authentication attempt sends no request', async () =>
   expect(sends).toBe(0)
   expect(useAuthStore.getState().accessToken).toBe('old-account')
 })
+
+
+for (const status of [0, 503, 401]) test(`review: refresh failure ${status} expires only a rejected session and never replays the write`, async () => {
+  const generation = useAuthStore.getState().sessionGeneration
+  let writes = 0
+  api.defaults.adapter = async config => { writes++; throw unauthorized(config) }
+  axios.defaults.adapter = async config => {
+    throw new AxiosError('Refresh failed', 'ERR_BAD_RESPONSE', config, undefined,
+      status ? response(config, {}, status) : undefined)
+  }
+  await expect(api.patch('/cards/card/note', { note: 'retained' })).rejects.toBeInstanceOf(Error)
+  expect(writes).toBe(1)
+  expect(useAuthStore.getState().accessToken).toBe(status === 401 ? null : 'old-account')
+  expect(useAuthStore.getState().sessionGeneration).toBe(generation + (status === 401 ? 1 : 0))
+})

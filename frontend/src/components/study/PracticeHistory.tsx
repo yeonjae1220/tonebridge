@@ -11,33 +11,41 @@ import { StudyScore } from './StudyScore'
 
 type FeedbackPayload = { attemptId: string; correctionNote: string; score: number | null }
 
-function FeedbackEditor({ attempt, onSave, onRetry }: { onRetry: () => void; attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown> }) {
+type FeedbackDraft = {
+  open: boolean; note: string; score: number | null; pending: boolean; error: string | null
+}
+const initialFeedbackDraft = (attempt: LearnerAttempt): FeedbackDraft => ({
+  open: false, note: attempt.correctionNote ?? '', score: attempt.score ?? null, pending: false, error: null,
+})
+
+function FeedbackEditor({ attempt, onSave, onRetry, draft, update }: {
+  onRetry: () => void; attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown>
+  draft: FeedbackDraft; update: (patch: Partial<FeedbackDraft>) => void
+}) {
   const { t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const [note, setNote] = useState(attempt.correctionNote ?? '')
-  const [score, setScore] = useState<number | null>(attempt.score ?? null)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { open, note, score, pending, error } = draft
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (!note.trim() || pending) return
-    setPending(true); setError(null)
+    update({ pending: true, error: null })
     try {
       await onSave({ attemptId: attempt.id, correctionNote: note.trim(), score })
-      setOpen(false)
-    } catch (error) { setError(t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'study.cardDetail.feedbackSaveFailed')) } finally { setPending(false) }
+      update({ open: false })
+    } catch (error) {
+      update({ error: t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'study.cardDetail.feedbackSaveFailed') })
+    } finally { update({ pending: false }) }
   }
   return <div className="mt-3">
     {!open ? <button type="button" className="min-h-11 text-sm font-semibold text-blue-600"
-      onClick={() => { setNote(attempt.correctionNote ?? ''); setScore(attempt.score ?? null); setError(null); setOpen(true) }}>
+      onClick={() => update({ ...initialFeedbackDraft(attempt), open: true })}>
       {t(attempt.correctionNote ? 'history.edit' : 'history.write')}
     </button> : <form onSubmit={save} className="space-y-3">
       <textarea aria-label={t('study.cardDetail.notePlaceholder')} placeholder={t('study.cardDetail.notePlaceholder')} value={note}
-        onChange={event => setNote(event.target.value)} rows={3} disabled={pending}
+        onChange={event => update({ note: event.target.value })} rows={3} disabled={pending}
         className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
       <div className="flex flex-wrap gap-2">
         <select aria-label={t('study.cardDetail.scoreLabel')} value={score ?? ''} disabled={pending}
-          onChange={event => setScore(event.target.value === '' ? null : Number(event.target.value))}
+          onChange={event => update({ score: event.target.value === '' ? null : Number(event.target.value) })}
           className="min-h-11 rounded-xl border border-gray-200 bg-surface px-3 text-sm">
           <option value="">{t('study.cardDetail.noScore')}</option>
           {[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value}/5</option>)}
@@ -46,7 +54,7 @@ function FeedbackEditor({ attempt, onSave, onRetry }: { onRetry: () => void; att
           className="min-h-11 flex-1 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">
           {t(pending ? 'common.saving' : 'common.save')}
         </button>
-        <button type="button" disabled={pending} onClick={() => setOpen(false)}
+        <button type="button" disabled={pending} onClick={() => update({ open: false })}
           className="min-h-11 rounded-xl border border-gray-200 px-4 text-sm">{t('common.cancel')}</button>
       </div>
       {error && <div role="alert" className="text-sm text-red-600"><p>{error}</p>
@@ -64,6 +72,8 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
   const [filter, setFilter] = useState<'all' | 'mine' | 'partner'>('all')
   const [count, setCount] = useState(5)
   const [target, setTarget] = useState('')
+  // Filters and pagination can unmount rows; keep drafts and in-flight locks per attempt.
+  const [drafts, setDrafts] = useState<Record<string, FeedbackDraft>>({})
   const sorted = useMemo(() => [...attempts].sort((a, b) => b.attemptedAt.localeCompare(a.attemptedAt) || b.id.localeCompare(a.id)), [attempts])
   useEffect(() => {
     const read = () => {
@@ -119,7 +129,11 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
               onClick={onPractice} className="mt-3 min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">
               {t('study.retryWithFeedback')}
             </button>}
-            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} onRetry={onRetry} />}
+            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} onRetry={onRetry}
+              draft={drafts[attempt.id] ?? initialFeedbackDraft(attempt)}
+              update={patch => setDrafts(current => ({ ...current, [attempt.id]: {
+                ...(current[attempt.id] ?? initialFeedbackDraft(attempt)), ...patch,
+              } }))} />}
           </article>
         )}</div>}
       {filtered.length > visibleCount && <button type="button" onClick={() => setCount(visibleCount + 5)}

@@ -135,7 +135,7 @@ function StudyCardDetail() {
         noteDirty.current = false
         setNoteDraft(data.note ?? '')
         setNotice(t('common.saved'))
-        updateConfirmedQuery<StudyCard>(queryClient, ['cards', cardId], () => data)
+        updateConfirmedQuery<StudyCard>(queryClient, ['cards', cardId], current => current ? { ...current, note: data.note } : current)
       }
       void queryClient.invalidateQueries({ queryKey: ['cards', cardId], exact: true })
     },

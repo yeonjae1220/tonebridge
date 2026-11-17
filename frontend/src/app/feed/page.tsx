@@ -117,7 +117,10 @@ function FeedDetail() {
 
   const confirmRequest = (id: string, saved?: CorrectionRequest) => {
     const update = (requests: CorrectionRequest[]) => saved
-      ? requests.map(request => request.id === id ? saved : request)
+      ? requests.map(request => request.id === id ? {
+        ...request, targetLanguage: saved.targetLanguage, targetVariant: saved.targetVariant,
+        contentText: saved.contentText, context: saved.context, feedbackGoals: saved.feedbackGoals,
+      } : request)
       : requests.filter(request => request.id !== id)
     // An edit completed after leaving may be older than a save on the new screen.
     if (!saved || mounted.current) {
