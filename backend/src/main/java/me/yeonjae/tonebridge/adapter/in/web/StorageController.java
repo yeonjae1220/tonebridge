@@ -22,6 +22,7 @@ import java.util.UUID;
 public class StorageController {
 
     private final StoragePort storagePort;
+    private final me.yeonjae.tonebridge.application.service.AudioOwnershipService audioOwnership;
     private final ValidateAudioKeyAccessUseCase validateAccessUseCase;
     private final ToneBridgeProperties properties;
 
@@ -55,6 +56,7 @@ public class StorageController {
 
         Duration ttl = Duration.ofMinutes(properties.getStorage().getUploadTtlMinutes());
         var result = storagePort.generatePresignedUploadUrl(req.fileName(), req.contentType(), ttl);
+        audioOwnership.register(userId, result.audioKey());
         return ResponseEntity.ok(new PresignedUploadResponse(result.uploadUrl(), result.audioKey()));
     }
 

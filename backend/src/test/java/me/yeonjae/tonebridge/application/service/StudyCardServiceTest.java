@@ -65,7 +65,7 @@ class StudyCardServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StudyCardService(org.mockito.Mockito.mock(UserBlockService.class),
+        service = new StudyCardService(org.mockito.Mockito.mock(AudioOwnershipService.class), org.mockito.Mockito.mock(UserBlockService.class),
                 cardPort,
                 attemptPort,
                 nativeAudioPort,

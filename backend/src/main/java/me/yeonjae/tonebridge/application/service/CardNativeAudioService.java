@@ -32,6 +32,7 @@ public class CardNativeAudioService implements
         DeleteCardNativeAudioUseCase,
         UpdateNativeAudioNoteUseCase {
 
+    private final AudioOwnershipService audioOwnership;
     private final CardNativeAudioPort nativeAudioPort;
     private final StudyCardPort cardPort;
     private final StudySessionPort sessionPort;
@@ -41,7 +42,7 @@ public class CardNativeAudioService implements
     // ─── AddCardNativeAudioUseCase ────────────────────────────────────────
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public UploadNativeAudioUseCase.UploadUrlResult getUploadUrl(AddCardNativeAudioUseCase.GetUrlCommand command) {
         StudyCard card = requireCard(command.cardId());
         requireMember(card.sessionId(), command.uploaderId());
@@ -49,6 +50,7 @@ public class CardNativeAudioService implements
                 command.fileName(),
                 AudioContentTypes.fromFileName(command.fileName()),
                 Duration.ofMinutes(15));
+        audioOwnership.register(command.uploaderId(), presigned.audioKey());
         return new UploadNativeAudioUseCase.UploadUrlResult(presigned.uploadUrl(), presigned.audioKey());
     }
 

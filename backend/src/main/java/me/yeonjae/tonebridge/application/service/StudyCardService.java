@@ -38,6 +38,7 @@ public class StudyCardService implements
         MoveStudyCardUseCase,
         DeleteStudyCardUseCase {
 
+    private final AudioOwnershipService audioOwnership;
     private final UserBlockService userBlocks;
     private final StudyCardPort cardPort;
     private final LearnerAttemptPort attemptPort;
@@ -112,7 +113,7 @@ public class StudyCardService implements
     // ─── UploadNativeAudioUseCase ──────────────────────────────────────────
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public UploadUrlResult getUploadUrl(GetUrlCommand command) {
         StudyCard card = cardPort.findById(command.cardId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
@@ -121,6 +122,7 @@ public class StudyCardService implements
                 command.fileName(),
                 AudioContentTypes.fromFileName(command.fileName()),
                 Duration.ofMinutes(15));
+        audioOwnership.register(command.uploaderId(), presigned.audioKey());
         return new UploadUrlResult(presigned.uploadUrl(), presigned.audioKey());
     }
 
