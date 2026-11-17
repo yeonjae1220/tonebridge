@@ -103,3 +103,63 @@ test('practice user lookup failure offers retry without enabling recording prema
   await alert.getByRole('button', { name: '다시 시도' }).click()
   await expect(page.getByRole('button', { name: '녹음 시작', exact: true })).toBeEnabled()
 })
+
+
+for (const status of [500, 503, 504]) test(`review: support HTTP ${status} does not claim definite delivery failure`, async ({ page }) => {
+  await fixture(page)
+  let writes = 0
+  await page.route('**/api/feedback', route => { writes++; return route.fulfill({ status, json: { ok: false } }) })
+  await page.goto('/help')
+  const message = page.getByRole('textbox', { name: '문의 내용' })
+  await message.fill('Keep my uncertain support message')
+  await page.getByRole('button', { name: '문의 보내기' }).click()
+  await expect(page.locator('form').getByRole('alert')).toContainText('접수 여부')
+  await expect(message).toHaveValue('Keep my uncertain support message')
+  await expect(message).toBeEnabled(); expect(writes).toBe(1)
+})
+
+for (const status of [400, 429]) test(`review: support HTTP ${status} retains the definite rejection state`, async ({ page }) => {
+  await fixture(page)
+  await page.route('**/api/feedback', route => route.fulfill({ status, json: { ok: false } }))
+  await page.goto('/help')
+  await page.getByRole('textbox', { name: '문의 내용' }).fill('Retain rejected message')
+  await page.getByRole('button', { name: '문의 보내기' }).click()
+  await expect(page.locator('form').getByRole('alert')).toContainText('보내지 못했습니다')
+})
+
+test('review: stalled study media download times out and retries through authorization', async ({ page }) => {
+  await study(page)
+  let media = 0, lookups = 0, stalled = true
+  await page.route('**/api/attempts/attempt/download-url', route => { lookups++; return route.fallback() })
+  await page.route('**/flow-audio.wav', route => { media++; if (!stalled) return route.fallback() })
+  await page.clock.install(); await page.goto('/study/session-1/cards/card')
+  await expect.poll(() => media).toBeGreaterThan(0)
+  await page.clock.fastForward(30_001)
+  const item = page.locator('#attempt-attempt')
+  await expect(item.getByRole('alert')).toBeVisible()
+  stalled = false
+  await item.getByRole('button', { name: '다시 시도' }).click()
+  await expect.poll(() => lookups).toBe(2)
+  await expect.poll(() => item.locator('audio').evaluate((audio: HTMLAudioElement) => audio.readyState)).toBeGreaterThan(0)
+  expect(await item.locator('audio').evaluate(async (audio: HTMLAudioElement) => { await audio.play(); const playing = !audio.paused; audio.pause(); return playing })).toBe(true)
+})
+
+test('review: returning to study does not replace the active audio player', async ({ page }) => {
+  await study(page)
+  let lookups = 0
+  await page.route('**/api/attempts/attempt/download-url', route => {
+    lookups++
+    return route.fulfill({ json: { downloadUrl: 'http://127.0.0.1:3100/flow-audio.wav#signature-' + lookups } })
+  })
+  await page.goto('/study/session-1/cards/card')
+  const audio = page.locator('#attempt-attempt audio')
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.readyState)).toBeGreaterThan(0)
+  await audio.evaluate(element => element.setAttribute('data-original-player', 'true'))
+  await page.clock.install(); await page.clock.fastForward(2_000)
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await page.evaluate(() => { window.dispatchEvent(new Event('offline')); window.dispatchEvent(new Event('online')) })
+  // A loaded, paused player must not time out merely because it is idle.
+  await page.clock.fastForward(31_000)
+  await expect(audio).toHaveAttribute('data-original-player', 'true')
+  expect(lookups).toBe(1)
+})

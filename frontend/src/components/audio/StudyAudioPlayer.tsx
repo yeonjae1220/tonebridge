@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { withRequestDeadline } from '@/lib/requestDeadline'
@@ -20,8 +20,6 @@ export function StudyAudioPlayer({ attemptId, exampleId, label }: {
   const { t } = useI18n()
   const [mediaFailed, setMediaFailed] = useState(false)
   const [retry, setRetry] = useState(0)
-  const [duration, setDuration] = useState<number | null>(null)
-  const [needsDuration, setNeedsDuration] = useState(false)
   const query = useQuery({
     queryKey: ['study-audio', generation, exampleId ? 'example' : 'attempt', exampleId ?? attemptId, retry],
     queryFn: ({ signal }) => withRequestDeadline(requestSignal => (exampleId
@@ -32,33 +30,66 @@ export function StudyAudioPlayer({ attemptId, exampleId, label }: {
     staleTime: 0,
     gcTime: 0,
     retry: false,
+    // A new signed URL replaces the media element and resets its playback position.
+    // Re-authorize on mount or explicit recovery, not on background focus/reconnect.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
-  useEffect(() => { setDuration(null); setNeedsDuration(false) }, [query.data])
+  if (!attemptId && !exampleId) return <p className="text-sm text-gray-500">{t('study.audioUnavailable')}</p>
+  if (query.isError || mediaFailed) return <QueryError onRetry={() => { setMediaFailed(false); setRetry((value) => value + 1) }} />
+  if (!query.data) return <p role="status" className="text-sm text-gray-500">{t('common.loading')}</p>
+  return <StudyAudioMedia key={`${generation}:${retry}:${query.data}`} url={query.data} label={label} onFailure={setMediaFailed} />
+}
+
+/** Each source owns its load deadline and media element, including cleanup on retry. */
+function StudyAudioMedia({ url, label, onFailure }: { url: string; label: string; onFailure: (failed: boolean) => void }) {
+  const { t } = useI18n()
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [duration, setDuration] = useState<number | null>(null)
+  const [needsDuration, setNeedsDuration] = useState(false)
+  const clearWait = useCallback(() => { clearTimeout(timerRef.current); timerRef.current = undefined }, [])
+  const waitForMedia = useCallback(() => {
+    clearWait()
+    timerRef.current = setTimeout(() => onFailure(true), 30_000)
+  }, [clearWait, onFailure])
   useEffect(() => {
-    if (!needsDuration || !query.data) return
+    const audio = audioRef.current
+    // Metadata may arrive before passive effects; do not time out a ready player.
+    if (audio && !audio.getAttribute('src')) audio.src = url
+    if (audio?.readyState === 0) waitForMedia()
+    return () => {
+      clearWait()
+      // Removing a player alone does not reliably abort its pending media request.
+      audio?.pause()
+      audio?.removeAttribute('src')
+      audio?.load()
+    }
+  }, [clearWait, waitForMedia, url])
+  useEffect(() => {
+    if (!needsDuration || !url) return
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 30_000)
     // Older MediaRecorder WebM files lack duration metadata. Derive their display
     // length without seeking the user's player or changing playback position.
-    void fetch(query.data, { signal: controller.signal }).then(async (response) => {
+    void fetch(url, { signal: controller.signal }).then(async (response) => {
       if (!response.ok) throw new Error('Audio unavailable')
       const seconds = await decodedDuration(await response.blob())
       if (!controller.signal.aborted) setDuration(seconds)
     }).catch(() => { /* Playback remains usable even if duration decoding is unsupported. */ })
       .finally(() => clearTimeout(timer))
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [needsDuration, query.data])
-  if (!attemptId && !exampleId) return <p className="text-sm text-gray-500">{t('study.audioUnavailable')}</p>
-  if (query.isError || mediaFailed) return <QueryError onRetry={() => { setMediaFailed(false); setRetry((value) => value + 1) }} />
-  if (!query.data) return <p role="status" className="text-sm text-gray-500">{t('common.loading')}</p>
+  }, [needsDuration, url])
   return <>
-    <audio key={`${generation}:${retry}:${query.data}`} controls preload="metadata" aria-label={label}
+    <audio ref={audioRef} controls preload="metadata" aria-label={label}
       onLoadedMetadata={(event) => {
+        clearWait()
         const value = event.currentTarget.duration
         if (Number.isFinite(value) && value > 0) setDuration(value)
         else setNeedsDuration(true)
       }}
-      src={query.data} onError={() => setMediaFailed(true)} className="h-11 w-full" />
+      onWaiting={waitForMedia} onCanPlay={clearWait} onPlaying={clearWait} onPause={clearWait}
+      src={url} onError={() => onFailure(true)} className="h-11 w-full" />
     {/* Match native media controls and the recorder preview: display completed seconds. */}
     {duration !== null && <p className="mt-1 text-xs text-gray-500">{t('recording.total')} {formatDuration(Math.floor(duration))}</p>}
   </>
