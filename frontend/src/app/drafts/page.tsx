@@ -59,7 +59,7 @@ export default function DraftsPage() {
     setSnapshot(data); setLoading(false); setError(failed ? t('drafts.changed') : '')
   }, [accessToken, user?.id, account, t])
   useEffect(() => {
-    if (!accessToken) { router.replace('/login'); return }
+    if (!accessToken) { router.replace('/login?redirect=' + encodeURIComponent('/drafts' + window.location.search)); return }
     void refresh()
     const update = () => void refresh()
     window.addEventListener('storage', update)
