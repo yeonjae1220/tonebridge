@@ -138,3 +138,109 @@ test('confirmed community edit appears even when list reads stall', async ({ pag
   await dialog.getByRole('button', { name: '저장', exact: true }).click(); await expect(dialog).toHaveCount(0)
   await expect(page.getByText('Confirmed edited request', { exact: true })).toBeVisible()
 })
+
+
+for (const failure of ['timeout', 'unavailable'] as const) test(`review: transient refresh ${failure} retains the active note and permits explicit retry`, async ({ page }) => {
+  const state = await cardApp(page), field = await note(page)
+  let rejected = true, writes = 0, refreshes = 0
+  await page.route('**/api/cards/card/note', route => {
+    writes++
+    if (route.request().headers().authorization !== 'Bearer restored-token') return route.fulfill({ status: 401, json: {} })
+    return route.fallback()
+  })
+  await page.route('**/api/auth/refresh', route => {
+    refreshes++
+    if (rejected && failure === 'timeout') { state.held.push(route); return }
+    return route.fulfill({ status: rejected ? 503 : 200, json: { accessToken: 'restored-token' } })
+  })
+  await page.clock.install()
+  await page.locator('#card-note').getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => refreshes).toBe(1)
+  if (failure === 'timeout') await page.clock.fastForward(15_001)
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible()
+  await expect(page).toHaveURL(/study\/session-1\/cards\/card$/)
+  await expect(field).toHaveValue('Retained local note'); await expect(field).toBeEnabled()
+  expect(writes).toBe(1)
+  rejected = false
+  await page.locator('#card-note').getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => writes).toBe(3)
+  expect(refreshes).toBe(2); expect(state.writes).toBe(1)
+  await expect(page.getByRole('status').filter({ hasText: /저장/ })).toBeVisible()
+})
+
+test('review: feedback filter changes preserve text and score', async ({ page }) => {
+  await cardApp(page); const item = await feedback(page)
+  await item.getByRole('combobox').selectOption('5')
+  await page.getByRole('button', { name: '상대 연습', exact: true }).click()
+  await expect(item).toHaveCount(0)
+  await page.getByRole('button', { name: '전체', exact: true }).click()
+  await expect(item.getByRole('textbox')).toHaveValue('Retained local feedback')
+  await expect(item.getByRole('combobox')).toHaveValue('5')
+})
+
+test('review: filtering a pending feedback save cannot unlock a duplicate submission', async ({ page }) => {
+  const state = await cardApp(page); state.holdWrite = true
+  const item = await feedback(page); await page.clock.install()
+  await item.getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => state.writes).toBe(1)
+  await page.getByRole('button', { name: '상대 연습', exact: true }).click()
+  await page.getByRole('button', { name: '전체', exact: true }).click()
+  await expect(item.getByRole('textbox')).toBeDisabled()
+  await page.clock.fastForward(30_001)
+  await expect(item.getByRole('alert')).toContainText('완료 여부')
+  await expect(item.getByRole('textbox')).toHaveValue('Retained local feedback')
+  await expect(item.getByRole('textbox')).toBeEnabled(); expect(state.writes).toBe(1)
+})
+
+test('review: a late note response does not revert a newer card phrase', async ({ page }) => {
+  const state = await cardApp(page); await note(page)
+  await page.clock.install(); await page.clock.fastForward(61_000)
+  state.holdWrite = true
+  const saved = { ...state.card, note: 'Retained local note' }
+  await page.locator('#card-note').getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => state.writes).toBe(1)
+  state.card.phrase = 'Newer card phrase'
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.getByText('Newer card phrase', { exact: true })).toBeVisible()
+  state.holdRead = true
+  await state.held[0].fulfill({ json: saved })
+  await expect(page.locator('#card-note textarea')).toBeEnabled()
+  await expect(page.getByText('Newer card phrase', { exact: true })).toBeVisible()
+})
+
+test('review: a late community edit cannot roll back the latest request status', async ({ page }) => {
+  const state = await mine(page); state.holdWrite = true
+  await page.clock.install(); await page.clock.fastForward(61_000)
+  const saved = { ...state.base.request, contentText: 'Confirmed edited request' }
+  await page.getByRole('button', { name: '수정', exact: true }).click()
+  const dialog = page.getByRole('dialog'); await dialog.getByRole('textbox').first().fill(saved.contentText)
+  await dialog.getByRole('button', { name: '저장', exact: true }).click()
+  await expect.poll(() => state.writes).toBe(1)
+  state.base.request.status = 'IN_PROGRESS'
+  const reads = state.reads
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect.poll(() => state.reads).toBeGreaterThan(reads)
+  await expect(page.getByRole('button', { name: '수정', exact: true })).toHaveCount(0)
+  state.holdRead = true
+  await state.held[0].fulfill({ json: saved }); await expect(dialog).toHaveCount(0)
+  await expect(page.getByText(saved.contentText, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '수정', exact: true })).toHaveCount(0)
+})
+
+
+test('review: failed writes never log the bearer token or submitted note', async ({ page }) => {
+  await page.addInitScript(() => {
+    const logs: string[] = []
+    Object.assign(window, { reviewErrorLogs: logs })
+    const original = console.error
+    console.error = (...args) => { logs.push(JSON.stringify(args)); original(...args) }
+  })
+  await cardApp(page); await note(page)
+  await page.route('**/api/cards/card/note', route => route.fulfill({ status: 503, json: {} }))
+  await page.locator('#card-note').getByRole('button', { name: '저장', exact: true }).click()
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible()
+  const logs = await page.evaluate(() => (window as Window & { reviewErrorLogs?: string[] }).reviewErrorLogs ?? [])
+  expect(logs.some(line => line.includes('[mutation]'))).toBe(true)
+  expect(logs.join('\n')).not.toContain('Bearer fixture')
+  expect(logs.join('\n')).not.toContain('Retained local note')
+})

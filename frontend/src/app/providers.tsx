@@ -21,7 +21,8 @@ import { RecordingNavigationGuard } from '@/hooks/useRecordingNavigation'
 function createMutationCache() {
   return new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      console.error('[mutation] 요청 실패', mutation.options.mutationKey ?? '', error)
+      // Axios errors contain Authorization headers and submitted private content.
+      console.error('[mutation] 요청 실패', { status: getApiErrorStatus(error) ?? null })
       if (mutation.options.onError) return
       if (getApiErrorStatus(error) === 401) return
       useErrorToastStore.getState().show(getApiErrorMessage(error, '') || null)
