@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import { Correction, CorrectionRequest, StudySession } from '@/types'
+import { Correction, CorrectionRequest, CorrectionFeedPage, StudySession } from '@/types'
 import { useWaveSurfer } from '@/hooks/useWaveSurfer'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -278,7 +278,12 @@ function ResultDetail({ requestId }: { requestId: string }) {
     ...actionCallbacks,
     mutationFn: () => withWriteDeadline(signal => api.delete(`/correction-requests/${requestId}`, { signal })),
     onSuccess: () => {
+      updateConfirmedQuery<CorrectionRequest[]>(queryClient, ['my-requests'], items => items?.filter(item => item.id !== requestId))
+      updateConfirmedQuery<InfiniteData<CorrectionFeedPage>>(queryClient, ['correction-feed-page'], data => data && {
+        ...data, pages: data.pages.map(page => ({ ...page, items: page.items.filter(item => item.id !== requestId) })),
+      })
       void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
+      void queryClient.invalidateQueries({ queryKey: ['correction-feed-page'] })
       queryClient.removeQueries({ queryKey: ['correction-request', requestId], exact: true })
       queryClient.removeQueries({ queryKey: ['corrections', requestId], exact: true })
     },

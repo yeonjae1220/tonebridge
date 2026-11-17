@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const needsAuth = PROTECTED.some((p) => pathname.startsWith(p))
 
-  if (needsAuth && !request.cookies.has('session')) {
+  if (needsAuth && (!request.cookies.has('session') || request.cookies.get('tonebridge_signed_out')?.value === '1')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.search = ''

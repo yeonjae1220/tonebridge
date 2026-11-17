@@ -241,3 +241,116 @@ test('an older like response cannot overwrite a newer confirmed unlike after ret
   await expect(actionButton(page, 'like')).toBeEnabled()
   await expect(actionButton(page, 'like')).toHaveAttribute('aria-pressed', 'false')
 })
+
+
+for (const editor of ['nickname', 'languages']) test(`review: ${editor} input stays editable when recovery reads fail`, async ({ page }) => {
+  const state = await app(page)
+  state.stall.add('PATCH /api/users/me/' + (editor === 'nickname' ? 'username' : 'languages'))
+  if (editor === 'nickname') await nickname(page)
+  else { await page.goto('/profile/language-edit'); await page.getByRole('button', { name: /영어/ }).first().click() }
+  await page.clock.install()
+  await page.getByRole('button', { name: editor === 'nickname' ? '저장' : '저장하기', exact: true }).click()
+  await expect.poll(() => state.writes.length).toBe(1); await page.clock.fastForward(30_001)
+  await expect(alert(page)).toContainText('저장 완료 여부')
+  await page.route('**/api/users/me{,/profile}', route => route.fulfill({ status: 503, json: {} }))
+  await page.getByRole('button', { name: '새로고침', exact: true }).click()
+  await expect(page.getByRole('button', { name: '다시 시도', exact: true })).toBeVisible()
+  if (editor === 'nickname') {
+    await expect(page.locator('#nickname-input')).toBeVisible()
+    await expect(page.locator('#nickname-input')).toHaveValue('changed_name')
+    await expect(page.locator('#nickname-input')).toBeEnabled()
+  } else {
+    const choice = page.getByRole('button', { name: /영어/ }).first()
+    await expect(choice).toBeVisible(); await expect(choice).toBeEnabled(); await expect(choice).toHaveClass(/border-blue-500/)
+  }
+})
+
+test('review: saving a recovered language draft preserves the refreshed UI language', async ({ page }) => {
+  const state = await app(page); state.stall.add('PATCH /api/users/me/languages')
+  await page.goto('/profile/language-edit'); await page.getByRole('button', { name: /영어/ }).first().click(); await page.clock.install()
+  await page.getByRole('button', { name: '저장하기', exact: true }).click()
+  await expect.poll(() => state.writes.length).toBe(1); await page.clock.fastForward(30_001)
+  await expect(alert(page)).toContainText('저장 완료 여부')
+  state.user.uiLanguage = 'en'
+  await page.getByRole('button', { name: '새로고침', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  state.stall.clear()
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect.poll(() => state.writes.length).toBe(2)
+  await expect(page).toHaveURL(/\/profile$/)
+  expect(state.user.nativeLanguage).toBe('en'); expect(state.user.uiLanguage).toBe('en')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+})
+
+for (const outcome of ['failure', 'timeout']) test(`review: ${outcome} during logout cannot restore the old account after reload`, async ({ page }) => {
+  await app(page); let refreshes = 0, signedOut = false
+  await page.route('**/api/auth/refresh', route => { refreshes++; return route.fulfill({ json: { accessToken: 'old-account' } }) })
+  await page.route('**/api/auth/logout', route => { signedOut = true; if (outcome === 'failure') return route.fulfill({ status: 503, json: {} }) })
+  await page.goto('/profile/settings'); await expect(page.locator('#ui-language')).toBeEnabled(); await page.clock.install()
+  await page.getByRole('button', { name: /로그아웃/ }).click()
+  await expect.poll(() => signedOut).toBe(true); await expect(page).toHaveURL(/login$/)
+  await page.clock.fastForward(30_001)
+  const before = refreshes
+  await page.reload(); await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeVisible()
+  expect(refreshes).toBe(before)
+  await page.goto('/profile'); await expect(page).toHaveURL(/login\?redirect=%2Fprofile$/)
+  expect(refreshes).toBe(before)
+})
+
+test('review: confirmed result deletion removes cached community requests while reads stall', async ({ page }) => {
+  const state = await app(page); let hold = false, held = 0
+  await page.route('**/api/correction-requests/{mine,feed/page}*', route => { if (hold) { held++; return }; return route.fallback() })
+  await page.goto('/community'); await page.getByRole('button', { name: '내 요청', exact: true }).click()
+  await page.getByText('Original practice', { exact: true }).click(); await expect(page).toHaveURL(/result\/request-1$/)
+  hold = true; await actionButton(page, 'delete-request').click(); await expect(page).toHaveURL(/community$/)
+  await expect.poll(() => held).toBeGreaterThan(0)
+  await expect(page.getByText('Original practice', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '내 요청', exact: true }).click()
+  await expect(page.getByText('Original practice', { exact: true })).toHaveCount(0)
+  expect(state.writes).toHaveLength(1)
+})
+
+
+test('review: only a successful explicit password login re-enables restoration', async ({ page, context }) => {
+  await app(page); let loginWorks = false, refreshes = 0
+  await page.route('**/api/auth/logout', route => route.fulfill({ status: 503, json: {} }))
+  await page.route('**/api/auth/login', route => route.fulfill(loginWorks
+    ? { json: { accessToken: 'new-account' } } : { status: 401, json: {} }))
+  await page.route('**/api/auth/refresh', route => { refreshes++; return route.fulfill({ json: { accessToken: 'restored-new' } }) })
+  await page.goto('/profile/settings'); await expect(page.locator('#ui-language')).toBeEnabled()
+  await page.getByRole('button', { name: /로그아웃/ }).click(); await expect(page).toHaveURL(/login$/)
+  await page.getByLabel('이메일', { exact: true }).fill('new@example.com'); await page.getByLabel('비밀번호', { exact: true }).fill('password123')
+  await page.getByRole('button', { name: '로그인', exact: true }).click()
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
+  expect((await context.cookies()).some(cookie => cookie.name === 'tonebridge_signed_out' && cookie.value === '1')).toBe(true)
+  loginWorks = true; await page.getByRole('button', { name: '로그인', exact: true }).click(); await expect(page).toHaveURL(/study$/)
+  expect((await context.cookies()).some(cookie => cookie.name === 'tonebridge_signed_out')).toBe(false)
+  const before = refreshes; await page.reload(); await expect(page.getByRole('heading', { name: '친구와 연습', exact: true })).toBeVisible()
+  expect(refreshes).toBe(before + 1)
+})
+
+test('review: successful OAuth clears local signout and survives reload', async ({ page, context }) => {
+  await app(page)
+  await page.route('**/api/auth/logout', route => route.fulfill({ status: 503, json: {} }))
+  await page.goto('/profile/settings'); await expect(page.locator('#ui-language')).toBeEnabled()
+  await page.getByRole('button', { name: /로그아웃/ }).click(); await expect(page).toHaveURL(/login$/)
+  await page.route('**/api/auth/google/callback*', route => route.fulfill({ status: 302,
+    headers: { Location: '/auth/callback#token=fixture.oauth.signature', 'Set-Cookie': 'tonebridge_signed_out=; Max-Age=0; Path=/; SameSite=Lax' } }))
+  await page.goto('/api/auth/google/callback?code=fixture&state=fixture'); await expect(page).toHaveURL(/study$/)
+  expect((await context.cookies()).some(cookie => cookie.name === 'tonebridge_signed_out')).toBe(false)
+  await page.reload(); await expect(page.getByRole('heading', { name: '친구와 연습', exact: true })).toBeVisible()
+})
+
+test('review: another tab cannot restore from a refresh response started before logout', async ({ page, context }) => {
+  await app(page); await page.route('**/api/auth/logout', route => route.fulfill({ status: 503, json: {} }))
+  await page.goto('/profile/settings'); await expect(page.locator('#ui-language')).toBeEnabled()
+  const other = await context.newPage(); await fixture(other); let held: Route | undefined
+  await other.route('**/api/auth/refresh', route => { held = route })
+  await other.goto('/profile'); await expect.poll(() => !!held).toBe(true)
+  await page.getByRole('button', { name: /로그아웃/ }).click(); await expect(page).toHaveURL(/login$/)
+  await held!.fulfill({ json: { accessToken: 'obsolete-restored' }, headers: { 'Set-Cookie': 'session=1; Path=/; SameSite=Lax' } })
+  await expect(other).toHaveURL(/login/)
+  await expect(other.getByRole('link', { name: '프로필', exact: true })).toHaveCount(0)
+  expect((await context.cookies()).some(cookie => cookie.name === 'tonebridge_signed_out' && cookie.value === '1')).toBe(true)
+  await other.close()
+})

@@ -136,7 +136,7 @@ function ProfileDetail() {
 
   const updateLangMutation = useMutation({
     mutationFn: () => withWriteDeadline(signal => api.patch<User>('/users/me/languages', {
-      nativeLanguage: nativeLang, uiLanguage: uiLang,
+      nativeLanguage: nativeLang, uiLanguage: me?.uiLanguage ?? language,
       fluentLanguages: fluentLangs, learningLanguages: learningLangs,
       nativeDialect: me?.nativeDialect,
       fluentLanguageVariants: me?.fluentLanguageVariants ?? {},
@@ -210,7 +210,7 @@ function ProfileDetail() {
   const levelMeta = profile ? (LEVEL_META[profile.correctorLevel] ?? LEVEL_META.NATIVE) : null
   const langLabel = (code: string) => languageDisplayName(code, language) || fallbackLangLabel(code)
 
-  if (editingLanguages && (meQuery.isError || !me)) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
+  if (editingLanguages && !me) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
     <h1 className="text-xl font-bold">{t('profile.languageSettingsTitle')}</h1>
     {meQuery.isError ? <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} /> : <p role="status">{t('common.loading')}</p>}
     <Link href="/profile" className="block py-3 text-blue-600">{t('profile.title')}</Link>
@@ -230,6 +230,7 @@ function ProfileDetail() {
             <h1 className="text-xl font-bold text-gray-900">{t('profile.languageSettingsTitle')}</h1>
           </div>
 
+          {meQuery.isError && <QueryError retrying={meQuery.isFetching} onRetry={() => void meQuery.refetch()} />}
           <fieldset disabled={updateLangMutation.isPending} className="flex flex-col gap-6">
             <div className="bg-surface rounded-2xl border border-gray-100 p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">{t('profile.nativeLanguage')}</p>
@@ -418,7 +419,7 @@ function ProfileDetail() {
           </div>
         )}
 
-        {profile && !profileQuery.isError && (
+        {profile && (
           <div className="flex flex-col gap-4">
             {/* 기본 정보 */}
             <div className="bg-surface rounded-2xl border border-gray-100 p-5">

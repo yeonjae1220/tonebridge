@@ -88,6 +88,7 @@ public class AuthController {
         try {
             TokenResponse tokens = loginWithGoogleUseCase.login(code, redirectUri);
             setRefreshCookie(response, tokens.refreshToken());
+            clearLocalLogoutMarker(response);
             String callbackUrl = frontendUrl + "/auth/callback"
                     + "#token=" + URLEncoder.encode(tokens.accessToken(), StandardCharsets.UTF_8);
             response.sendRedirect(callbackUrl);
@@ -106,6 +107,7 @@ public class AuthController {
         TokenResponse tokens = registerLocalUserUseCase.register(
                 request.email(), request.username(), request.password());
         setRefreshCookie(response, tokens.refreshToken());
+        clearLocalLogoutMarker(response);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new AccessTokenResponse(tokens.accessToken()));
     }
@@ -128,6 +130,7 @@ public class AuthController {
         }
 
         setRefreshCookie(response, tokens.refreshToken());
+        clearLocalLogoutMarker(response);
         return ResponseEntity.ok(new AccessTokenResponse(tokens.accessToken()));
     }
 
@@ -174,6 +177,13 @@ public class AuthController {
         response.addHeader("Set-Cookie", String.format(
                 "%s=1; Max-Age=%d; Path=/%s; SameSite=%s",
                 SESSION_COOKIE, maxAge, secureFlag, sameSiteCookie));
+    }
+
+    // Only a successful explicit login/registration may undo local sign-out.
+    // Refresh deliberately does not clear this marker: its response may predate logout.
+    private void clearLocalLogoutMarker(HttpServletResponse response) {
+        response.addHeader("Set-Cookie", "tonebridge_signed_out=; Max-Age=0; Path=/"
+                + (secureCookie ? "; Secure" : "") + "; SameSite=" + sameSiteCookie);
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
