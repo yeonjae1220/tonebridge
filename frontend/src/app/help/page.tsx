@@ -23,6 +23,8 @@ export default function HelpPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: message.trim(), email: email.trim(), version: 'mvp-pilot', website: '' }),
       }))
+      // The relay can lose the downstream response after the message was accepted.
+      if (response.status >= 500) throw new WriteOutcomeUnknownError()
       if (!response.ok) throw new Error('Could not send')
       setResult('success')
       setMessage('')
