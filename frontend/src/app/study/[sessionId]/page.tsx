@@ -10,6 +10,7 @@ import type { StudyCard, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+import { SoundTagPicker } from '@/components/study/SoundTagPicker'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
@@ -421,6 +422,7 @@ function CardSheet({
             placeholder={t('study.cards.tagsPlaceholder')}
           />
         </label>
+        <SoundTagPicker tagText={tagText} onChange={setTagText} />
         </fieldset>
         <button
           type="submit"
