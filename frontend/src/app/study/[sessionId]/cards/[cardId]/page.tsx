@@ -21,6 +21,7 @@ import { localizedLabel } from '@/lib/localizedLabels'
 import { useI18n } from '@/i18n/I18nProvider'
 import { RecorderModal } from '@/components/recorder/RecorderModal'
 import { PracticeHistory } from '@/components/study/PracticeHistory'
+import { SoundGuidePanel } from '@/components/study/SoundGuidePanel'
 import type { LearnerAttempt, NativeAudioEntry, StudyCard } from '@/types'
 
 function NativeAudioPlayer({ audio }: { audio: NativeAudioEntry }) {
@@ -199,6 +200,8 @@ function StudyCardDetail() {
                 </div>
               )}
             </section>
+
+            <SoundGuidePanel tags={card.tags} />
 
             <section className="bg-surface rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-900">{t('study.cardDetail.nativeAudios')}</h2>
