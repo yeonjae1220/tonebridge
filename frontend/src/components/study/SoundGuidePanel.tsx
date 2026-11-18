@@ -21,7 +21,7 @@ export function SoundGuidePanel({ tags }: { tags: readonly string[] }) {
             // Only the first guide starts open so several tagged sounds do not push the recordings off screen.
             <details key={guide.id} data-sound-guide={guide.id} open={index === 0} className="group rounded-xl border border-gray-100">
               <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
-                <span className="w-7 text-center text-xl font-black text-action-primary">{guide.symbol}</span>
+                <span className={`w-7 text-center font-black leading-none text-action-primary ${guide.shortSymbol ? '-translate-y-1 text-3xl' : 'text-xl'}`}>{guide.symbol}</span>
                 <span className="flex-1 text-sm font-semibold text-gray-900">{text.title}</span>
                 <span aria-hidden="true" className="text-gray-500 transition-transform group-open:rotate-180">▾</span>
               </summary>

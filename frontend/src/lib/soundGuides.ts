@@ -21,6 +21,8 @@ interface GuideText {
 export interface SoundGuide {
   id: string
   symbol: string
+  /** True when the symbol is a lowercase-height glyph (like ɹ) that looks undersized next to the others. */
+  shortSymbol?: boolean
   /** Normalized card tags that open this guide. */
   aliases: readonly string[]
   tongue: TonguePose
@@ -69,6 +71,7 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   {
     id: 'en-r',
     symbol: 'ɹ',
+    shortSymbol: true,
     aliases: ['r', 'ɹ'],
     tongue: [[98, 94], [108, 108], [134, 100], [164, 114], [172, 150], [150, 176], [108, 166], [92, 114]],
     contact: { at: [98, 87], kind: 'near' },
