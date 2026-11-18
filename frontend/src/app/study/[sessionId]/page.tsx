@@ -413,16 +413,18 @@ function CardSheet({
             placeholder={t('study.cards.contextPlaceholder')}
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-gray-500">{t('study.cards.tags')}</span>
-          <input
-            value={tagText}
-            onChange={(e) => setTagText(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder={t('study.cards.tagsPlaceholder')}
-          />
-        </label>
-        <SoundTagPicker tagText={tagText} onChange={setTagText} />
+        <div className="flex flex-col gap-1">
+          <span id="card-edit-tags-label" className="text-xs font-semibold text-gray-500">{t('study.cards.tags')}</span>
+          <SoundTagPicker tagText={tagText} onChange={setTagText}>
+            <input
+              aria-labelledby="card-edit-tags-label"
+              value={tagText}
+              onChange={(e) => setTagText(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder={t('study.cards.tagsPlaceholder')}
+            />
+          </SoundTagPicker>
+        </div>
         </fieldset>
         <button
           type="submit"
