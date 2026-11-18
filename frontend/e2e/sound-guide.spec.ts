@@ -91,6 +91,8 @@ test('sound buttons in the card form add and remove guide tags without touching 
   // Scoped by the form itself so the test does not depend on how the sheet around it is built.
   const dialog = page.locator('form').filter({ has: page.getByPlaceholder('쉼표로 구분') })
   await dialog.getByPlaceholder('쉼표로 구분').fill('발음')
+  // The picker starts collapsed beside the tag input so the save button stays on screen.
+  await dialog.getByRole('button', { name: '입 모양 그림 붙이기', exact: true }).click()
   const picker = dialog.getByRole('group', { name: '입 모양 그림 붙이기' })
   const th = picker.getByRole('button', { name: '영어 th', exact: true })
   const rieul = picker.getByRole('button', { name: '한국어 ㄹ', exact: true })

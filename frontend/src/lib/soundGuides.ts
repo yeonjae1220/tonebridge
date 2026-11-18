@@ -167,10 +167,10 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   },
 ]
 
-const LABELS: Record<GuideLanguage, { heading: string; diagram: string; rest: string; picker: string; pickerHelp: string } & Record<ContactKind, string>> = {
-  ko: { heading: '발음 가이드', diagram: '입 안 옆모습', rest: '점선: 쉴 때의 혀', picker: '입 모양 그림 붙이기', pickerHelp: '어려운 소리를 고르면 카드에 입 안 그림과 설명이 함께 보여요.', touch: '혀끝이 닿는 곳', tap: '혀끝이 한 번 치는 곳', near: '닿지 않고 가까이 가는 곳' },
-  en: { heading: 'Pronunciation guide', diagram: 'side view of the mouth', rest: 'Dashed: tongue at rest', picker: 'Add a mouth diagram', pickerHelp: 'Pick a tricky sound to show a mouth diagram and tips on the card.', touch: 'Where the tongue tip touches', tap: 'Where the tongue tip taps once', near: 'Close, but not touching' },
-  ja: { heading: '発音ガイド', diagram: '口の中の横顔', rest: '点線：休んでいるときの舌', picker: '口の形の図を付ける', pickerHelp: '難しい音を選ぶと、カードに口の中の図と説明が表示されます。', touch: '舌先が付く場所', tap: '舌先が一度はじく場所', near: '付けずに近づける場所' },
+const LABELS: Record<GuideLanguage, { heading: string; diagram: string; rest: string; picker: string; pickerToggle: string; pickerHelp: string } & Record<ContactKind, string>> = {
+  ko: { heading: '발음 가이드', diagram: '입 안 옆모습', rest: '점선: 쉴 때의 혀', picker: '입 모양 그림 붙이기', pickerToggle: '입 모양', pickerHelp: '어려운 소리를 고르면 카드에 입 안 그림과 설명이 함께 보여요.', touch: '혀끝이 닿는 곳', tap: '혀끝이 한 번 치는 곳', near: '닿지 않고 가까이 가는 곳' },
+  en: { heading: 'Pronunciation guide', diagram: 'side view of the mouth', rest: 'Dashed: tongue at rest', picker: 'Add a mouth diagram', pickerToggle: 'Mouth', pickerHelp: 'Pick a tricky sound to show a mouth diagram and tips on the card.', touch: 'Where the tongue tip touches', tap: 'Where the tongue tip taps once', near: 'Close, but not touching' },
+  ja: { heading: '発音ガイド', diagram: '口の中の横顔', rest: '点線：休んでいるときの舌', picker: '口の形の図を付ける', pickerToggle: '口の形', pickerHelp: '難しい音を選ぶと、カードに口の中の図と説明が表示されます。', touch: '舌先が付く場所', tap: '舌先が一度はじく場所', near: '付けずに近づける場所' },
 }
 
 function guideLanguage(language: UiLanguage): GuideLanguage {
