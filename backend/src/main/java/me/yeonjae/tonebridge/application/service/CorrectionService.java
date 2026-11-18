@@ -91,7 +91,7 @@ public class CorrectionService implements
         if (!request.isOwnedBy(command.raterId())) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
-        userBlocks.requireAllowed(command.raterId(), correction.correctorId());
+        userBlocks.lockAllowed(command.raterId(), correction.correctorId());
         if (ratingPort.existsByCorrection(command.correctionId())) {
             throw new ToneBridgeException(ErrorCode.ALREADY_RATED);
         }
@@ -149,7 +149,7 @@ public class CorrectionService implements
         }
         var request = correctionRequestPort.findById(correction.requestId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
-        userBlocks.requireAllowed(command.correctorId(), request.requesterId());
+        userBlocks.lockAllowed(command.correctorId(), request.requesterId());
         return correctionPort.updateContent(
                 command.correctionId(),
                 command.correctedText(),
@@ -167,6 +167,8 @@ public class CorrectionService implements
     public void accept(AcceptCorrectionUseCase.Command command) {
         Correction correction = correctionPort.findById(command.correctionId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
+        // User locks precede the request lock, matching block and submission ordering.
+        userBlocks.lockAllowed(command.requesterId(), correction.correctorId());
         // 비관적 락으로 동시 채택 방지
         CorrectionRequest request = correctionRequestPort.findByIdForUpdate(correction.requestId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
@@ -174,7 +176,6 @@ public class CorrectionService implements
         if (!request.isOwnedBy(command.requesterId())) {
             throw new ToneBridgeException(ErrorCode.UNAUTHORIZED);
         }
-        userBlocks.requireAllowed(command.requesterId(), correction.correctorId());
         if (request.acceptedCorrectionId() != null
                 || request.status() == RequestStatus.EXPIRED
                 || request.status() == RequestStatus.AI_COMPLETED) {
@@ -221,8 +222,7 @@ public class CorrectionService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CORRECTION_NOT_FOUND));
         var request = correctionRequestPort.findById(correction.requestId())
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.REQUEST_NOT_FOUND));
-        userBlocks.requireAllowed(viewer, correction.correctorId());
-        userBlocks.requireAllowed(viewer, request.requesterId());
+        userBlocks.lockAllowed(viewer, correction.correctorId(), request.requesterId());
     }
 
     private LikeCorrectionUseCase.Result likeResult(UUID correctionId, boolean liked) {

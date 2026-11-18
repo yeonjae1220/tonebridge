@@ -37,6 +37,8 @@ class UserBlockIntegrationTest extends PostgresIntegrationTest {
     @MockitoBean StreakService streaks;
     @MockitoBean BadgeService badges;
     @MockitoBean me.yeonjae.tonebridge.shared.config.StorageRateLimitInterceptor storageLimits;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
+    @Autowired UserBlockService blocks;
     MockMvc mvc;
     UUID a,b,c,session,card,request,correction;
     @BeforeEach void setup() throws Exception {
@@ -159,6 +161,46 @@ class UserBlockIntegrationTest extends PostgresIntegrationTest {
         assertThat(correctionRecords.countApprovedAudioByCorrector(c)).isZero();
         jdbc.update("UPDATE correction_requests SET deleted_at=now() WHERE id=?",request);
         assertThat(correctionRecords.countApprovedAudioByCorrector(a)).isZero();
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"update","rate","accept","like","unlike","toggle","third-party-like"})
+    void correctionWritesCannotPassAnInFlightBlock(String action) throws Exception {
+        var started=new CountDownLatch(1);var release=new CountDownLatch(1);
+        UUID actor=action.equals("update")?a:action.equals("third-party-like")?c:b;
+        UUID blocker=action.equals("third-party-like")?c:b;
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var blocking=pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions).execute(status -> {
+                jdbc.queryForList("SELECT id FROM users WHERE id IN (?,?) ORDER BY id FOR UPDATE",UUID.class,a,blocker);
+                started.countDown();
+                try { if(!release.await(10,TimeUnit.SECONDS)) throw new IllegalStateException("test gate timed out"); }
+                catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException(e);}
+                blocks.block(blocker,a);return true;
+            }));
+            assertThat(started.await(10,TimeUnit.SECONDS)).isTrue();
+            var write=pool.submit(() -> {
+                var url="/api/corrections/"+correction;
+                var req=switch(action) {
+                    case "update" -> patch(url).contentType(MediaType.APPLICATION_JSON).content("{\"correctedText\":\"late change\",\"explanation\":\"late explanation\"}");
+                    case "rate" -> post(url+"/rate").contentType(MediaType.APPLICATION_JSON).content("{\"helpful\":true}");
+                    case "accept" -> post(url+"/accept");
+                    case "unlike" -> delete(url+"/like");
+                    case "toggle" -> post(url+"/like");
+                    default -> put(url+"/like");
+                };
+                return mvc.perform(req.with(as(actor))).andReturn().getResponse().getStatus();
+            });
+            try {
+                // Wait for the actual database lock, or the vulnerable write finishing early.
+                org.awaitility.Awaitility.await().atMost(5,TimeUnit.SECONDS).until(() -> write.isDone() ||
+                    jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'",Integer.class)>0);
+            } finally { release.countDown(); }
+            assertThat(blocking.get(10,TimeUnit.SECONDS)).isTrue();
+            assertThat(write.get(10,TimeUnit.SECONDS)).isEqualTo(403);
+        }
+        assertThat(jdbc.queryForObject("SELECT corrected_text FROM corrections WHERE id=?",String.class,correction)).isEqualTo("fixed");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ratings WHERE correction_id=?",Integer.class,correction)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM correction_likes WHERE correction_id=?",Integer.class,correction)).isZero();
+        assertThat(jdbc.queryForObject("SELECT accepted_correction_id FROM correction_requests WHERE id=?",UUID.class,request)).isNull();
     }
     private String path(UUID target) { return "/api/users/me/blocks/"+target; }
     private void block(UUID actor,UUID target) throws Exception { mvc.perform(put(path(target)).with(as(actor))).andExpect(status().isNoContent()); }

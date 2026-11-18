@@ -82,6 +82,19 @@ class PersonalExportIntegrationTest extends PostgresIntegrationTest {
         String json=new String(zip.get("records.json"),StandardCharsets.UTF_8);
         assertThat(json).contains("My original","Received correction",owner+"@test.invalid").doesNotContain(peer+"@test.invalid","must-not-export-password-hash",audioKey,"accessToken","refreshToken","password_hash");
     }
+    @Test void authoredPracticeFeedbackIsExportedWithoutPeerIdentityOrAudio() throws Exception {
+        UUID session=UUID.randomUUID(),card=UUID.randomUUID(),attempt=UUID.randomUUID();
+        jdbc.update("INSERT INTO study_sessions(id,created_by,title) VALUES (?,?,'Feedback notebook')",session,peer);
+        jdbc.update("INSERT INTO study_cards(id,session_id,created_by_user_id,phrase,tags) VALUES (?,?,?,'peer phrase','')",card,session,peer);
+        jdbc.update("INSERT INTO learner_attempts(id,card_id,learner_id,audio_url,correction_note,score,correction_author_id,correction_updated_at) VALUES (?,?,?,?,'My authored practice feedback',4,?,now())",attempt,card,peer,"audio/"+peer+"/private.webm",owner);
+        jdbc.update("INSERT INTO learner_attempts(id,card_id,learner_id,audio_url,correction_note,correction_author_id) VALUES (?,?,?,?,'Another reviewer private note',?)",UUID.randomUUID(),card,peer,"audio/"+peer+"/other.webm",peer);
+        create(owner,operation,true,202);worker.processOne();
+        var zip=unzip(mvc.perform(get(path(operation)+"/download").with(as(owner))).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        String json=new String(zip.get("records.json"),StandardCharsets.UTF_8);
+        assertThat(json).contains("writtenPracticeFeedback","My authored practice feedback",attempt.toString())
+            .doesNotContain("Another reviewer private note",peer+"@test.invalid","audio/"+peer,"correction_author_id","learner_id");
+        assertThat(zip).hasSize(2);
+    }
     @Test void unknownOrAnotherUploadOwnersAudioIsExplicitlyOmitted() throws Exception {
         ownership.register(peer,audioKey);
         create(owner,operation,true,202);worker.processOne();
