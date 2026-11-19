@@ -46,6 +46,14 @@ public class PersonalExportData {
         data.put("cards",rows("SELECT id,session_id,phrase,context,tags,created_at,native_audio_url AS _audio FROM study_cards WHERE created_by_user_id=:owner AND deleted_at IS NULL",owner,budget));
         data.put("notebooksCreatedByMe",rows("SELECT id,title,created_at FROM study_sessions WHERE created_by=:owner AND deleted_at IS NULL",owner,budget));
         data.put("practiceAttempts",rows("SELECT id,card_id,attempted_at,audio_url AS _audio FROM learner_attempts WHERE learner_id=:owner",owner,budget));
+        // Export the owner's authored feedback independently of current shared membership.
+        // Peer identity, peer audio and feedback by unattributed/other authors are excluded.
+        data.put("writtenPracticeFeedback",rows("""
+            SELECT a.id,a.card_id,a.correction_note,a.score,a.correction_updated_at
+            FROM learner_attempts a JOIN study_cards c ON c.id=a.card_id JOIN study_sessions s ON s.id=c.session_id
+            WHERE a.correction_author_id=:owner AND a.correction_note IS NOT NULL
+              AND c.deleted_at IS NULL AND s.deleted_at IS NULL
+            """,owner,budget));
         data.put("ratings",rows("SELECT id,correction_id,helpful,created_at FROM ratings WHERE rater_id=:owner",owner,budget));
         data.put("likes",rows("SELECT id,correction_id,created_at FROM correction_likes WHERE user_id=:owner",owner,budget));
         var received=rows("SELECT c.id,c.request_id,c.corrected_text,c.explanation,c.tags,c.timestamp_comments,c.pronunciation_score,c.intonation_score,c.fluency_score,c.status,c.created_at "+RECEIVED,owner,budget);
@@ -93,7 +101,7 @@ public class PersonalExportData {
             }
         }
         data.put("omittedAudioReferences",omitted);
-        data.put("limitations",List.of("Local-only browser drafts are not on the server.","Shared card/example notes have no reliable author metadata and are excluded.","Legacy example audio without recorded upload ownership is excluded.","Received feedback contains no peer email or authentication data."));
+        data.put("limitations",List.of("Local-only browser drafts are not on the server.","Shared card/example notes have no reliable author metadata and are excluded.","Legacy example audio without recorded upload ownership is excluded.","Practice feedback without recorded authorship is excluded from writtenPracticeFeedback.","Received feedback contains no peer email or authentication data."));
         return new Snapshot(data,checks,entries.entrySet().stream().map(e -> new Audio(e.getKey(),e.getValue())).toList());
     }
     @Transactional(readOnly=true)

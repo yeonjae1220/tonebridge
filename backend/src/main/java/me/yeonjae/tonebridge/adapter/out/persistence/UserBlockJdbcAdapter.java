@@ -15,9 +15,13 @@ public class UserBlockJdbcAdapter implements UserBlockPort {
     public boolean existsBetween(UUID a, UUID b) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM user_blocks WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?))", Boolean.class, a,b,b,a));
     }
-    public void lockUsers(UUID a, UUID b) {
-        var ids = jdbc.query("SELECT id FROM users WHERE id IN (?, ?) ORDER BY id FOR UPDATE", (rs,n) -> rs.getObject(1, UUID.class), a,b);
-        if (ids.size() != (a.equals(b) ? 1 : 2)) throw new ToneBridgeException(ErrorCode.USER_NOT_FOUND);
+    public void lockUsers(UUID... users) {
+        var participants=java.util.Arrays.stream(users).filter(java.util.Objects::nonNull).distinct().toList();
+        if(participants.isEmpty()) throw new ToneBridgeException(ErrorCode.USER_NOT_FOUND);
+        String placeholders=String.join(",",java.util.Collections.nCopies(participants.size(),"?"));
+        var ids=jdbc.query("SELECT id FROM users WHERE id IN ("+placeholders+") ORDER BY id FOR UPDATE",
+                (rs,n) -> rs.getObject(1,UUID.class),participants.toArray());
+        if(ids.size()!=participants.size()) throw new ToneBridgeException(ErrorCode.USER_NOT_FOUND);
     }
     public void add(UUID owner, UUID target) {
         jdbc.update("INSERT INTO user_blocks(blocker_id, blocked_id) VALUES (?,?) ON CONFLICT (blocker_id,blocked_id) DO NOTHING", owner,target);

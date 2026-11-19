@@ -23,9 +23,12 @@ public class UserBlockService {
     public void requireAllowed(UUID a, UUID b) {
         if (blocked(a,b)) throw new ToneBridgeException(ErrorCode.INTERACTION_UNAVAILABLE);
     }
-    public void lockAllowed(UUID a, UUID b) {
-        blocks.lockUsers(a,b);
-        requireAllowed(a,b);
+    public void lockAllowed(UUID actor, UUID... peers) {
+        var users=new UUID[peers.length+1];users[0]=actor;
+        System.arraycopy(peers,0,users,1,peers.length);
+        // One globally ordered lock set, including both authors for third-party reactions.
+        blocks.lockUsers(users);
+        for(UUID peer:peers) requireAllowed(actor,peer);
     }
     public void block(UUID owner, UUID target) {
         if (owner.equals(target)) throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
