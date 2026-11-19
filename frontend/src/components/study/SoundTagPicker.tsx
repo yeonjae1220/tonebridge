@@ -17,7 +17,10 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
   const { language } = useI18n()
   const labels = soundGuideLabels(language)
   const panelId = useId()
-  const [open, setOpen] = useState(() => SOUND_GUIDES.some((guide) => hasSoundTag(tagText, guide)))
+  // Derived until the user decides: tags can arrive after mount (a restored draft), and a card that
+  // already has a sound tag should show its buttons. Null means the user has not chosen yet.
+  const [chosenOpen, setChosenOpen] = useState<boolean | null>(null)
+  const open = chosenOpen ?? SOUND_GUIDES.some((guide) => hasSoundTag(tagText, guide))
 
   return (
     <div className="flex flex-col gap-2">
@@ -28,7 +31,7 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
           aria-label={labels.picker}
           aria-expanded={open}
           aria-controls={panelId}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => setChosenOpen(!open)}
           className={`shrink-0 rounded-xl border px-3 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${open ? 'border-action-primary text-action-primary' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
         >
           {labels.pickerToggle}
@@ -45,7 +48,11 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
                   key={guide.id}
                   type="button"
                   aria-pressed={selected}
-                  onClick={() => onChange(toggleSoundTag(tagText, guide))}
+                  onClick={() => {
+                    // Keep the buttons in place even if this removes the last sound tag.
+                    setChosenOpen(true)
+                    onChange(toggleSoundTag(tagText, guide))
+                  }}
                   className={`min-h-11 rounded-xl border px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${selected ? 'border-action-primary bg-action-primary text-white' : 'border-gray-200 bg-surface text-gray-700 hover:bg-gray-50'}`}
                 >
                   {soundGuideText(guide, language).title}

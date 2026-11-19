@@ -8,8 +8,8 @@ const baseCard = {
 
 const session = { id: 'session-1', title: '언어 교환', memberIds: ['owner', 'friend'], createdBy: 'owner', status: 'ACTIVE', createdAt: baseCard.createdAt }
 
-async function mockApi(page: Page, tags: string[], uiLanguage = 'ko') {
-  const state = { errors: [] as string[], created: [] as Record<string, unknown>[] }
+async function mockApi(page: Page, tags: string[], uiLanguage = 'ko', listCard = false) {
+  const state = { errors: [] as string[], created: [] as Record<string, unknown>[], updated: [] as Record<string, unknown>[] }
   page.on('pageerror', (error) => state.errors.push(error.message))
   // React key and hydration problems surface as console errors, not page errors.
   page.on('console', (message) => { if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) state.errors.push(message.text()) })
@@ -22,6 +22,11 @@ async function mockApi(page: Page, tags: string[], uiLanguage = 'ko') {
         state.created.push(request.postDataJSON() as Record<string, unknown>)
         return route.fulfill({ status: 201, json: { ...baseCard, tags } })
       }
+      if (path === '/api/cards/card-1') {
+        const body = request.postDataJSON() as Record<string, unknown>
+        state.updated.push(body)
+        return route.fulfill({ json: { ...baseCard, ...body } })
+      }
       return route.fulfill({ json: { accessToken: 'test-only' } })
     }
     if (path === '/api/users/me') {
@@ -29,6 +34,7 @@ async function mockApi(page: Page, tags: string[], uiLanguage = 'ko') {
     }
     if (path === '/api/cards/card-1') return route.fulfill({ json: { ...baseCard, tags } })
     if (path === '/api/sessions/session-1') return route.fulfill({ json: session })
+    if (path === '/api/sessions/session-1/cards' && listCard) return route.fulfill({ json: [{ ...baseCard, tags }] })
     if (path === '/api/sessions') return route.fulfill({ json: [session] })
     return route.fulfill({ json: [] })
   })
@@ -113,5 +119,48 @@ test('sound buttons in the card form add and remove guide tags without touching 
   // Submitted from the keyboard: this test is about the tags sent, not about where the save button sits.
   await dialog.getByPlaceholder('쉼표로 구분').press('Enter')
   await expect.poll(() => state.created).toEqual([{ phrase: '우리 나라', context: null, tags: ['발음', 'ㄹ'] }])
+  expect(state.errors).toEqual([])
+})
+
+test('editing a card that already has a sound tag shows the buttons open and saves the changed tags', async ({ page }) => {
+  const state = await mockApi(page, ['th'], 'ko', true)
+  await page.goto('/study/session-1')
+  await page.getByText('카드 관리', { exact: true }).click()
+  await page.getByRole('button', { name: '수정', exact: true }).click()
+
+  const form = page.locator('form').filter({ has: page.getByPlaceholder('쉼표로 구분') })
+  const picker = form.getByRole('group', { name: '입 모양 그림 붙이기' })
+  await expect(picker.getByRole('button', { name: '영어 th', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+  await picker.getByRole('button', { name: '한국어 ㄹ', exact: true }).click()
+  await expect(form.getByPlaceholder('쉼표로 구분')).toHaveValue('th, ㄹ')
+  await form.getByPlaceholder('쉼표로 구분').press('Enter')
+  await expect.poll(() => state.updated).toEqual([{ phrase: baseCard.phrase, context: null, tags: ['th', 'ㄹ'] }])
+  expect(state.errors).toEqual([])
+})
+
+test('a restored draft with a sound tag reopens with the buttons showing', async ({ page }) => {
+  const state = await mockApi(page, [])
+  await page.goto('/study/session-1')
+  const addCard = page.getByRole('button', { name: '카드 추가', exact: true }).first()
+  const form = page.locator('form').filter({ has: page.getByPlaceholder('쉼표로 구분') })
+  const picker = form.getByRole('group', { name: '입 모양 그림 붙이기' })
+
+  await addCard.click()
+  await expect(picker).toHaveCount(0)
+  await form.getByRole('button', { name: '입 모양 그림 붙이기', exact: true }).click()
+  await picker.getByRole('button', { name: '영어 th', exact: true }).click()
+  await expect(form.getByText('임시 보관했습니다', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
+  await expect(form).toHaveCount(0)
+
+  // The draft loads after the form mounts, so the picker cannot decide whether to open at mount time.
+  await addCard.click()
+  await expect(form.getByPlaceholder('쉼표로 구분')).toHaveValue('th')
+  await expect(picker.getByRole('button', { name: '영어 th', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+  // Removing the last sound keeps the buttons in place instead of collapsing under the pointer.
+  await picker.getByRole('button', { name: '영어 th', exact: true }).click()
+  await expect(picker.getByRole('button', { name: '영어 th', exact: true })).toHaveAttribute('aria-pressed', 'false')
   expect(state.errors).toEqual([])
 })
