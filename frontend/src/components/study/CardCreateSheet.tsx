@@ -6,6 +6,7 @@ import { QueryError } from '@/components/ui/QueryError'
 import { Dialog } from '@/components/ui/Dialog'
 import { RecoveryDraftNotice } from '@/components/recorder/RecoveryDraftNotice'
 import { SoundTagPicker } from '@/components/study/SoundTagPicker'
+import { cardTagsWithinLimits, parseCardTags } from '@/lib/cardTags'
 import { useI18n } from '@/i18n/I18nProvider'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { WriteOutcomeUnknownError } from '@/lib/writeDeadline'
@@ -19,11 +20,12 @@ export function CardCreateSheet({ sessionId, onClose, onSaved }: { sessionId: st
   const mutation = useCardSubmission(draft, onSaved)
   const locked = mutation.isPending || !draft.ready || !!draft.pending
   const tagText = draft.value.tagText ?? draft.value.tags.join(', ')
-  const setTagText = (next: string) => draft.setValue(v => ({ ...v, tagText: next, tags: next.split(',').map(tag => tag.trim()).filter(Boolean) }))
+  const setTagText = (next: string) => draft.setValue(v => ({ ...v, tagText: next, tags: parseCardTags(next) }))
+  const tagsValid = cardTagsWithinLimits(draft.value.tags)
   return <Dialog title={t('study.cards.new')} busy={mutation.isPending} onClose={() => { if (draft.confirmLeave()) onClose() }}>
     <form className="flex flex-col gap-4" onSubmit={event => {
       event.preventDefault()
-      if (!mutation.isPending && draft.ready && !draft.issue && (draft.pending || draft.value.phrase.trim())) mutation.mutate('save')
+      if (!mutation.isPending && draft.ready && !draft.issue && (draft.pending || (draft.value.phrase.trim() && tagsValid))) mutation.mutate('save')
     }}>
       {!user && (userError ? <QueryError retrying={userFetching} onRetry={() => void refetchUser()} /> : <p role="status">{t('common.loading')}</p>)}
       <RecoveryDraftNotice value={draft.value} status={draft.status} issue={draft.issue} restored={draft.restored}
@@ -40,7 +42,7 @@ export function CardCreateSheet({ sessionId, onClose, onSaved }: { sessionId: st
           </SoundTagPicker></div>
       </fieldset>
       {mutation.isError && <p role="alert" className="text-sm text-red-600">{getApiErrorMessage(mutation.error, t(mutation.error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'error.unexpected'))}</p>}
-      <button type="submit" disabled={mutation.isPending || !draft.ready || !!draft.issue || (!draft.pending && !draft.value.phrase.trim())}
+      <button type="submit" disabled={mutation.isPending || !draft.ready || !!draft.issue || (!draft.pending && (!draft.value.phrase.trim() || !tagsValid))}
         className="w-full rounded-xl bg-action-primary py-3 font-semibold text-white disabled:opacity-40">{t(mutation.isPending ? 'common.saving' : 'common.save')}</button>
     </form>
   </Dialog>
