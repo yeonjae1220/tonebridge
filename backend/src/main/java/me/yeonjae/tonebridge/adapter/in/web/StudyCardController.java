@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.LearnerAttemptResponse;
@@ -223,8 +225,18 @@ public class StudyCardController {
         return ResponseEntity.ok(CardNativeAudioResponse.from(audio));
     }
 
-    record CreateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
-    record UpdateCardDto(@NotBlank String phrase, String context, List<String> tags) {}
+    /**
+     * Tags are stored comma-joined in one VARCHAR(500) column: 20 tags of 24 characters plus 19
+     * separators is 499. A comma inside a tag would split it into two on the way back out.
+     * The web client mirrors these limits in frontend/src/lib/cardTags.ts.
+     */
+    static final int MAX_TAGS = 20;
+    static final int MAX_TAG_LENGTH = 24;
+
+    record CreateCardDto(@NotBlank String phrase, String context,
+                         @Size(max = MAX_TAGS) List<@NotBlank @Size(max = MAX_TAG_LENGTH) @Pattern(regexp = "[^,]*") String> tags) {}
+    record UpdateCardDto(@NotBlank String phrase, String context,
+                         @Size(max = MAX_TAGS) List<@NotBlank @Size(max = MAX_TAG_LENGTH) @Pattern(regexp = "[^,]*") String> tags) {}
     record MoveCardDto(@NotNull UUID targetSessionId, @Min(0) int position) {}
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}

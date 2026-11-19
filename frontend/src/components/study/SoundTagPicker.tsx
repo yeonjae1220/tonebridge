@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
+import { MAX_CARD_TAGS, cardTagsWithinLimits, parseCardTags } from '@/lib/cardTags'
 import { SOUND_GUIDES, hasSoundTag, soundGuideLabels, soundGuideText, toggleSoundTag } from '@/lib/soundGuides'
 
 interface SoundTagPickerProps {
@@ -14,7 +15,8 @@ interface SoundTagPickerProps {
 
 /** Wraps the tag input with toggle buttons that add or remove the tags which open a pronunciation guide. */
 export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerProps) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
+  const tags = parseCardTags(tagText)
   const labels = soundGuideLabels(language)
   const panelId = useId()
   // Derived until the user decides: tags can arrive after mount (a restored draft), and a card that
@@ -37,6 +39,7 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
           {labels.pickerToggle}
         </button>
       </div>
+      {!cardTagsWithinLimits(tags) && <p role="alert" className="text-xs text-red-600">{t('study.cards.tagLimit')}</p>}
       {open && (
         <div id={panelId} role="group" aria-label={labels.picker} className="flex flex-col gap-2">
           <p className="text-xs text-gray-500">{labels.pickerHelp}</p>
@@ -48,12 +51,14 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
                   key={guide.id}
                   type="button"
                   aria-pressed={selected}
+                  // Adding one more would exceed the limit; removing is always allowed.
+                  disabled={!selected && tags.length >= MAX_CARD_TAGS}
                   onClick={() => {
                     // Keep the buttons in place even if this removes the last sound tag.
                     setChosenOpen(true)
                     onChange(toggleSoundTag(tagText, guide))
                   }}
-                  className={`min-h-11 rounded-xl border px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${selected ? 'border-action-primary bg-action-primary text-white' : 'border-gray-200 bg-surface text-gray-700 hover:bg-gray-50'}`}
+                  className={`min-h-11 rounded-xl border px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${selected ? 'border-action-primary bg-action-primary text-white' : 'border-gray-200 bg-surface text-gray-700 hover:bg-gray-50'} disabled:opacity-40`}
                 >
                   {soundGuideText(guide, language).title}
                 </button>

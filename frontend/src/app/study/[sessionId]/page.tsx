@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
 import { SoundTagPicker } from '@/components/study/SoundTagPicker'
+import { cardTagsWithinLimits, parseCardTags } from '@/lib/cardTags'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
@@ -377,15 +378,14 @@ function CardSheet({
   const [tagText, setTagText] = useState(initial?.tags.join(', ') ?? '')
   const { t } = useI18n()
 
+  const tags = parseCardTags(tagText)
+  const tagsValid = cardTagsWithinLimits(tags)
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const trimmed = phrase.trim()
-    if (pending || !trimmed) return
-    onSubmit({
-      phrase: trimmed,
-      context: context.trim() || null,
-      tags: tagText.split(',').map((tag) => tag.trim()).filter(Boolean),
-    })
+    if (pending || !trimmed || !tagsValid) return
+    onSubmit({ phrase: trimmed, context: context.trim() || null, tags })
   }
 
   return (
@@ -428,7 +428,7 @@ function CardSheet({
         </fieldset>
         <button
           type="submit"
-          disabled={pending || !phrase.trim()}
+          disabled={pending || !phrase.trim() || !tagsValid}
           className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}
