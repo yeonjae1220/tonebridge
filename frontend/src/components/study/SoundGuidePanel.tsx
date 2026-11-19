@@ -13,7 +13,11 @@ export function SoundGuidePanel({ tags }: { tags: readonly string[] }) {
 
   return (
     <section aria-labelledby="sound-guide-heading" className="bg-surface rounded-2xl border border-gray-100 p-5">
-      <h2 id="sound-guide-heading" className="text-sm font-bold text-gray-900">{labels.heading}</h2>
+      <div className="flex items-center gap-2">
+        <h2 id="sound-guide-heading" className="text-sm font-bold text-gray-900">{labels.heading}</h2>
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{labels.beta}</span>
+      </div>
+      <p className="mt-1 text-xs text-gray-500">{labels.betaNote}</p>
       <div className="mt-3 flex flex-col gap-2">
         {guides.map((guide, index) => {
           const text = soundGuideText(guide, language)
