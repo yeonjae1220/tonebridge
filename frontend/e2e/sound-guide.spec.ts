@@ -53,6 +53,8 @@ test('shows a mouth diagram for each tagged sound, with only the first one expan
 
   const panel = page.getByRole('region', { name: '발음 가이드' })
   await expect(panel.locator('[data-sound-guide]')).toHaveCount(4)
+  await expect(panel.getByText('베타', { exact: true })).toBeVisible()
+  await expect(panel.getByText('그림과 설명은 아직 검수 중이에요. 참고용으로 봐 주세요.')).toBeVisible()
   await expect(panel.getByRole('img', { name: '영어 th — 입 안 옆모습' })).toBeVisible()
   await expect(panel.getByText('혀끝을 윗니와 아랫니 사이로 살짝 내밉니다.')).toBeVisible()
   await expect(panel.getByRole('img', { name: '영어 r — 입 안 옆모습' })).toBeHidden()
@@ -131,6 +133,8 @@ test('editing a card that already has a sound tag shows the buttons open and sav
   const form = page.locator('form').filter({ has: page.getByPlaceholder('쉼표로 구분') })
   const picker = form.getByRole('group', { name: '입 모양 그림 붙이기' })
   await expect(picker.getByRole('button', { name: '영어 th', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  const toggle = form.getByRole('button', { name: '입 모양 그림 붙이기', exact: true })
+  expect((await toggle.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
 
   await picker.getByRole('button', { name: '한국어 ㄹ', exact: true }).click()
   await expect(form.getByPlaceholder('쉼표로 구분')).toHaveValue('th, ㄹ')
@@ -163,4 +167,27 @@ test('a restored draft with a sound tag reopens with the buttons showing', async
   await picker.getByRole('button', { name: '영어 th', exact: true }).click()
   await expect(picker.getByRole('button', { name: '영어 th', exact: true })).toHaveAttribute('aria-pressed', 'false')
   expect(state.errors).toEqual([])
+})
+
+test('sound buttons leave the rest of the typed tag text exactly as written', async ({ page }) => {
+  await mockApi(page, [])
+  await page.goto('/study/session-1')
+  await page.getByRole('button', { name: '카드 추가', exact: true }).first().click()
+  const form = page.locator('form').filter({ has: page.getByPlaceholder('쉼표로 구분') })
+  const tags = form.getByPlaceholder('쉼표로 구분')
+  await form.getByRole('button', { name: '입 모양 그림 붙이기', exact: true }).click()
+  const th = form.getByRole('button', { name: '영어 th', exact: true })
+
+  // No space after the comma, and a comma still being typed at the end.
+  await tags.fill('발음,억양,')
+  await th.click()
+  await expect(tags).toHaveValue('발음,억양, th')
+  await th.click()
+  await expect(tags).toHaveValue('발음,억양')
+
+  // A sound tag typed by hand in the middle is removed without touching its neighbours.
+  await tags.fill('발음,/TH/ ,억양')
+  await expect(th).toHaveAttribute('aria-pressed', 'true')
+  await th.click()
+  await expect(tags).toHaveValue('발음,억양')
 })

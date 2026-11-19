@@ -32,7 +32,7 @@ export function SoundTagPicker({ tagText, onChange, children }: SoundTagPickerPr
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => setChosenOpen(!open)}
-          className={`shrink-0 rounded-xl border px-3 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${open ? 'border-action-primary text-action-primary' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+          className={`min-h-11 shrink-0 rounded-xl border px-3 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${open ? 'border-action-primary text-action-primary' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
         >
           {labels.pickerToggle}
         </button>
