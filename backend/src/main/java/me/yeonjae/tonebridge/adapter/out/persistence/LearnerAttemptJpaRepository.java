@@ -9,6 +9,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface LearnerAttemptJpaRepository extends JpaRepository<LearnerAttemptEntity, UUID> {
+    /** Row lock that serialises concurrent feedback saves on one attempt (SELECT ... FOR UPDATE). */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a.id FROM LearnerAttemptEntity a WHERE a.id = :id")
+    Optional<UUID> lockById(UUID id);
+
     Optional<LearnerAttemptEntity> findFirstByCardIdAndLearnerIdAndAudioUrlOrderByAttemptedAtAsc(UUID cardId, UUID learnerId, String audioUrl);
     Optional<LearnerAttemptEntity> findFirstByCardIdOrderByAttemptedAtDesc(UUID cardId);
     List<LearnerAttemptEntity> findByCardIdOrderByAttemptedAtDesc(UUID cardId);

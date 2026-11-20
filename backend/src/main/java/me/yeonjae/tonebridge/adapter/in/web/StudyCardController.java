@@ -153,7 +153,8 @@ public class StudyCardController {
             @PathVariable UUID attemptId,
             @Valid @RequestBody CorrectionNoteDto dto) {
         var attempt = addNoteUseCase.addNote(
-                new AddCorrectionNoteUseCase.Command(attemptId, userId, dto.correctionNote(), dto.score()));
+                new AddCorrectionNoteUseCase.Command(attemptId, userId, dto.correctionNote(), dto.score(),
+                        dto.soundTargets() == null ? null : dto.soundTargets().stream().map(SoundTargetDto::guideId).toList()));
         return ResponseEntity.ok(LearnerAttemptResponse.from(attempt));
     }
 
@@ -241,6 +242,9 @@ public class StudyCardController {
     record UploadUrlDto(@NotBlank String fileName) {}
     record ConfirmAudioDto(@NotBlank String audioKey) {}
     record SubmitAttemptDto(@NotBlank String audioKey) {}
-    record CorrectionNoteDto(@NotBlank String correctionNote, @Min(1) @Max(5) Integer score) {}
+    /** {@code soundTargets} omitted keeps the stored sounds; an empty list clears them. Ids are checked against the catalogue. */
+    record CorrectionNoteDto(@NotBlank String correctionNote, @Min(1) @Max(5) Integer score,
+                             @Size(max = 3) List<@NotNull @Valid SoundTargetDto> soundTargets) {}
+    record SoundTargetDto(@NotBlank @Size(max = 40) String guideId) {}
     record NoteDto(String note) {}
 }
