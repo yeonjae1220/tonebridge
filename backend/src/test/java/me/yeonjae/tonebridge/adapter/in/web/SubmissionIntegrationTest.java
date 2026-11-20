@@ -90,7 +90,10 @@ class SubmissionIntegrationTest extends PostgresIntegrationTest {
         save(correction, owner, operation, body(correction), 500);
         assertThat(count(correction)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM submission_receipts WHERE owner_id=?", Integer.class, owner)).isZero();
-        if (!correction) verifyNoInteractions(notifications);
+        // Only the card notification belongs to this write. A correction saved by an earlier test sends
+        // sendCorrectionReady from an async quality-check thread that can land after the mock is reset,
+        // so asserting "no interactions at all" made this test fail intermittently.
+        if (!correction) verify(notifications, never()).sendNewStudyCard(any(), any(), any());
         save(correction, owner, operation, body(correction), 201);
         assertThat(count(correction)).isEqualTo(1);
     }
