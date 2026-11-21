@@ -8,28 +8,30 @@ import { QueryError } from '@/components/ui/QueryError'
 import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
 import { WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { StudyScore } from './StudyScore'
+import { FeedbackSoundPicker, FeedbackSoundTargets } from './FeedbackSounds'
 
-type FeedbackPayload = { attemptId: string; correctionNote: string; score: number | null }
+type FeedbackPayload = { attemptId: string; correctionNote: string; score: number | null; soundGuideIds: string[] }
 
 type FeedbackDraft = {
-  open: boolean; note: string; score: number | null; pending: boolean; error: string | null
+  open: boolean; note: string; score: number | null; soundGuideIds: string[]; pending: boolean; error: string | null
 }
 const initialFeedbackDraft = (attempt: LearnerAttempt): FeedbackDraft => ({
-  open: false, note: attempt.correctionNote ?? '', score: attempt.score ?? null, pending: false, error: null,
+  open: false, note: attempt.correctionNote ?? '', score: attempt.score ?? null,
+  soundGuideIds: (attempt.soundTargets ?? []).map(target => target.guideId), pending: false, error: null,
 })
 
-function FeedbackEditor({ attempt, onSave, onRetry, draft, update }: {
-  onRetry: () => void; attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown>
+function FeedbackEditor({ attempt, onSave, onRetry, draft, update, preferredLanguages }: {
+  onRetry: () => void; preferredLanguages: readonly string[]; attempt: LearnerAttempt; onSave: (payload: FeedbackPayload) => Promise<unknown>
   draft: FeedbackDraft; update: (patch: Partial<FeedbackDraft>) => void
 }) {
   const { t } = useI18n()
-  const { open, note, score, pending, error } = draft
+  const { open, note, score, soundGuideIds, pending, error } = draft
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (!note.trim() || pending) return
     update({ pending: true, error: null })
     try {
-      await onSave({ attemptId: attempt.id, correctionNote: note.trim(), score })
+      await onSave({ attemptId: attempt.id, correctionNote: note.trim(), score, soundGuideIds })
       update({ open: false })
     } catch (error) {
       update({ error: t(error instanceof WriteOutcomeUnknownError ? 'common.saveUncertain' : 'study.cardDetail.feedbackSaveFailed') })
@@ -43,6 +45,8 @@ function FeedbackEditor({ attempt, onSave, onRetry, draft, update }: {
       <textarea aria-label={t('study.cardDetail.notePlaceholder')} placeholder={t('study.cardDetail.notePlaceholder')} value={note}
         onChange={event => update({ note: event.target.value })} rows={3} disabled={pending}
         className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+      <FeedbackSoundPicker selected={soundGuideIds} onChange={ids => update({ soundGuideIds: ids })}
+        preferredLanguages={preferredLanguages} disabled={pending} />
       <div className="flex flex-wrap gap-2">
         <select aria-label={t('study.cardDetail.scoreLabel')} value={score ?? ''} disabled={pending}
           onChange={event => update({ score: event.target.value === '' ? null : Number(event.target.value) })}
@@ -63,10 +67,12 @@ function FeedbackEditor({ attempt, onSave, onRetry, draft, update }: {
   </div>
 }
 
-export function PracticeHistory({ attempts, userId, loading, failed, onRetry, recordingBusy, canEdit, onPractice, onSave }: {
+export function PracticeHistory({ attempts, userId, loading, failed, onRetry, recordingBusy, canEdit, onPractice, onSave, preferredLanguages = [] }: {
   attempts: LearnerAttempt[]; userId?: string; loading: boolean; failed: boolean; onRetry: () => void
   recordingBusy: boolean; canEdit: boolean; onPractice: () => void
   onSave: (payload: FeedbackPayload) => Promise<unknown>
+  /** Sound languages to list first in the feedback picker (the viewer's native and fluent languages). */
+  preferredLanguages?: readonly string[]
 }) {
   const { t, language } = useI18n()
   const [filter, setFilter] = useState<'all' | 'mine' | 'partner'>('all')
@@ -124,12 +130,13 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
                 {' · '}{t(attempt.correctionUpdatedAt ? 'feedback.updated' : 'feedback.legacy')}
                 {' · '}{formatDate(attempt.correctionUpdatedAt ?? attempt.attemptedAt, language)}
               </p>
+              <FeedbackSoundTargets guideIds={(attempt.soundTargets ?? []).map(target => target.guideId)} />
             </div>}
             {attempt.learnerId === userId && attempt.correctionNote && <button type="button" disabled={recordingBusy}
               onClick={onPractice} className="mt-3 min-h-11 rounded-xl bg-action-primary px-4 text-sm font-semibold text-white disabled:opacity-40">
               {t('study.retryWithFeedback')}
             </button>}
-            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} onRetry={onRetry}
+            {canEdit && <FeedbackEditor attempt={attempt} onSave={onSave} onRetry={onRetry} preferredLanguages={preferredLanguages}
               draft={drafts[attempt.id] ?? initialFeedbackDraft(attempt)}
               update={patch => setDrafts(current => ({ ...current, [attempt.id]: {
                 ...(current[attempt.id] ?? initialFeedbackDraft(attempt)), ...patch,
