@@ -66,3 +66,25 @@ export function FeedbackSoundTargets({ guideIds }: { guideIds: readonly string[]
     </div>
   )
 }
+
+/**
+ * Compact, non-interactive list of pointed-out sounds for places where the feedback is itself a link
+ * (the feedback list). The guides open on the card page.
+ */
+export function FeedbackSoundSummary({ guideIds }: { guideIds: readonly string[] }) {
+  const { language } = useI18n()
+  const labels = soundGuideLabels(language)
+  const guides = guideIds.map(soundGuideById).filter((guide) => guide !== undefined)
+  if (guides.length === 0) return null
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-600" data-feedback-sound-summary>
+      <span>{labels.pointedSounds}</span>
+      {guides.map((guide) => (
+        <span key={guide.id} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-surface px-2 py-0.5 font-semibold text-gray-800">
+          <span aria-hidden="true" className="text-action-primary">{guide.symbol}</span>
+          {soundGuideText(guide, language).title}
+        </span>
+      ))}
+    </p>
+  )
+}

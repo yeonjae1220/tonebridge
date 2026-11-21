@@ -7,6 +7,9 @@ import java.util.UUID;
 public interface PracticeFeedbackPort {
     record Item(UUID attemptId, UUID cardId, UUID sessionId, String phrase, String sessionTitle,
                 String correctionNote, Integer score, Instant attemptedAt,
-                UUID correctionAuthorId, String correctionAuthorName, Instant correctionUpdatedAt) {}
+                UUID correctionAuthorId, String correctionAuthorName, Instant correctionUpdatedAt,
+                /** Sounds the note points at, in order (attempt_sound_targets). Never null. */
+                List<SoundTarget> soundTargets) {}
+    record SoundTarget(String guideId) {}
     List<Item> findForLearner(UUID learnerId, int offset, int limit);
 }
