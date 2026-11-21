@@ -9,6 +9,7 @@ import 'package:tonebridge/features/auth/domain/model/user.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
+import 'package:tonebridge/features/study_session/domain/model/sound_target.dart';
 import 'package:tonebridge/features/study_session/presentation/card_detail_page.dart';
 
 import '../../helpers/mocks.dart';
@@ -250,4 +251,56 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets(
+    'sounds a friend pointed out show as guides under the feedback, unknown ids skipped',
+    (tester) async {
+      when(() => repo.getAttempts('card-1')).thenAnswer(
+        (_) async => [
+          makeLearnerAttempt(
+            learnerId: 'user-1',
+            correctionNote: 'th 가 s 처럼 들려요.',
+            score: 3,
+            soundTargets: const [
+              SoundTarget(guideId: 'en-th'),
+              SoundTarget(guideId: 'retired-guide'),
+            ],
+          ),
+        ],
+      );
+      await showPage(tester);
+
+      final heading = find.text('피드백에서 짚은 소리');
+      await tester.ensureVisible(heading);
+      expect(heading, findsOneWidget);
+      expect(find.text('베타'), findsOneWidget);
+      expect(find.text('영어 th'), findsOneWidget);
+      expect(find.textContaining('retired-guide'), findsNothing);
+      expect(find.bySemanticsLabel('영어 th — 입 안 옆모습'), findsNothing);
+
+      await tester.tap(find.text('영어 th'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('영어 th — 입 안 옆모습'), findsOneWidget);
+      expect(find.text('1. 혀끝을 윗니와 아랫니 사이로 살짝 내밉니다.'), findsOneWidget);
+      expect(find.textContaining('혀끝이 닿는 곳'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('feedback without pointed sounds shows no guide section', (
+    tester,
+  ) async {
+    when(() => repo.getAttempts('card-1')).thenAnswer(
+      (_) async => [
+        makeLearnerAttempt(
+          learnerId: 'user-1',
+          correctionNote: '좋아요',
+          score: 5,
+        ),
+      ],
+    );
+    await showPage(tester);
+    expect(find.text('좋아요'), findsOneWidget);
+    expect(find.text('피드백에서 짚은 소리'), findsNothing);
+  });
 }

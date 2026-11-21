@@ -9,6 +9,7 @@ import 'package:tonebridge/features/profile/domain/model/user_profile.dart';
 import 'package:tonebridge/features/profile/domain/profile_repository.dart';
 import 'package:tonebridge/features/request/domain/request_repository.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
+import 'package:tonebridge/features/study_session/domain/model/sound_target.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_session.dart';
 import 'package:tonebridge/features/study_session/domain/study_session_repository.dart';
@@ -176,6 +177,7 @@ LearnerAttempt makeLearnerAttempt({
   String audioUrl = 'https://example.com/audio.aac',
   String? correctionNote,
   int? score,
+  List<SoundTarget> soundTargets = const [],
 }) =>
     LearnerAttempt(
       id: id,
@@ -185,4 +187,5 @@ LearnerAttempt makeLearnerAttempt({
       correctionNote: correctionNote,
       score: score,
       attemptedAt: DateTime(2024, 1, 1),
+      soundTargets: soundTargets,
     );
