@@ -19,6 +19,7 @@ import 'package:tonebridge/features/study_session/presentation/card_note_section
 import 'package:tonebridge/features/study_session/presentation/native_audios_section.dart';
 import 'package:tonebridge/features/study_session/presentation/note_sheet.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
+import 'widgets/feedback_sound_targets.dart';
 
 enum _RecordingPurpose { practice, example }
 
@@ -956,6 +957,7 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
                   ),
                 ),
               ],
+              FeedbackSoundTargets(targets: attempt.soundTargets),
             ] else if (widget.canAddNote) ...[
               const Divider(height: 16),
               TextButton.icon(

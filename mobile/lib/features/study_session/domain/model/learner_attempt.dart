@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'sound_target.dart';
+
 part 'learner_attempt.freezed.dart';
 part 'learner_attempt.g.dart';
 
@@ -13,6 +15,8 @@ abstract class LearnerAttempt with _$LearnerAttempt {
     String? correctionNote,
     int? score,
     required DateTime attemptedAt,
+    // Absent from servers before V35; mobile only displays these.
+    @Default(<SoundTarget>[]) List<SoundTarget> soundTargets,
   }) = _LearnerAttempt;
 
   const LearnerAttempt._();
@@ -20,6 +24,5 @@ abstract class LearnerAttempt with _$LearnerAttempt {
   factory LearnerAttempt.fromJson(Map<String, dynamic> json) =>
       _$LearnerAttemptFromJson(json);
 
-  bool get isCorrected =>
-      correctionNote != null && correctionNote!.isNotEmpty;
+  bool get isCorrected => correctionNote != null && correctionNote!.isNotEmpty;
 }
