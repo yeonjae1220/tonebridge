@@ -23,4 +23,10 @@ public interface LearnerAttemptPort {
 
     List<LearnerAttempt> findByCardId(UUID cardId);
     List<LearnerAttempt> findByLearnerId(UUID learnerId);
+
+    /**
+     * Replaces the sounds feedback points at on one attempt, in the given order. Concurrent calls for
+     * the same attempt are serialised. Ids must already be validated against the catalogue.
+     */
+    void replaceSoundTargets(UUID attemptId, List<String> guideIds, UUID authorId);
 }

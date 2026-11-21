@@ -199,8 +199,13 @@ public class StudyCardService implements
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.CARD_NOT_FOUND));
 
         requireMember(card.sessionId(), command.reviewerId());
+        requireKnownSoundGuides(command.soundGuideIds());
 
         LearnerAttempt updated = attemptPort.save(attempt.withCorrection(command.correctionNote(), command.score(), command.reviewerId(), java.time.Instant.now()));
+        if (command.soundGuideIds() != null) {
+            attemptPort.replaceSoundTargets(attempt.id(), command.soundGuideIds(), command.reviewerId());
+            updated = updated.withSoundGuideIds(command.soundGuideIds());
+        }
 
         eventPublisher.publishEvent(new LearningActivity(LearningActivity.Kind.FEEDBACK_SAVED,
                 command.reviewerId(), attempt.learnerId(), card.sessionId(), card.id(), attempt.id()));
@@ -211,6 +216,15 @@ public class StudyCardService implements
                 new CorrectionNoteAddedEvent(attempt.learnerId(), card.id(), card.sessionId(), reviewerUsername, command.reviewerId()));
 
         return updated;
+    }
+
+    private static void requireKnownSoundGuides(java.util.List<String> guideIds) {
+        if (guideIds == null) return;
+        if (guideIds.size() > me.yeonjae.tonebridge.domain.studycard.SoundGuideCatalog.MAX_TARGETS_PER_ATTEMPT
+                || guideIds.stream().anyMatch(id -> !me.yeonjae.tonebridge.domain.studycard.SoundGuideCatalog.isKnown(id))
+                || guideIds.stream().distinct().count() != guideIds.size()) {
+            throw new ToneBridgeException(ErrorCode.INVALID_INPUT, "soundTargets");
+        }
     }
 
     // ─── UpdateCardNoteUseCase ─────────────────────────────────────────────

@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
+import { SOUND_GUIDES } from '../src/lib/soundGuides'
+import serverGuideIds from '../src/lib/soundGuideIds.json'
 
 const baseCard = {
   id: 'card-1', sessionId: 'session-1', createdByUserId: 'owner',
@@ -231,4 +233,8 @@ test('tags over the server limits are explained and cannot be saved, in both car
   await tags.press('Enter')
   expect(state.updated).toEqual([])
   expect(state.errors).toEqual([])
+})
+
+test('every guide the web renders is one the server accepts in feedback, and vice versa', () => {
+  expect(SOUND_GUIDES.map((guide) => guide.id)).toEqual(serverGuideIds)
 })
