@@ -215,5 +215,7 @@ export interface PracticeFeedbackItem {
   correctionAuthorId: string | null
   correctionAuthorName: string | null
   correctionUpdatedAt: string | null
+  /** Sounds the note points at, in order. Absent from servers before the list carried them. */
+  soundTargets?: { guideId: string }[]
 }
 export interface PracticeFeedbackPage { items: PracticeFeedbackItem[]; nextPage: number | null }

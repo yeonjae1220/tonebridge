@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { formatDate } from '@/lib/dateUtils'
 import { QueryError } from '@/components/ui/QueryError'
 import type { PracticeFeedbackPage } from '@/types'
+import { FeedbackSoundSummary } from './FeedbackSounds'
 
 export function PracticeFeedback({ preview = false }: { preview?: boolean }) {
   const { t, language } = useI18n()
@@ -38,6 +39,7 @@ export function PracticeFeedback({ preview = false }: { preview?: boolean }) {
           <p className="text-xs text-gray-500">{item.sessionTitle ?? t('study.practiceDefault')}</p>
           <p className="mt-1 font-semibold text-gray-900">{item.phrase}</p>
           <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-gray-700">{item.correctionNote}</p>
+          <FeedbackSoundSummary guideIds={(item.soundTargets ?? []).map(target => target.guideId)} />
           <p className="mt-2 text-xs text-gray-500">{item.correctionAuthorId === user?.id ? t('feedback.self') : item.correctionAuthorName ?? t('feedback.unknownAuthor')}</p>
           <p className="mt-1 text-xs text-gray-500">
             {t(item.correctionUpdatedAt ? 'feedback.updated' : 'feedback.legacy')} · {formatDate(item.correctionUpdatedAt ?? item.attemptedAt, language)}

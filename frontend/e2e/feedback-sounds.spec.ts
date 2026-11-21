@@ -90,3 +90,41 @@ test('the feedback editor saves the chosen sounds, stops at three, and an empty 
   await expect(attempt.locator('[data-feedback-sounds]')).toHaveCount(0)
   expect(state.errors).toEqual([])
 })
+
+test('the feedback list names the sounds each note points at, and links to the card for the guides', async ({ page }, testInfo) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.context().addCookies([{ name: 'session', value: 'test-only', domain: '127.0.0.1', path: '/' }])
+  const item = (attemptId: string, note: string, soundTargets?: { guideId: string }[]) => ({
+    attemptId, cardId: 'card-1', sessionId: 'session-1', phrase: 'I think so.', sessionTitle: '언어 교환',
+    correctionNote: note, score: 3, attemptedAt: '2026-11-01T01:00:00Z', correctionAuthorId: 'friend',
+    correctionAuthorName: 'friend', correctionUpdatedAt: '2026-11-02T00:00:00Z', ...(soundTargets ? { soundTargets } : {}),
+  })
+  await page.route('**/api/**', (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() !== 'GET') return route.fulfill({ json: { accessToken: 'test-only' } })
+    if (path === '/api/users/me') return route.fulfill({ json: { id: 'owner', username: 'owner', onboardingCompleted: true, uiLanguage: 'ko', credits: 0, nativeLanguage: 'ko', fluentLanguages: ['en'], learningLanguages: ['en'] } })
+    if (path === '/api/practice-feedback') return route.fulfill({ json: { nextPage: null, items: [
+      item('attempt-1', 'th 가 s 처럼 들려요.', [{ guideId: 'en-th' }, { guideId: 'retired-guide' }, { guideId: 'ko-rieul' }]),
+      // A server that predates the field: the item renders without a sound line.
+      item('attempt-2', '좋아요'),
+    ] } })
+    return route.fulfill({ json: [] })
+  })
+
+  for (const path of ['/study/feedback', '/study']) {
+    await page.goto(path)
+    const pointed = page.locator('a[href$="#attempt-attempt-1"]')
+    const summary = pointed.locator('[data-feedback-sound-summary]')
+    await expect(summary).toContainText('피드백에서 짚은 소리')
+    await expect(summary).toContainText('영어 th')
+    await expect(summary).toContainText('한국어 ㄹ')
+    await expect(summary).not.toContainText('retired-guide')
+    await expect(page.locator('a[href$="#attempt-attempt-2"] [data-feedback-sound-summary]')).toHaveCount(0)
+    if (process.env.SOUND_GUIDE_SHOT_DIR && path === '/study/feedback') {
+      await pointed.screenshot({ path: `${process.env.SOUND_GUIDE_SHOT_DIR}/feedback-list-${testInfo.project.name}.png` })
+    }
+  }
+  expect(errors).toEqual([])
+})

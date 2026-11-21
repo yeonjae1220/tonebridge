@@ -2,10 +2,13 @@ package me.yeonjae.tonebridge.adapter.out.persistence;
 
 import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.PracticeFeedbackPort;
+import me.yeonjae.tonebridge.application.port.out.PracticeFeedbackPort.SoundTarget;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,7 +22,7 @@ public class PracticeFeedbackJdbcAdapter implements PracticeFeedbackPort {
     public List<Item> findForLearner(UUID learnerId, int offset, int limit) {
         // All attempts, not latest-per-card; current membership and both active parents are mandatory.
         // A single bounded query avoids loading every notebook/card on the client.
-        return jdbc.query("""
+        List<Item> items = jdbc.query("""
                 SELECT a.id, a.card_id, c.session_id, c.phrase, s.title, LEFT(a.correction_note, 500) AS correction_note,
                        a.score, a.attempted_at, a.correction_author_id, u.username, a.correction_updated_at
                 FROM learner_attempts a
@@ -37,7 +40,25 @@ public class PracticeFeedbackJdbcAdapter implements PracticeFeedbackPort {
                         rs.getObject("session_id", UUID.class), rs.getString("phrase"), rs.getString("title"),
                         rs.getString("correction_note"), rs.getObject("score", Integer.class),
                         instant(rs.getTimestamp("attempted_at")), rs.getObject("correction_author_id", UUID.class),
-                        rs.getString("username"), instant(rs.getTimestamp("correction_updated_at"))));
+                        rs.getString("username"), instant(rs.getTimestamp("correction_updated_at")), List.of()));
+        return withSoundTargets(items);
+    }
+
+    /** One query for the whole page, so the list stays a fixed number of queries (no N+1). */
+    private List<Item> withSoundTargets(List<Item> items) {
+        if (items.isEmpty()) return items;
+        Map<UUID, List<SoundTarget>> byAttempt = new HashMap<>();
+        jdbc.query("""
+                SELECT attempt_id, guide_id FROM attempt_sound_targets
+                WHERE attempt_id IN (:ids) ORDER BY attempt_id, position
+                """, Map.of("ids", items.stream().map(Item::attemptId).toList()),
+                rs -> {
+                    byAttempt.computeIfAbsent(rs.getObject("attempt_id", UUID.class), id -> new ArrayList<>())
+                            .add(new SoundTarget(rs.getString("guide_id")));
+                });
+        return items.stream().map(i -> new Item(i.attemptId(), i.cardId(), i.sessionId(), i.phrase(), i.sessionTitle(),
+                i.correctionNote(), i.score(), i.attemptedAt(), i.correctionAuthorId(), i.correctionAuthorName(),
+                i.correctionUpdatedAt(), byAttempt.getOrDefault(i.attemptId(), List.of()))).toList();
     }
 
     private static Instant instant(Timestamp value) { return value == null ? null : value.toInstant(); }
