@@ -168,6 +168,8 @@ export interface LearnerAttempt {
   attemptedAt: string
   correctionAuthorId?: string | null
   correctionUpdatedAt?: string | null
+  /** Pronunciation guides the feedback points at, in order. Absent from servers older than V35. */
+  soundTargets?: { guideId: string }[]
 }
 
 export interface StudyCard {

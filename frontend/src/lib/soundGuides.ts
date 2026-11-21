@@ -20,6 +20,8 @@ interface GuideText {
 
 export interface SoundGuide {
   id: string
+  /** Language the sound belongs to (BCP 47 primary subtag). Separate from the language the steps are written in. */
+  targetLanguage: string
   symbol: string
   /** True when the symbol is a lowercase-height glyph (like ɹ) that looks undersized next to the others. */
   shortSymbol?: boolean
@@ -37,6 +39,7 @@ export const REST_TONGUE: TonguePose = [
 export const SOUND_GUIDES: readonly SoundGuide[] = [
   {
     id: 'en-th',
+    targetLanguage: 'en',
     symbol: 'θ',
     aliases: ['th', 'θ', 'ð'],
     tongue: [[61, 117], [84, 111], [126, 106], [160, 118], [172, 150], [150, 176], [108, 168], [78, 126]],
@@ -70,6 +73,7 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   },
   {
     id: 'en-r',
+    targetLanguage: 'en',
     symbol: 'ɹ',
     shortSymbol: true,
     aliases: ['r', 'ɹ'],
@@ -104,6 +108,7 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   },
   {
     id: 'en-l',
+    targetLanguage: 'en',
     symbol: 'l',
     aliases: ['l'],
     tongue: [[80, 97], [94, 108], [128, 110], [160, 120], [172, 150], [150, 176], [110, 168], [88, 122]],
@@ -137,6 +142,7 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   },
   {
     id: 'ko-rieul',
+    targetLanguage: 'ko',
     symbol: 'ㄹ',
     aliases: ['ㄹ', '\u11af', '리을', 'ɾ'],
     tongue: [[81, 97], [95, 109], [128, 108], [160, 118], [172, 150], [150, 176], [110, 168], [88, 124]],
@@ -170,10 +176,10 @@ export const SOUND_GUIDES: readonly SoundGuide[] = [
   },
 ]
 
-const LABELS: Record<GuideLanguage, { heading: string; beta: string; betaNote: string; diagram: string; rest: string; picker: string; pickerToggle: string; pickerHelp: string } & Record<ContactKind, string>> = {
-  ko: { heading: '발음 가이드', beta: '베타', betaNote: '그림과 설명은 아직 검수 중이에요. 참고용으로 봐 주세요.', diagram: '입 안 옆모습', rest: '점선: 쉴 때의 혀', picker: '입 모양 그림 붙이기', pickerToggle: '입 모양', pickerHelp: '어려운 소리를 고르면 카드에 입 안 그림과 설명이 함께 보여요.', touch: '혀끝이 닿는 곳', tap: '혀끝이 한 번 치는 곳', near: '닿지 않고 가까이 가는 곳' },
-  en: { heading: 'Pronunciation guide', beta: 'Beta', betaNote: 'These diagrams and tips are still being reviewed. Use them as a rough guide.', diagram: 'side view of the mouth', rest: 'Dashed: tongue at rest', picker: 'Add a mouth diagram', pickerToggle: 'Mouth', pickerHelp: 'Pick a tricky sound to show a mouth diagram and tips on the card.', touch: 'Where the tongue tip touches', tap: 'Where the tongue tip taps once', near: 'Close, but not touching' },
-  ja: { heading: '発音ガイド', beta: 'ベータ', betaNote: '図と説明はまだ確認中です。参考としてご覧ください。', diagram: '口の中の横顔', rest: '点線：休んでいるときの舌', picker: '口の形の図を付ける', pickerToggle: '口の形', pickerHelp: '難しい音を選ぶと、カードに口の中の図と説明が表示されます。', touch: '舌先が付く場所', tap: '舌先が一度はじく場所', near: '付けずに近づける場所' },
+const LABELS: Record<GuideLanguage, { heading: string; beta: string; betaNote: string; diagram: string; rest: string; picker: string; pickerToggle: string; pickerHelp: string; feedbackPicker: string; feedbackPickerHelp: string; feedbackPickerLimit: string; pointedSounds: string } & Record<ContactKind, string>> = {
+  ko: { heading: '발음 가이드', beta: '베타', betaNote: '그림과 설명은 아직 검수 중이에요. 참고용으로 봐 주세요.', diagram: '입 안 옆모습', rest: '점선: 쉴 때의 혀', picker: '입 모양 그림 붙이기', pickerToggle: '입 모양', pickerHelp: '어려운 소리를 고르면 카드에 입 안 그림과 설명이 함께 보여요.', feedbackPicker: '짚을 소리 (선택)', feedbackPickerHelp: '고른 소리의 입 모양 그림이 피드백과 함께 보여요.', feedbackPickerLimit: '소리는 3개까지 고를 수 있어요.', pointedSounds: '피드백에서 짚은 소리', touch: '혀끝이 닿는 곳', tap: '혀끝이 한 번 치는 곳', near: '닿지 않고 가까이 가는 곳' },
+  en: { heading: 'Pronunciation guide', beta: 'Beta', betaNote: 'These diagrams and tips are still being reviewed. Use them as a rough guide.', diagram: 'side view of the mouth', rest: 'Dashed: tongue at rest', picker: 'Add a mouth diagram', pickerToggle: 'Mouth', pickerHelp: 'Pick a tricky sound to show a mouth diagram and tips on the card.', feedbackPicker: 'Sounds to point out (optional)', feedbackPickerHelp: 'A mouth diagram for each sound is shown with your feedback.', feedbackPickerLimit: 'You can pick up to 3 sounds.', pointedSounds: 'Sounds pointed out in feedback', touch: 'Where the tongue tip touches', tap: 'Where the tongue tip taps once', near: 'Close, but not touching' },
+  ja: { heading: '発音ガイド', beta: 'ベータ', betaNote: '図と説明はまだ確認中です。参考としてご覧ください。', diagram: '口の中の横顔', rest: '点線：休んでいるときの舌', picker: '口の形の図を付ける', pickerToggle: '口の形', pickerHelp: '難しい音を選ぶと、カードに口の中の図と説明が表示されます。', feedbackPicker: '指摘する音（任意）', feedbackPickerHelp: '選んだ音の口の形の図がフィードバックと一緒に表示されます。', feedbackPickerLimit: '音は3つまで選べます。', pointedSounds: 'フィードバックで指摘された音', touch: '舌先が付く場所', tap: '舌先が一度はじく場所', near: '付けずに近づける場所' },
 }
 
 function guideLanguage(language: UiLanguage): GuideLanguage {
@@ -221,4 +227,26 @@ export function soundGuideText(guide: SoundGuide, language: UiLanguage): GuideTe
 
 export function soundGuideLabels(language: UiLanguage): (typeof LABELS)[GuideLanguage] {
   return LABELS[guideLanguage(language)]
+}
+
+/** Sounds a single piece of feedback may point at; the server enforces the same limit. */
+export const MAX_FEEDBACK_SOUNDS = 3
+
+export function soundGuideById(id: string): SoundGuide | undefined {
+  return SOUND_GUIDES.find((guide) => guide.id === id)
+}
+
+/**
+ * Guides grouped by the language the sound belongs to. Languages listed in {@code preferred}
+ * (for example the reviewer's native and fluent languages) come first, in that order.
+ */
+export function soundGuidesByLanguage(preferred: readonly string[]): { language: string; guides: SoundGuide[] }[] {
+  const languages = [...new Set(SOUND_GUIDES.map((guide) => guide.targetLanguage))]
+  const rank = (language: string) => {
+    const index = preferred.indexOf(language)
+    return index < 0 ? preferred.length : index
+  }
+  return languages
+    .sort((a, b) => rank(a) - rank(b))
+    .map((language) => ({ language, guides: SOUND_GUIDES.filter((guide) => guide.targetLanguage === language) }))
 }

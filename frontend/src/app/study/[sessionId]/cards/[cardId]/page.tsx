@@ -144,11 +144,13 @@ function StudyCardDetail() {
   })
 
   const addAttemptNoteMutation = useMutation({
-    mutationFn: (payload: { attemptId: string; correctionNote: string; score: number | null }) => {
+    mutationFn: (payload: { attemptId: string; correctionNote: string; score: number | null; soundGuideIds: string[] }) => {
       setActionError(''); setNotice('')
       return withWriteDeadline(signal => api.patch<LearnerAttempt>(`/attempts/${payload.attemptId}/correction`, {
         correctionNote: payload.correctionNote,
         score: payload.score,
+        // Always sent from the editor, which shows the full list, so an empty list clears the sounds.
+        soundTargets: payload.soundGuideIds.map(guideId => ({ guideId })),
       }, { signal }))
     },
     onSuccess: ({ data }) => {
@@ -329,7 +331,8 @@ function StudyCardDetail() {
               loading={attemptsLoading} failed={attemptsError} onRetry={() => void refetchAttempts()}
               recordingBusy={recordingBusy} canEdit={permissionReady}
               onPractice={() => { setRecordingPurpose('practice'); setAttemptModalOpen(true) }}
-              onSave={payload => addAttemptNoteMutation.mutateAsync(payload)} />
+              onSave={payload => addAttemptNoteMutation.mutateAsync(payload)}
+              preferredLanguages={currentUser ? [currentUser.nativeLanguage, ...currentUser.fluentLanguages] : []} />
             <details id="card-note" className="bg-surface rounded-2xl border border-gray-100 p-5">
               <summary className="cursor-pointer text-sm font-bold text-gray-900">{t('study.cardDetail.cardNote')}</summary>
               <textarea
