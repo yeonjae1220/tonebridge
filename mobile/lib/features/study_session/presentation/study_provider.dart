@@ -60,11 +60,21 @@ class CardAttemptState extends _$CardAttemptState {
     );
   }
 
-  Future<void> addNote(String attemptId, String note, int? score) async {
+  Future<void> addNote(
+    String attemptId,
+    String note,
+    int? score, {
+    List<String> soundGuideIds = const [],
+  }) async {
     await _save(
       () => ref
           .read(studySessionRepositoryProvider)
-          .addCorrectionNote(attemptId, note, score),
+          .addCorrectionNote(
+            attemptId,
+            note,
+            score,
+            soundGuideIds: soundGuideIds,
+          ),
     );
   }
 

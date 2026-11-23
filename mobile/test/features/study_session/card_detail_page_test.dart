@@ -303,4 +303,55 @@ void main() {
     expect(find.text('좋아요'), findsOneWidget);
     expect(find.text('피드백에서 짚은 소리'), findsNothing);
   });
+
+  testWidgets('feedback can point at up to three sounds, sent in the order chosen', (tester) async {
+    final corrected = makeLearnerAttempt(learnerId: 'user-1', correctionNote: 'th 가 s 처럼 들려요.');
+    when(
+      () => repo.addCorrectionNote(
+        any(),
+        any(),
+        any(),
+        soundGuideIds: any(named: 'soundGuideIds'),
+      ),
+    ).thenAnswer((_) async => corrected);
+    await showPage(tester, userId: 'friend-1');
+    await tester.ensureVisible(find.text('교정 메모 추가'));
+    await tester.tap(find.text('교정 메모 추가'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'th 가 s 처럼 들려요.');
+
+    FilterChip chip(String title) =>
+        tester.widget<FilterChip>(find.widgetWithText(FilterChip, title));
+    Future<void> tapChip(String title) async {
+      await tester.ensureVisible(find.widgetWithText(FilterChip, title));
+      await tester.tap(find.widgetWithText(FilterChip, title));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('짚을 소리 (선택)'), findsOneWidget);
+    await tapChip('영어 th');
+    await tapChip('한국어 ㄹ');
+    await tapChip('영어 r');
+    expect(find.text('소리는 3개까지 고를 수 있어요.'), findsOneWidget);
+    expect(chip('영어 l').onSelected, isNull);
+    expect(chip('영어 th').onSelected, isNotNull);
+
+    // Deselecting frees a slot again.
+    await tapChip('영어 r');
+    expect(chip('영어 l').onSelected, isNotNull);
+    await tapChip('영어 l');
+
+    await tester.ensureVisible(find.text('저장'));
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+    verify(
+      () => repo.addCorrectionNote(
+        'attempt-1',
+        'th 가 s 처럼 들려요.',
+        null,
+        soundGuideIds: ['en-th', 'ko-rieul', 'en-l'],
+      ),
+    ).called(1);
+    expect(tester.takeException(), isNull);
+  });
 }
