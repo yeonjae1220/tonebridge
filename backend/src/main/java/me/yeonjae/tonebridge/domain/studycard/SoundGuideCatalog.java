@@ -7,7 +7,7 @@ import java.util.Set;
  * Identifiers of the pronunciation guides a friend can point at in feedback. The guide content
  * (diagram, steps, translations) lives in the web client; the server only accepts these ids so
  * feedback can never store an arbitrary string. Keep in sync with
- * frontend/src/lib/soundGuideIds.json — a test fails when the two differ.
+ * the guide ids in frontend/src/lib/soundGuides.json — a test fails when the two differ.
  */
 public final class SoundGuideCatalog {
 

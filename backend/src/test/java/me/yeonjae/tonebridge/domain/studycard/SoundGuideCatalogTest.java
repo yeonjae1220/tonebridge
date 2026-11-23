@@ -14,10 +14,12 @@ class SoundGuideCatalogTest {
     /** The web client renders guides by these ids; a guide added on one side only must fail the build. */
     @Test
     void serverAllowListMatchesTheIdsTheWebClientRenders() throws Exception {
-        Path shared = Path.of("..", "frontend", "src", "lib", "soundGuideIds.json");
-        String[] webIds = JsonMapper.builder().build().readValue(Files.readString(shared), String[].class);
+        Path shared = Path.of("..", "frontend", "src", "lib", "soundGuides.json");
+        var guides = JsonMapper.builder().build().readTree(Files.readString(shared)).get("guides");
+        List<String> webIds = new java.util.ArrayList<>();
+        guides.forEach(guide -> webIds.add(guide.get("id").asText()));
 
-        assertThat(List.of(webIds)).containsExactlyElementsOf(SoundGuideCatalog.IDS);
+        assertThat(webIds).containsExactlyElementsOf(SoundGuideCatalog.IDS);
     }
 
     @Test

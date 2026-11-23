@@ -97,4 +97,7 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // SoundGuideCatalogTest reads the web's guide file; without this Gradle treats the test as
+    // up to date after that file changes and skips the check.
+    inputs.file('../frontend/src/lib/soundGuides.json').withPathSensitivity(PathSensitivity.RELATIVE)
 }
