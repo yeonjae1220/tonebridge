@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tonebridge/features/study_session/domain/sound_guides.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class NoteSheet extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class NoteSheet extends ConsumerStatefulWidget {
 class _NoteSheetState extends ConsumerState<NoteSheet> {
   final _noteController = TextEditingController();
   int? _selectedScore;
+  final List<String> _soundGuideIds = [];
   bool _submitting = false;
 
   @override
@@ -35,7 +37,12 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
     try {
       await ref
           .read(cardAttemptStateProvider.notifier)
-          .addNote(widget.attemptId, note, _selectedScore);
+          .addNote(
+            widget.attemptId,
+            note,
+            _selectedScore,
+            soundGuideIds: List.unmodifiable(_soundGuideIds),
+          );
       if (!mounted) return;
       widget.onNoteAdded();
       Navigator.pop(context);
@@ -102,6 +109,16 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
+            _SoundPicker(
+              selected: _soundGuideIds,
+              enabled: !_submitting,
+              onToggle: (id) => setState(
+                () => _soundGuideIds.contains(id)
+                    ? _soundGuideIds.remove(id)
+                    : _soundGuideIds.add(id),
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -118,6 +135,52 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Up to [maxFeedbackSounds] pronunciation guides the feedback points at; same limit as the server.
+class _SoundPicker extends StatelessWidget {
+  const _SoundPicker({
+    required this.selected,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final List<String> selected;
+  final bool enabled;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final full = selected.length >= maxFeedbackSounds;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('짚을 소리 (선택)', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          full ? '소리는 3개까지 고를 수 있어요.' : '고른 소리의 입 모양 그림이 피드백과 함께 보여요.',
+          style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final guide in soundGuides)
+              FilterChip(
+                label: Text(guide.title),
+                selected: selected.contains(guide.id),
+                // Removing is always allowed; adding stops at the limit.
+                onSelected: enabled && (selected.contains(guide.id) || !full)
+                    ? (_) => onToggle(guide.id)
+                    : null,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

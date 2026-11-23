@@ -184,13 +184,18 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
   Future<LearnerAttempt> addCorrectionNote(
     String attemptId,
     String correctionNote,
-    int? score,
-  ) async {
+    int? score, {
+    List<String> soundGuideIds = const [],
+  }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/api/attempts/$attemptId/correction',
       data: {
         'correctionNote': correctionNote,
         if (score != null) 'score': score,
+        if (soundGuideIds.isNotEmpty)
+          'soundTargets': [
+            for (final id in soundGuideIds) {'guideId': id},
+          ],
       },
     );
     return LearnerAttempt.fromJson(response.data!);

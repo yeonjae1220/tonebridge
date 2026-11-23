@@ -37,11 +37,15 @@ abstract interface class StudySessionRepository {
   Future<String> getNativeAudioDownloadUrl(String cardId);
   Future<LearnerAttempt> submitAttempt(String cardId, String audioKey);
   Future<List<LearnerAttempt>> getAttempts(String cardId);
+
+  /// [soundGuideIds] are the pronunciation guides the feedback points at. An empty list is not
+  /// sent, so the server keeps whatever sounds are already stored.
   Future<LearnerAttempt> addCorrectionNote(
     String attemptId,
     String correctionNote,
-    int? score,
-  );
+    int? score, {
+    List<String> soundGuideIds = const [],
+  });
 
   // ── Multiple native audio recordings ──────────────────────────────────
   Future<Map<String, String>> getNativeAudioUploadUrlV2(

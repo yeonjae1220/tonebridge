@@ -131,6 +131,9 @@ const soundGuides = <SoundGuide>[
   ),
 ];
 
+/// Sounds one piece of feedback may point at; the server enforces the same limit.
+const maxFeedbackSounds = 3;
+
 SoundGuide? soundGuideById(String id) {
   for (final guide in soundGuides) {
     if (guide.id == id) return guide;
