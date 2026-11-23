@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { SOUND_GUIDES } from '../src/lib/soundGuides'
-import serverGuideIds from '../src/lib/soundGuideIds.json'
+import guideData from '../src/lib/soundGuides.json'
 
 const baseCard = {
   id: 'card-1', sessionId: 'session-1', createdByUserId: 'owner',
@@ -235,6 +235,13 @@ test('tags over the server limits are explained and cannot be saved, in both car
   expect(state.errors).toEqual([])
 })
 
-test('every guide the web renders is one the server accepts in feedback, and vice versa', () => {
-  expect(SOUND_GUIDES.map((guide) => guide.id)).toEqual(serverGuideIds)
+test('the shared guide file loads completely, with text for every guide language', () => {
+  // soundGuides.json is also read by the backend allow-list test and the mobile content test.
+  expect(SOUND_GUIDES.map((guide) => guide.id)).toEqual(guideData.guides.map((guide) => guide.id))
+  for (const guide of SOUND_GUIDES) {
+    for (const language of ['ko', 'en', 'ja'] as const) {
+      expect(guide.text[language].title, `${guide.id} ${language}`).not.toBe('')
+      expect(guide.text[language].steps.length, `${guide.id} ${language}`).toBeGreaterThan(0)
+    }
+  }
 })

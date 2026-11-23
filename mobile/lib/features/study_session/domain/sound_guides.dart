@@ -4,7 +4,8 @@ import 'dart:ui' show Offset;
 enum ContactKind { touch, tap, near }
 
 /// One pronunciation guide. Mirrors frontend/src/lib/soundGuides.ts (Korean text only, as the
-/// rest of the app); ids must match frontend/src/lib/soundGuideIds.json — a test checks this.
+/// rest of the app). frontend/src/lib/soundGuides.json is the source; a test fails if any id,
+/// symbol, coordinate or Korean text here differs from it.
 class SoundGuide {
   const SoundGuide({
     required this.id,

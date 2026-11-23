@@ -6,12 +6,32 @@ import 'package:tonebridge/features/study_session/domain/model/learner_attempt.d
 import 'package:tonebridge/features/study_session/domain/sound_guides.dart';
 
 void main() {
-  test('mobile guides match the ids the server accepts and the web renders', () {
-    // Shared list, also checked by the backend (SoundGuideCatalogTest) and the web e2e suite.
-    final shared = File('../frontend/src/lib/soundGuideIds.json');
-    final ids = (jsonDecode(shared.readAsStringSync()) as List).cast<String>();
+  // frontend/src/lib/soundGuides.json is the single source; the backend allow-list is checked
+  // against it too. Here every id, symbol, coordinate and Korean string must match.
+  final shared =
+      jsonDecode(File('../frontend/src/lib/soundGuides.json').readAsStringSync())
+          as Map<String, dynamic>;
+  List<List<num>> points(List<Offset> offsets) => [
+    for (final o in offsets) [o.dx, o.dy],
+  ];
 
-    expect(soundGuides.map((guide) => guide.id).toList(), ids);
+  test('mobile guides match the shared guide file exactly', () {
+    final guides = (shared['guides'] as List).cast<Map<String, dynamic>>();
+    expect(soundGuides.map((g) => g.id).toList(), [
+      for (final g in guides) g['id'],
+    ]);
+    for (final (index, json) in guides.indexed) {
+      final guide = soundGuides[index];
+      final ko = (json['text'] as Map)['ko'] as Map;
+      final contact = json['contact'] as Map;
+      expect(guide.symbol, json['symbol'], reason: guide.id);
+      expect(guide.title, ko['title'], reason: guide.id);
+      expect(guide.steps, ko['steps'], reason: guide.id);
+      expect(points(guide.tongue), json['tongue'], reason: guide.id);
+      expect([guide.contact.dx, guide.contact.dy], contact['at'], reason: guide.id);
+      expect(guide.contactKind.name, contact['kind'], reason: guide.id);
+    }
+    expect(points(restTongue), shared['restTongue']);
   });
 
   test('every guide has a full tongue outline and steps', () {

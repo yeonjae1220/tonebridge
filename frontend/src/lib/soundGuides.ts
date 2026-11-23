@@ -32,149 +32,43 @@ export interface SoundGuide {
   text: Record<GuideLanguage, GuideText>
 }
 
-export const REST_TONGUE: TonguePose = [
-  [80, 124], [98, 112], [128, 104], [160, 116], [172, 150], [150, 176], [110, 168], [86, 142],
-]
+import guideData from './soundGuides.json'
 
-export const SOUND_GUIDES: readonly SoundGuide[] = [
-  {
-    id: 'en-th',
-    targetLanguage: 'en',
-    symbol: 'θ',
-    aliases: ['th', 'θ', 'ð'],
-    tongue: [[61, 117], [84, 111], [126, 106], [160, 118], [172, 150], [150, 176], [108, 168], [78, 126]],
-    contact: { at: [64, 115], kind: 'touch' },
-    text: {
-      ko: {
-        title: '영어 th',
-        steps: [
-          '혀끝을 윗니와 아랫니 사이로 살짝 내밉니다.',
-          '혀를 떼지 않은 채 그 틈으로 바람을 계속 내보냅니다.',
-          'think는 목을 울리지 않고, this는 같은 자리에서 목을 울립니다.',
-        ],
-      },
-      en: {
-        title: 'English th',
-        steps: [
-          'Let the tip of your tongue rest lightly between your upper and lower teeth.',
-          'Keep it there and push air through the gap.',
-          'No voice for "think"; add voice in the same position for "this".',
-        ],
-      },
-      ja: {
-        title: '英語の th',
-        steps: [
-          '舌先を上下の歯の間に軽く出します。',
-          '舌を離さずに、そのすき間から息を出し続けます。',
-          'think は声を出さず、this は同じ位置で声を出します。',
-        ],
-      },
-    },
-  },
-  {
-    id: 'en-r',
-    targetLanguage: 'en',
-    symbol: 'ɹ',
-    shortSymbol: true,
-    aliases: ['r', 'ɹ'],
-    tongue: [[98, 94], [108, 108], [134, 100], [164, 114], [172, 150], [150, 176], [108, 166], [92, 114]],
-    contact: { at: [98, 87], kind: 'near' },
-    text: {
-      ko: {
-        title: '영어 r',
-        steps: [
-          '혀끝을 윗잇몸 뒤쪽으로 들어 올리되 어디에도 닿지 않게 합니다.',
-          '혀 양옆은 위쪽 어금니에 가볍게 붙입니다.',
-          '입술을 살짝 둥글게 모읍니다. 혀끝이 닿으면 ㄹ처럼 들립니다.',
-        ],
-      },
-      en: {
-        title: 'English r',
-        steps: [
-          'Lift the tip of your tongue toward the area behind the gum ridge without touching anything.',
-          'Let the sides of your tongue rest against your upper back teeth.',
-          'Round your lips slightly. If the tip touches, it turns into a tap or an l.',
-        ],
-      },
-      ja: {
-        title: '英語の r',
-        steps: [
-          '舌先を上の歯ぐきの後ろへ持ち上げますが、どこにも付けません。',
-          '舌の両側は上の奥歯に軽く当てます。',
-          '唇を少し丸めます。舌先が付くと「ら行」のように聞こえます。',
-        ],
-      },
-    },
-  },
-  {
-    id: 'en-l',
-    targetLanguage: 'en',
-    symbol: 'l',
-    aliases: ['l'],
-    tongue: [[80, 97], [94, 108], [128, 110], [160, 120], [172, 150], [150, 176], [110, 168], [88, 122]],
-    contact: { at: [80, 95], kind: 'touch' },
-    text: {
-      ko: {
-        title: '영어 l',
-        steps: [
-          '혀끝을 윗니 바로 뒤 잇몸에 단단히 붙입니다.',
-          '혀끝을 붙인 채 소리를 내면 공기가 혀 양옆으로 빠져나갑니다.',
-          '소리가 끝날 때까지 혀끝을 떼지 않습니다.',
-        ],
-      },
-      en: {
-        title: 'English l',
-        steps: [
-          'Press the tip of your tongue firmly on the gum ridge just behind your upper teeth.',
-          'Voice the sound while it stays there; air flows around the sides of the tongue.',
-          'Keep the tip in place until the sound ends.',
-        ],
-      },
-      ja: {
-        title: '英語の l',
-        steps: [
-          '舌先を上の前歯のすぐ後ろの歯ぐきにしっかり付けます。',
-          '付けたまま声を出すと、息は舌の両側から抜けます。',
-          '音が終わるまで舌先を離しません。',
-        ],
-      },
-    },
-  },
-  {
-    id: 'ko-rieul',
-    targetLanguage: 'ko',
-    symbol: 'ㄹ',
-    aliases: ['ㄹ', '\u11af', '리을', 'ɾ'],
-    tongue: [[81, 97], [95, 109], [128, 108], [160, 118], [172, 150], [150, 176], [110, 168], [88, 124]],
-    contact: { at: [81, 95], kind: 'tap' },
-    text: {
-      ko: {
-        title: '한국어 ㄹ',
-        steps: [
-          '모음 사이(나라, 우리)에서는 혀끝으로 윗잇몸을 한 번 가볍게 치고 바로 뗍니다.',
-          '받침(말, 달)에서는 혀끝을 윗잇몸에 붙인 채 유지합니다.',
-          '혀를 뒤로 말지 않습니다.',
-        ],
-      },
-      en: {
-        title: 'Korean ㄹ',
-        steps: [
-          'Between vowels (나라, 우리), tap the gum ridge once with the tip of your tongue and release immediately.',
-          'At the end of a syllable (말, 달), hold the tip against the gum ridge.',
-          'Do not curl the tongue back.',
-        ],
-      },
-      ja: {
-        title: '韓国語の ㄹ',
-        steps: [
-          '母音の間（나라、우리）では、舌先で上の歯ぐきを一度軽くはじいてすぐ離します。',
-          'パッチム（말、달）では、舌先を上の歯ぐきに付けたままにします。',
-          '舌を後ろに巻きません。',
-        ],
-      },
-    },
-  },
-]
+/**
+ * Guides come from soundGuides.json, the single source shared with the backend allow-list and the
+ * mobile app (each side's tests compare against it). The JSON is checked here at load so a malformed
+ * edit fails loudly instead of drawing a broken diagram.
+ */
+const CONTACT_KINDS: readonly ContactKind[] = ['touch', 'tap', 'near']
+
+function point(value: unknown, where: string): Point {
+  if (!Array.isArray(value) || value.length !== 2 || !value.every((n) => typeof n === 'number')) {
+    throw new Error(`soundGuides.json: ${where} must be [x, y]`)
+  }
+  return [value[0], value[1]]
+}
+
+function pose(value: unknown, where: string): TonguePose {
+  if (!Array.isArray(value) || value.length !== 8) throw new Error(`soundGuides.json: ${where} needs 8 points`)
+  return value.map((p, i) => point(p, `${where}[${i}]`)) as unknown as TonguePose
+}
+
+export const REST_TONGUE: TonguePose = pose(guideData.restTongue, 'restTongue')
+
+export const SOUND_GUIDES: readonly SoundGuide[] = guideData.guides.map((g) => {
+  const kind = g.contact.kind as ContactKind
+  if (!CONTACT_KINDS.includes(kind)) throw new Error(`soundGuides.json: ${g.id} has unknown contact kind ${g.contact.kind}`)
+  return {
+    id: g.id,
+    targetLanguage: g.targetLanguage,
+    symbol: g.symbol,
+    shortSymbol: 'shortSymbol' in g ? Boolean(g.shortSymbol) : undefined,
+    aliases: g.aliases,
+    tongue: pose(g.tongue, `${g.id}.tongue`),
+    contact: { at: point(g.contact.at, `${g.id}.contact.at`), kind },
+    text: g.text,
+  }
+})
 
 const LABELS: Record<GuideLanguage, { heading: string; beta: string; betaNote: string; diagram: string; rest: string; picker: string; pickerToggle: string; pickerHelp: string; feedbackPicker: string; feedbackPickerHelp: string; feedbackPickerLimit: string; pointedSounds: string } & Record<ContactKind, string>> = {
   ko: { heading: '발음 가이드', beta: '베타', betaNote: '그림과 설명은 아직 검수 중이에요. 참고용으로 봐 주세요.', diagram: '입 안 옆모습', rest: '점선: 쉴 때의 혀', picker: '입 모양 그림 붙이기', pickerToggle: '입 모양', pickerHelp: '어려운 소리를 고르면 카드에 입 안 그림과 설명이 함께 보여요.', feedbackPicker: '짚을 소리 (선택)', feedbackPickerHelp: '고른 소리의 입 모양 그림이 피드백과 함께 보여요.', feedbackPickerLimit: '소리는 3개까지 고를 수 있어요.', pointedSounds: '피드백에서 짚은 소리', touch: '혀끝이 닿는 곳', tap: '혀끝이 한 번 치는 곳', near: '닿지 않고 가까이 가는 곳' },
