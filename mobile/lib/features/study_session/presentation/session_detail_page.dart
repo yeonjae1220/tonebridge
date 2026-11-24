@@ -825,8 +825,12 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
   Future<void> _submit() async {
     final phrase = _phraseController.text.trim();
     if (phrase.isEmpty || _submitting) return;
-    setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
+    if (phrase.length > StudyCard.maxPhraseLength) {
+      messenger.showSnackBar(const SnackBar(content: Text(StudyCard.phraseLengthHelp)));
+      return;
+    }
+    setState(() => _submitting = true);
     try {
       await ref
           .read(studySessionRepositoryProvider)
@@ -872,6 +876,7 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
               enabled: !_submitting,
               decoration: const InputDecoration(
                 labelText: '표현 입력 (필수)',
+                helperText: StudyCard.phraseLengthHelp,
                 hintText: '예: 밥 먹었어?',
                 border: OutlineInputBorder(),
               ),

@@ -5,7 +5,7 @@ async function app(page: Page) {
   const base = await fixture(page)
   base.corrections[0].status = 'SUBMITTED'
   const user = { id: 'owner', username: 'learner', onboardingCompleted: true, nativeLanguage: 'ko', uiLanguage: 'ko',
-    learningLanguages: ['ja'], fluentLanguages: [], badges: [], correctorLevel: 'NATIVE', reputationScore: 0, correctionStreak: 0 }
+    learningLanguages: ['ja'], fluentLanguages: [], badges: [], correctorLevel: 'NATIVE', reputationScore: 0, correctionStreak: 0, recentRatingCount: undefined as number | undefined }
   const state = { base, user, stall: new Set<string>(), held: [] as Route[], writes: [] as string[], reads: 0, stallReads: false }
   await page.route('**/api/**', route => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method()
@@ -78,7 +78,7 @@ test('confirmed languages navigate without waiting for profile reads', async ({ 
   await page.getByRole('button', { name: /영어/ }).first().click(); state.stallReads = true
   await page.getByRole('button', { name: '저장하기', exact: true }).click()
   await expect(page).toHaveURL(/\/profile$/); await expect.poll(() => state.held.length).toBeGreaterThan(0)
-  await expect(page.getByText(/영어 원어민/)).toBeVisible()
+  await expect(page.getByText('모국어: 영어', { exact: true })).toBeVisible()
 })
 
 test('late language completion does not redirect a newer screen', async ({ page }) => {
@@ -358,4 +358,24 @@ test('review: another tab cannot restore from a refresh response started before 
   await expect(other.getByRole('link', { name: '프로필', exact: true })).toHaveCount(0)
   expect((await context.cookies()).some(cookie => cookie.name === 'tonebridge_signed_out' && cookie.value === '1')).toBe(true)
   await other.close()
+})
+
+
+test('profile distinguishes unavailable ratings, no ratings, and a measured zero', async ({ page }) => {
+  const state = await app(page)
+  state.user.reputationScore = 5.0
+  await page.goto('/profile')
+  await expect(page.getByText('평가 정보를 확인할 수 없어요.')).toBeVisible()
+  await expect(page.getByText('원어민', { exact: true })).toHaveCount(0)
+
+  state.user.recentRatingCount = 0
+  await page.reload()
+  await expect(page.getByText('아직 교정에 달린 평가가 없어요.')).toBeVisible()
+  await expect(page.getByText('5.0', { exact: true })).toHaveCount(0)
+
+  state.user.recentRatingCount = 1
+  state.user.reputationScore = 0.0
+  await page.reload()
+  await expect(page.getByText('0.0', { exact: true })).toBeVisible()
+  await expect(page.getByText(/최근 평가 1건 기준/)).toBeVisible()
 })

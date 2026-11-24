@@ -24,12 +24,13 @@ export function PracticeFeedback({ preview = false }: { preview?: boolean }) {
     refetchInterval: 30_000,
   })
   const items = [...new Map((query.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.attemptId, item])).values()]
+  if (preview && !query.isError && items.length === 0) return null
   return <section className="mb-5 rounded-2xl border border-gray-100 bg-surface p-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       {preview && <h2 className="text-base font-bold text-gray-900">{t('feedback.title')}</h2>}
       {preview && <Link href="/study/feedback" className="min-h-11 content-center text-sm font-semibold text-blue-600">{t('feedback.all')} →</Link>}
     </div>
-    <p className="my-3 text-sm text-gray-500">{t('feedback.help')}</p>
+    {!preview && <p className="my-3 text-sm text-gray-500">{t('feedback.help')}</p>}
     {query.isError ? <QueryError onRetry={() => { void query.refetch() }} retrying={query.isFetching} /> :
       query.isPending ? <p role="status">{t('common.loading')}</p> :
       items.length === 0 ? <p className="text-sm text-gray-500">{t('feedback.empty')}</p> :

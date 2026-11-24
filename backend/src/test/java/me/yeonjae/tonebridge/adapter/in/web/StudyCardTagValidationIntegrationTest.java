@@ -123,6 +123,31 @@ class StudyCardTagValidationIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.tags.length()").value(0));
     }
 
+    @Test
+    void phrasesAtTheColumnLimitSaveAndLongerPhrasesAreRejectedBeforeWriting() throws Exception {
+        String atLimit = "가".repeat(500);
+        String allowed = JSON.writeValueAsString(Map.of("phrase", atLimit));
+        String tooLong = JSON.writeValueAsString(Map.of("phrase", atLimit + "나"));
+
+        mvc.perform(post("/api/sessions/{id}/cards", sessionId).with(as(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(allowed))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.phrase").value(atLimit));
+        mvc.perform(patch("/api/cards/{id}", cardId).with(as(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(allowed))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.phrase").value(atLimit));
+
+        mvc.perform(post("/api/sessions/{id}/cards", sessionId).with(as(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(tooLong))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.getCode()));
+        mvc.perform(patch("/api/cards/{id}", cardId).with(as(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(tooLong))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.getCode()));
+        assertThat(jdbc.queryForObject("SELECT phrase FROM study_cards WHERE id = ?", String.class, cardId))
+                .isEqualTo(atLimit);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM study_cards WHERE session_id = ?", Integer.class, sessionId))
+                .isEqualTo(2);
+    }
+
     private static String body(List<String> tags) {
         return JSON.writeValueAsString(Map.of("phrase", "검증 대상 표현", "tags", tags));
     }

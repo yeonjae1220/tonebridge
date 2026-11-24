@@ -1,6 +1,7 @@
 package me.yeonjae.tonebridge.application.service;
 
 import lombok.RequiredArgsConstructor;
+import me.yeonjae.tonebridge.domain.studycard.StudyCard;
 import me.yeonjae.tonebridge.application.port.in.*;
 import me.yeonjae.tonebridge.application.port.out.*;
 import me.yeonjae.tonebridge.shared.exception.*;
@@ -92,7 +93,7 @@ public class CompositionService implements SaveCompositionUseCase {
                     .findFirst().orElseGet(() -> sessions.create(new CreateStudySessionUseCase.Command(owner, friendId, input.title())));
             String phrase = input.kind() == Kind.TEXT ? input.contentText().trim()
                     : !blank(input.context()) ? input.context().trim() : !blank(input.audioTitle()) ? input.audioTitle() : "Audio";
-            if (phrase.length() > 500) throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
+            if (phrase.length() > StudyCard.MAX_PHRASE_LENGTH) throw new ToneBridgeException(ErrorCode.INVALID_INPUT);
             var card = cards.create(new CreateStudyCardUseCase.Command(session.id(), owner, phrase, input.context(), input.goals()));
             if (audioKey != null) audios.confirm(new AddCardNativeAudioUseCase.ConfirmCommand(card.id(), owner, audioKey));
             result = new Result("study", session.id(), card.id(), null);

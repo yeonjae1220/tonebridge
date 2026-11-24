@@ -20,12 +20,14 @@ public class UserProfileService implements GetUserProfileUseCase {
 
     private final UserPort userPort;
     private final BadgePort badgePort;
+    private final ReputationService reputationService;
 
     @Override
     public Result getProfile(UUID userId) {
         User user = userPort.findById(userId)
                 .orElseThrow(() -> new ToneBridgeException(ErrorCode.USER_NOT_FOUND));
 
+        var ratings = reputationService.recentRatings(userId);
         return new Result(
                 user.id(),
                 user.username(),
@@ -37,7 +39,8 @@ public class UserProfileService implements GetUserProfileUseCase {
                 user.fluentLanguageVariants() != null ? Map.copyOf(user.fluentLanguageVariants()) : Map.of(),
                 user.learningLanguageVariants() != null ? Map.copyOf(user.learningLanguageVariants()) : Map.of(),
                 user.correctionStreak(),
-                user.reputationScore(),
+                ratings.count() > 0 ? ratings.score() : user.reputationScore(),
+                ratings.count(),
                 user.correctorLevel(),
                 badgePort.findByUserId(userId)
         );

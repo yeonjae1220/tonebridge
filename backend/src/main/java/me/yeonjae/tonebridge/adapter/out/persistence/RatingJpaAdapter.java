@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import me.yeonjae.tonebridge.application.port.out.RatingPort;
 import me.yeonjae.tonebridge.domain.correction.Rating;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,11 +37,10 @@ public class RatingJpaAdapter implements RatingPort {
 
     @Override
     @Transactional(readOnly = true)
-    public double findHelpfulRatioByCorrector(UUID correctorId, int limit) {
+    public RecentRatings findRecentRatings(UUID correctorId, int limit) {
         List<RatingEntity> recent = repository.findRecentByCorrectorId(
-                correctorId, PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")));
-        if (recent.isEmpty()) return 0.5;
+                correctorId, PageRequest.of(0, limit));
         long helpfulCount = recent.stream().filter(RatingEntity::isHelpful).count();
-        return (double) helpfulCount / recent.size();
+        return new RecentRatings(recent.size(), helpfulCount);
     }
 }

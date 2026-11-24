@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { useI18n } from '@/i18n/I18nProvider'
-import { MAX_CARD_TAGS, cardTagsWithinLimits, parseCardTags } from '@/lib/cardTags'
+import { MAX_CARD_TAGS, cardTagsWithinLimits, parseCardTags } from '@/lib/cardLimits'
 import { SOUND_GUIDES, hasSoundTag, soundGuideLabels, soundGuideText, toggleSoundTag } from '@/lib/soundGuides'
 
 interface SoundTagPickerProps {

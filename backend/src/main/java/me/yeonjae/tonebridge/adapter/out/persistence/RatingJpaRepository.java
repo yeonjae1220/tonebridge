@@ -21,7 +21,7 @@ public interface RatingJpaRepository extends JpaRepository<RatingEntity, UUID> {
                 SELECT c.id FROM CorrectionEntity c
                 WHERE c.correctorId = :correctorId AND c.isAi = false
             )
-            ORDER BY r.createdAt DESC
+            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<RatingEntity> findRecentByCorrectorId(@Param("correctorId") UUID correctorId, Pageable pageable);
 }

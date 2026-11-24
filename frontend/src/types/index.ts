@@ -32,6 +32,7 @@ export interface UserProfile {
   fluentLanguages: string[]
   correctionStreak: number
   reputationScore: number
+  recentRatingCount?: number
   correctorLevel: 'NATIVE' | 'VERIFIED_CORRECTOR' | 'EXPERT_COACH'
   badges: UserBadge[]
 }

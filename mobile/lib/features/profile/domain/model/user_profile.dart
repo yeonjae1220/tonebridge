@@ -14,6 +14,7 @@ abstract class UserProfile with _$UserProfile {
     @Default([]) List<String> learningLanguages,
     required int correctionStreak,
     required double reputationScore,
+    int? recentRatingCount,
     required String correctorLevel,
     @Default([]) List<UserBadge> badges,
     String? nativeDialect,

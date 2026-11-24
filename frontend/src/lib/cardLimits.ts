@@ -1,3 +1,6 @@
+/** Matches StudyCard.MAX_PHRASE_LENGTH and the browser's textarea length limit. */
+export const MAX_CARD_PHRASE_LENGTH = 500
+
 /**
  * Card tag limits. The server enforces the same numbers (StudyCardController.MAX_TAGS and
  * MAX_TAG_LENGTH): tags are stored comma-joined in one 500-character column.

@@ -18,6 +18,8 @@ public record StudyCard(
         LearnerAttempt latestAttempt,
         String note
 ) {
+    public static final int MAX_PHRASE_LENGTH = 500;
+
     public boolean hasNativeAudio() {
         return nativeAudioUrl != null && !nativeAudioUrl.isBlank();
     }
