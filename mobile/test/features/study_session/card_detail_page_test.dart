@@ -40,7 +40,25 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   const recorderChannel = MethodChannel('com.llfbandit.record/messages');
 
+  // record 6 runs every recorder's platform calls through one shared semaphore,
+  // so a call left unanswered in one test would block recording in later tests.
+  // Answer every call (and each recorder's event channel) in all tests.
+  void mockRecorder({Future<bool>? permission}) {
+    messenger.setMockMethodCallHandler(recorderChannel, (call) async {
+      if (call.method == 'create') {
+        final args = call.arguments as Map<Object?, Object?>;
+        messenger.setMockMethodCallHandler(
+          MethodChannel('com.llfbandit.record/events/${args['recorderId']}'),
+          (_) async => null,
+        );
+      }
+      if (call.method == 'hasPermission') return permission ?? false;
+      return null;
+    });
+  }
+
   setUp(() {
+    mockRecorder();
     repo = MockStudySessionRepository();
     when(() => repo.getCard('card-1')).thenAnswer((_) async => makeStudyCard());
     when(
@@ -218,17 +236,7 @@ void main() {
     'recording purpose is locked while microphone permission is pending',
     (tester) async {
       final permission = Completer<bool>();
-      messenger.setMockMethodCallHandler(recorderChannel, (call) async {
-        if (call.method == 'create') {
-          final args = call.arguments as Map<Object?, Object?>;
-          messenger.setMockMethodCallHandler(
-            MethodChannel('com.llfbandit.record/events/${args['recorderId']}'),
-            (_) async => null,
-          );
-        }
-        if (call.method == 'hasPermission') return permission.future;
-        return null;
-      });
+      mockRecorder(permission: permission.future);
       await showPage(tester);
       await tester.ensureVisible(find.text('녹음 시작'));
       await tester.tap(find.text('녹음 시작'));
