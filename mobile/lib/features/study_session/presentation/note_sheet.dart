@@ -7,19 +7,33 @@ class NoteSheet extends ConsumerStatefulWidget {
   const NoteSheet({
     required this.attemptId,
     required this.onNoteAdded,
+    this.initialNote,
+    this.initialScore,
+    this.initialSoundGuideIds = const [],
     super.key,
   });
   final String attemptId;
   final VoidCallback onNoteAdded;
+
+  /// Existing feedback to edit; null when writing new feedback.
+  final String? initialNote;
+  final int? initialScore;
+  final List<String> initialSoundGuideIds;
+
+  bool get isEditing => initialNote != null;
 
   @override
   ConsumerState<NoteSheet> createState() => _NoteSheetState();
 }
 
 class _NoteSheetState extends ConsumerState<NoteSheet> {
-  final _noteController = TextEditingController();
-  int? _selectedScore;
-  final List<String> _soundGuideIds = [];
+  late final _noteController = TextEditingController(text: widget.initialNote);
+  late int? _selectedScore = widget.initialScore;
+  // Ids no longer in the catalogue would be rejected by the server, so they are dropped.
+  late final List<String> _soundGuideIds = [
+    for (final id in widget.initialSoundGuideIds)
+      if (soundGuides.any((guide) => guide.id == id)) id,
+  ].take(maxFeedbackSounds).toList();
   bool _submitting = false;
 
   @override
@@ -73,9 +87,9 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '교정 메모 추가',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            Text(
+              widget.isEditing ? '교정 메모 수정' : '교정 메모 추가',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 16),
             Row(

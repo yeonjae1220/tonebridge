@@ -362,4 +362,61 @@ void main() {
     ).called(1);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'existing feedback opens prefilled for editing and saves the changes',
+    (tester) async {
+      final corrected = makeLearnerAttempt(
+        learnerId: 'user-1',
+        correctionNote: 'th 가 s 처럼 들려요.',
+        score: 3,
+        soundTargets: const [
+          SoundTarget(guideId: 'en-th'),
+          SoundTarget(guideId: 'retired-guide'),
+        ],
+      );
+      when(
+        () => repo.getAttempts('card-1'),
+      ).thenAnswer((_) async => [corrected]);
+      when(
+        () => repo.addCorrectionNote(
+          any(),
+          any(),
+          any(),
+          soundGuideIds: any(named: 'soundGuideIds'),
+        ),
+      ).thenAnswer((_) async => corrected);
+      await showPage(tester, userId: 'friend-1');
+      expect(find.text('교정 메모 추가'), findsNothing);
+      await tester.ensureVisible(find.text('교정 메모 수정'));
+      await tester.tap(find.text('교정 메모 수정'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'th 가 s 처럼 들려요.');
+      bool selected(String title) => tester
+          .widget<FilterChip>(find.widgetWithText(FilterChip, title))
+          .selected;
+      expect(selected('영어 th'), isTrue);
+
+      await tester.enterText(find.byType(TextField), 'th 는 좋아졌어요.');
+      await tester.ensureVisible(find.widgetWithText(FilterChip, '영어 th'));
+      await tester.tap(find.widgetWithText(FilterChip, '영어 th'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('저장'));
+      await tester.tap(find.text('저장'));
+      await tester.pumpAndSettle();
+
+      // Score is kept; the only sound was removed and the unknown id dropped.
+      verify(
+        () => repo.addCorrectionNote(
+          'attempt-1',
+          'th 는 좋아졌어요.',
+          3,
+          soundGuideIds: <String>[],
+        ),
+      ).called(1);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

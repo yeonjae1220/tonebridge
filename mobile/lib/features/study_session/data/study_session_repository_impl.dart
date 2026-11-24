@@ -192,10 +192,11 @@ class StudySessionRepositoryImpl implements StudySessionRepository {
       data: {
         'correctionNote': correctionNote,
         if (score != null) 'score': score,
-        if (soundGuideIds.isNotEmpty)
-          'soundTargets': [
-            for (final id in soundGuideIds) {'guideId': id},
-          ],
+        // Always sent: the server keeps stored sounds when the field is
+        // omitted, so an edit that removes every sound must send [].
+        'soundTargets': [
+          for (final id in soundGuideIds) {'guideId': id},
+        ],
       },
     );
     return LearnerAttempt.fromJson(response.data!);
