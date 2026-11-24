@@ -58,16 +58,25 @@ async function database(): Promise<IDBDatabase> {
   })
 }
 
+/**
+ * Aborts unless the transaction already started committing. Between the commit and the
+ * `complete` event a queued timer can still fire, and `abort()` then throws InvalidStateError;
+ * the pending `complete`/`error` event settles the caller in that case.
+ */
+function abortIfActive(tx: IDBTransaction): void {
+  try { tx.abort() } catch { /* committing or finished: its own event settles the promise */ }
+}
+
 async function transaction<T>(run: (rows: IDBObjectStore, owners: IDBObjectStore, result: (value: T) => void) => void): Promise<T> {
   const db = await database()
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(['drafts', 'owners'], 'readwrite')
     let value: T
-    const timer = setTimeout(() => { tx.abort() }, 4000)
+    const timer = setTimeout(() => abortIfActive(tx), 4000)
     tx.oncomplete = () => { clearTimeout(timer); db.close(); resolve(value) }
     tx.onabort = tx.onerror = () => { clearTimeout(timer); db.close(); reject(tx.error ?? new Error('Draft transaction failed')) }
     try { run(tx.objectStore('drafts'), tx.objectStore('owners'), (next) => { value = next }) }
-    catch (error) { tx.abort(); reject(error) }
+    catch (error) { abortIfActive(tx); reject(error) }
   })
 }
 
