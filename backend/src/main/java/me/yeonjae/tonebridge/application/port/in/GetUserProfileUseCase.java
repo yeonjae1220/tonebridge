@@ -23,6 +23,7 @@ public interface GetUserProfileUseCase {
             Map<String, String> learningLanguageVariants,
             int correctionStreak,
             double reputationScore,
+            int recentRatingCount,
             CorrectorLevel correctorLevel,
             List<UserBadge> badges
     ) {}

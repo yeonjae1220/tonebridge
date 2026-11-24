@@ -22,6 +22,7 @@ public record UserProfileResponse(
         Map<String, String> learningLanguageVariants,
         int correctionStreak,
         double reputationScore,
+        int recentRatingCount,
         CorrectorLevel correctorLevel,
         List<BadgeDto> badges
 ) {
@@ -44,6 +45,7 @@ public record UserProfileResponse(
                 Map.copyOf(result.learningLanguageVariants()),
                 result.correctionStreak(),
                 result.reputationScore(),
+                result.recentRatingCount(),
                 result.correctorLevel(),
                 result.badges().stream().map(BadgeDto::from).toList()
         );

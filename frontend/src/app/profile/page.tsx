@@ -19,7 +19,6 @@ import { formatMessage, languageDisplayName } from '@/i18n/messages'
 import { type ThemePreference, useTheme } from '@/components/theme/ThemeProvider'
 
 const LEVEL_META = {
-  NATIVE: { key: 'profile.level.native', color: 'text-blue-700', bg: 'bg-blue-50' },
   VERIFIED_CORRECTOR: { key: 'profile.level.verified', color: 'text-purple-700', bg: 'bg-purple-50' },
   EXPERT_COACH: { key: 'profile.level.expert', color: 'text-amber-700', bg: 'bg-amber-50' },
 } as const
@@ -207,7 +206,8 @@ function ProfileDetail() {
 
   if (!accessToken) return null
 
-  const levelMeta = profile ? (LEVEL_META[profile.correctorLevel] ?? LEVEL_META.NATIVE) : null
+  const levelMeta = profile && profile.correctorLevel !== 'NATIVE' ? LEVEL_META[profile.correctorLevel] : null
+  const ratingCount = profile?.recentRatingCount
   const langLabel = (code: string) => languageDisplayName(code, language) || fallbackLangLabel(code)
 
   if (editingLanguages && !me) return <main className="mx-auto max-w-lg space-y-5 px-4 py-8">
@@ -484,7 +484,7 @@ function ProfileDetail() {
                   )}
                   {!editingNickname && (
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {formatMessage(t('profile.nativeSpeaker'), { language: langLabel(profile.nativeLanguage) })}
+                      {formatMessage(t('profile.nativeLanguageLabel'), { language: langLabel(profile.nativeLanguage) })}
                     </p>
                   )}
                 </div>
@@ -533,10 +533,18 @@ function ProfileDetail() {
             {/* 신뢰도 */}
             <div className="bg-surface rounded-2xl border border-gray-100 p-5">
               <p className="text-sm font-semibold text-gray-500 mb-3">{t('profile.reputationTitle')}</p>
-              <ReputationBar score={profile.reputationScore} />
-              <p className="text-xs text-gray-400 mt-2">
-                {t('profile.reputationHelp')}
-              </p>
+              {ratingCount !== undefined && ratingCount > 0 ? (
+                <>
+                  <ReputationBar score={profile.reputationScore} />
+                  <p className="mt-2 text-xs text-gray-500">
+                    {formatMessage(t('profile.reputationRatingCount'), { count: ratingCount })} · {t('profile.reputationHelp')}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  {t(ratingCount === 0 ? 'profile.noReputationRatings' : 'profile.reputationUnavailable')}
+                </p>
+              )}
             </div>
 
             {/* 뱃지 */}

@@ -25,6 +25,9 @@ abstract class StudyCard with _$StudyCard {
 
   const StudyCard._();
 
+  static const maxPhraseLength = 500;
+  static const phraseLengthHelp = '표현은 최대 ${maxPhraseLength}자까지 저장할 수 있어요.';
+
   factory StudyCard.fromJson(Map<String, dynamic> json) =>
       _$StudyCardFromJson(json);
 

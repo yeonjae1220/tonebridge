@@ -1,5 +1,6 @@
 package me.yeonjae.tonebridge.adapter.out.persistence;
 
+import me.yeonjae.tonebridge.application.port.in.GetUserProfileUseCase;
 import me.yeonjae.tonebridge.application.port.out.RatingPort;
 import me.yeonjae.tonebridge.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RatingRecoveryIntegrationTest extends PostgresIntegrationTest {
     @Autowired RatingPort ratings;
+    @Autowired GetUserProfileUseCase profiles;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -25,6 +27,32 @@ class RatingRecoveryIntegrationTest extends PostgresIntegrationTest {
         assertThat(ratings.findRatedCorrectionIds(List.of(yes, no, others), owner)).containsExactlyInAnyOrder(yes, no);
         assertThat(ratings.findRatedCorrectionIds(List.of(yes, no, others), other)).containsExactly(others);
         assertThat(ratings.findRatedCorrectionIds(List.of(), owner)).isEmpty();
+    }
+
+    @Test
+    void profileSeparatesNoRatingsFromARealZeroAndUsesTheSameSampleForScoreAndCount() {
+        UUID corrector = user(), learner = user();
+        UUID unrated = correction(learner);
+        jdbc.update("UPDATE corrections SET corrector_id = ? WHERE id = ?", corrector, unrated);
+        assertThat(profiles.getProfile(corrector).recentRatingCount()).isZero();
+
+        rateCorrection(learner, corrector, false, false);
+        var zero = profiles.getProfile(corrector);
+        assertThat(zero.recentRatingCount()).isEqualTo(1);
+        assertThat(zero.reputationScore()).isZero();
+
+        rateCorrection(learner, corrector, true, false);
+        rateCorrection(learner, corrector, true, true);
+        var mixed = profiles.getProfile(corrector);
+        assertThat(mixed.recentRatingCount()).isEqualTo(2);
+        assertThat(mixed.reputationScore()).isEqualTo(5.0);
+    }
+
+    private void rateCorrection(UUID learner, UUID corrector, boolean helpful, boolean ai) {
+        UUID id = correction(learner);
+        jdbc.update("UPDATE corrections SET corrector_id = ?, is_ai = ? WHERE id = ?", corrector, ai, id);
+        jdbc.update("INSERT INTO ratings (id, correction_id, rater_id, helpful) VALUES (?, ?, ?, ?)",
+                UUID.randomUUID(), id, learner, helpful);
     }
 
     private UUID user() {

@@ -267,6 +267,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                   autofocus: true,
                   decoration: const InputDecoration(
                     labelText: '표현',
+                    helperText: StudyCard.phraseLengthHelp,
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -286,6 +287,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                     onPressed: () {
                       final phrase = phraseController.text.trim();
                       if (phrase.isEmpty) return;
+                      if (phrase.length > StudyCard.maxPhraseLength) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text(StudyCard.phraseLengthHelp)),
+                        );
+                        return;
+                      }
                       final contextText = contextController.text.trim();
                       Navigator.pop(context, (
                         phrase: phrase,

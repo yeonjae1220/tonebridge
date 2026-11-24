@@ -51,7 +51,7 @@ function StudyContent() {
     if (!accessToken) router.replace('/login')
   }, [accessToken, router])
 
-  const { data: sessions = [], isLoading, isError, refetch: refetchSessions } = useQuery<StudySession[]>({
+  const { data: sessions = [], isPending: sessionsPending, isError, refetch: refetchSessions } = useQuery<StudySession[]>({
     queryKey: ['sessions'],
     queryFn: () => api.get('/sessions').then((r) => r.data),
     enabled: !!accessToken,
@@ -147,10 +147,9 @@ function StudyContent() {
           </button>
         </div>
 
-        <button type="button" onClick={() => { void queryClient.invalidateQueries({ queryKey: ['sessions'] }); void queryClient.invalidateQueries({ queryKey: ['friends'] }) }} className="mb-4 min-h-11 text-sm text-blue-600">{t('access.refresh')}</button>
         {!renamingSession && actionError && <p role="alert" className="mb-3 text-sm text-red-600">{actionError}</p>}
         {!showNewSession && createError && <p role="alert" className="mb-3 text-sm text-red-600">{createError}</p>}
-        {!isLoading && !isError && sessions.length === 0 && (
+        {!sessionsPending && !isError && sessions.length === 0 && (
           <section className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-5">
             <h2 className="text-lg font-bold text-gray-900">{t('study.firstTitle')}</h2>
             <p className="mt-2 text-sm leading-relaxed text-gray-600">{t('study.firstHelp')}</p>
@@ -160,6 +159,33 @@ function StudyContent() {
             </div>
           </section>
         )}
+
+        {!isError && sessions.length > 0 && (
+          <section className="mb-5 rounded-2xl border border-gray-100 bg-surface p-5" aria-labelledby="resume-notebooks">
+            <h2 id="resume-notebooks" className="mb-3 text-base font-bold text-gray-900">{t('study.resumeNotebooks')}</h2>
+            <div className="space-y-2">
+              {sessions.slice(0, 3).map((session) => {
+                const personal = session.memberIds.length === 1
+                return (
+                  <button key={session.id} type="button" onClick={() => router.push('/study/' + session.id)}
+                    aria-labelledby={`notebook-title-${session.id}`} aria-describedby={`notebook-scope-${session.id}`}
+                    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-gray-50 px-4 py-2 text-left">
+                    <span className="min-w-0">
+                      <span id={`notebook-title-${session.id}`} className="block truncate text-sm font-semibold text-gray-900">
+                        {session.title?.trim() || t(personal ? 'study.personalDefault' : 'study.practiceDefault')}
+                      </span>
+                      <span id={`notebook-scope-${session.id}`} className="mt-0.5 block text-xs text-gray-500">
+                        {t(personal ? 'study.personalScope' : 'study.sharedScope')}
+                      </span>
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
+        {currentUser && <PracticeFeedback preview />}
 
         <section className="mb-5 grid grid-cols-3 gap-2" aria-label={t('study.quickActions')}>
           {([
@@ -182,16 +208,6 @@ function StudyContent() {
             </div>)}
             {pendingRequests.length > 2 && <Link href="/friends" className="block py-2 text-sm text-blue-600">{t('friends.title')} →</Link>}
           </div>}
-        </section>}
-
-        {currentUser && <PracticeFeedback preview />}
-
-        {!isError && sessions.length > 0 && <section className="mb-6 rounded-2xl border border-gray-100 bg-surface p-5">
-          <h2 className="mb-3 text-base font-bold text-gray-900">{t('study.todayTitle')}</h2>
-          <div className="space-y-2">{sessions.slice(0, 3).map((session) => <button key={session.id}
-            onClick={() => router.push(`/study/${session.id}`)} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left text-sm font-semibold text-gray-700">
-            <span className="truncate">{session.title ?? t('study.practiceDefault')}</span><span aria-hidden>→</span>
-          </button>)}</div>
         </section>}
 
         {/* 새 세션 생성 패널 */}
@@ -268,7 +284,7 @@ function StudyContent() {
 
         {isError ? (
           <QueryError onRetry={() => void refetchSessions()} />
-        ) : isLoading ? (
+        ) : sessionsPending ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-24 bg-gray-200 animate-pulse rounded-2xl" />
@@ -328,6 +344,11 @@ function StudyContent() {
 
           </details>
         )}
+        <button type="button" className="mt-4 min-h-11 text-sm text-blue-600" onClick={() => {
+          void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+          void queryClient.invalidateQueries({ queryKey: ['friends'] })
+        }}>{t('access.refresh')}</button>
+
         {suggested && <InstallBanner className="mt-5" onDismiss={dismissSuggestion} />}
         <p className="mt-6 text-sm"><Link href="/help" className="text-blue-600">{t('validation.help')}</Link></p>
       </div>

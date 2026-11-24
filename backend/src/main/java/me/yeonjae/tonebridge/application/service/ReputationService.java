@@ -20,12 +20,16 @@ public class ReputationService {
     private final RatingPort ratingPort;
     private final UserPort userPort;
 
+    @Transactional(readOnly = true)
+    public RatingPort.RecentRatings recentRatings(UUID correctorId) {
+        return ratingPort.findRecentRatings(correctorId, RECENT_RATING_COUNT);
+    }
+
     @Transactional
     public void recalculate(UUID correctorId) {
         if (!properties.getGamification().isReputationEnabled()) return;
 
-        double ratio = ratingPort.findHelpfulRatioByCorrector(correctorId, RECENT_RATING_COUNT);
-        double newScore = Math.round(ratio * 10.0 * 10.0) / 10.0;
+        double newScore = recentRatings(correctorId).score();
 
         User user = userPort.findById(correctorId).orElseThrow();
         userPort.save(user.withReputation(newScore));

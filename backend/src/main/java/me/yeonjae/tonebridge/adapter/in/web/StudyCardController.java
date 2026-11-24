@@ -12,6 +12,7 @@ import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.LearnerAttemptResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.application.port.in.*;
+import me.yeonjae.tonebridge.domain.studycard.StudyCard;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -234,9 +235,9 @@ public class StudyCardController {
     static final int MAX_TAGS = 20;
     static final int MAX_TAG_LENGTH = 24;
 
-    record CreateCardDto(@NotBlank String phrase, String context,
+    record CreateCardDto(@NotBlank @Size(max = StudyCard.MAX_PHRASE_LENGTH) String phrase, String context,
                          @Size(max = MAX_TAGS) List<@NotBlank @Size(max = MAX_TAG_LENGTH) @Pattern(regexp = "[^,]*") String> tags) {}
-    record UpdateCardDto(@NotBlank String phrase, String context,
+    record UpdateCardDto(@NotBlank @Size(max = StudyCard.MAX_PHRASE_LENGTH) String phrase, String context,
                          @Size(max = MAX_TAGS) List<@NotBlank @Size(max = MAX_TAG_LENGTH) @Pattern(regexp = "[^,]*") String> tags) {}
     record MoveCardDto(@NotNull UUID targetSessionId, @Min(0) int position) {}
     record UploadUrlDto(@NotBlank String fileName) {}

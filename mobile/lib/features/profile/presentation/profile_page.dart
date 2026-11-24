@@ -72,7 +72,10 @@ class ProfilePage extends ConsumerWidget {
               _StatsRow(profile: profile),
               const SizedBox(height: 20),
               // Reputation bar
-              _ReputationSection(score: profile.reputationScore),
+              _ReputationSection(
+                score: profile.reputationScore,
+                ratingCount: profile.recentRatingCount,
+              ),
               const SizedBox(height: 20),
               // Streak details
               _StreakSection(streak: profile.correctionStreak),
@@ -138,27 +141,31 @@ class _ProfileHeader extends ConsumerWidget {
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.error),
           ),
-        const SizedBox(height: 6),
-        Text(
-          '${langLabel(profile.nativeLanguage)} 원어민',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.outline),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(20),
+        if (profile.nativeLanguage.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            '모국어: ${langLabel(profile.nativeLanguage)}',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.outline),
           ),
-          child: Text(
-            _levelLabel(profile.correctorLevel),
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
+        ],
+        if (_levelLabel(profile.correctorLevel) case final label?) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -222,14 +229,13 @@ class _ProfileHeader extends ConsumerWidget {
     controller.dispose();
   }
 
-  String _levelLabel(String level) => switch (level) {
-        'NATIVE' => '원어민',
+  String? _levelLabel(String level) => switch (level) {
         'VERIFIED_CORRECTOR' => '인증 교정자',
         'EXPERT_COACH' => '전문 코치',
         'BEGINNER' => '초급 교정자',
         'INTERMEDIATE' => '중급 교정자',
         'ADVANCED' => '고급 교정자',
-        _ => level,
+        _ => null,
       };
 }
 
@@ -253,7 +259,9 @@ class _StatsRow extends StatelessWidget {
           child: _StatCard(
             icon: Icons.star_rounded,
             label: '신뢰도',
-            value: profile.reputationScore.toStringAsFixed(1),
+            value: (profile.recentRatingCount ?? 0) > 0
+                ? profile.reputationScore.toStringAsFixed(1)
+                : '—',
           ),
         ),
         const SizedBox(width: 12),
@@ -303,8 +311,9 @@ class _StatCard extends StatelessWidget {
 }
 
 class _ReputationSection extends StatelessWidget {
-  const _ReputationSection({required this.score});
+  const _ReputationSection({required this.score, required this.ratingCount});
   final double score;
+  final int? ratingCount;
 
   Color _barColor(double s) {
     if (s >= 8) return Colors.green;
@@ -317,6 +326,7 @@ class _ReputationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pct = (score / 10).clamp(0.0, 1.0);
+    final count = ratingCount;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -324,36 +334,43 @@ class _ReputationSection extends StatelessWidget {
             style: theme.textTheme.titleSmall
                 ?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: pct,
-                  minHeight: 8,
-                  backgroundColor:
-                      theme.colorScheme.surfaceContainerHighest,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(_barColor(score)),
+        if (count != null && count > 0) ...[
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 8,
+                    backgroundColor:
+                        theme.colorScheme.surfaceContainerHighest,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(_barColor(score)),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              score.toStringAsFixed(1),
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              const SizedBox(width: 12),
+              Text(
+                score.toStringAsFixed(1),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '최근 교정에 대한 "도움됨" 평가를 기반으로 산정됩니다.',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.outline),
-        ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '최근 평가 ${count}건 중 “도움됨” 비율을 10점 만점으로 표시합니다.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.outline),
+          ),
+        ] else
+          Text(
+            count == 0
+                ? '아직 교정에 달린 평가가 없어요.'
+                : '평가 정보를 확인할 수 없어요.',
+          ),
       ],
     );
   }

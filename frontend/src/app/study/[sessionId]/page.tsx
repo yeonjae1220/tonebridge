@@ -10,8 +10,9 @@ import type { StudyCard, StudySession } from '@/types'
 import { formatDate } from '@/lib/dateUtils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage } from '@/i18n/messages'
 import { SoundTagPicker } from '@/components/study/SoundTagPicker'
-import { cardTagsWithinLimits, parseCardTags } from '@/lib/cardTags'
+import { cardTagsWithinLimits, MAX_CARD_PHRASE_LENGTH, parseCardTags } from '@/lib/cardLimits'
 import { localizedLabel } from '@/lib/localizedLabels'
 import { Dialog } from '@/components/ui/Dialog'
 import { QueryError } from '@/components/ui/QueryError'
@@ -204,7 +205,7 @@ function SessionDetail({ sessionId }: { sessionId: string }) {
           <div className="bg-surface rounded-2xl border border-gray-100 py-14 text-center">
             <p className="text-4xl mb-3">🃏</p>
             <p className="text-sm font-semibold text-gray-700">{t('study.cards.emptyTitle')}</p>
-            <p className="text-xs text-gray-400 mt-1">{t('study.cards.emptySubtitle')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t(session?.memberIds.length === 1 ? 'study.emptyPersonalCard' : 'study.cards.emptySubtitle')}</p>
             <button
               onClick={() => setCardSheet({ mode: 'create' })}
               className="mt-4 px-4 py-2 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover transition-colors"
@@ -380,11 +381,13 @@ function CardSheet({
 
   const tags = parseCardTags(tagText)
   const tagsValid = cardTagsWithinLimits(tags)
+  const phraseTooLong = phrase.length > MAX_CARD_PHRASE_LENGTH
+  const canSave = !pending && !!phrase.trim() && !phraseTooLong && tagsValid
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const trimmed = phrase.trim()
-    if (pending || !trimmed || !tagsValid) return
+    if (!canSave) return
     onSubmit({ phrase: trimmed, context: context.trim() || null, tags })
   }
 
@@ -397,6 +400,9 @@ function CardSheet({
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.phrase')}</span>
           <textarea
             value={phrase}
+            maxLength={MAX_CARD_PHRASE_LENGTH}
+            aria-describedby="card-edit-phrase-limit"
+            aria-invalid={phraseTooLong}
             onChange={(e) => setPhrase(e.target.value)}
             rows={3}
             autoFocus
@@ -404,6 +410,9 @@ function CardSheet({
             placeholder={t('study.cards.phrasePlaceholder')}
           />
         </label>
+        <p id="card-edit-phrase-limit" className={phraseTooLong ? 'text-xs text-red-600' : 'text-xs text-gray-500'}>
+          {formatMessage(t('study.cardPhraseLimit'), { count: MAX_CARD_PHRASE_LENGTH })}
+        </p>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-500">{t('study.cards.context')}</span>
           <input
@@ -428,7 +437,7 @@ function CardSheet({
         </fieldset>
         <button
           type="submit"
-          disabled={pending || !phrase.trim() || !tagsValid}
+          disabled={!canSave}
           className="w-full py-3 rounded-xl bg-action-primary text-white text-sm font-semibold hover:bg-action-primary-hover disabled:opacity-40 transition-colors"
         >
           {pending ? t('common.saving') : t('common.save')}

@@ -17,6 +17,8 @@ import { clearComposition, compositionFile, createComposition, isCompositionSour
 import { LanguagePicker } from '@/components/language-picker/LanguagePicker'
 import { RecorderModal, RecordedAudioPreview, formatDuration } from '@/components/recorder/RecorderModal'
 import { useI18n } from '@/i18n/I18nProvider'
+import { formatMessage } from '@/i18n/messages'
+import { MAX_CARD_PHRASE_LENGTH } from '@/lib/cardLimits'
 import type { Friend, StudyCard } from '@/types'
 import { QueryError } from '@/components/ui/QueryError'
 import { getApiErrorMessage } from '@/lib/apiError'
@@ -259,9 +261,10 @@ export default function RequestPage() {
 
   const isPending = submitMutation.isPending || preparing
   const locked = isPending || !!pending || readyAccount !== accountKey
+  const phraseTooLong = destination !== 'COMMUNITY' && (kind === 'TEXT' ? contentText : context).trim().length > MAX_CARD_PHRASE_LENGTH
   const hasContent = kind === 'TEXT' ? !!contentText.trim() : recorder.state === 'stopped'
   const canSubmit = draftReady && readyAccount === accountKey && !isPending && (!!pending || (
-    hasContent &&
+    hasContent && !phraseTooLong &&
     (destination !== 'FRIEND' || !!selectedFriendId) &&
     (destination !== 'COMMUNITY' || !!targetLanguage) &&
     (!sourceCardId || (source.isSuccess && !source.isError))))
@@ -328,7 +331,7 @@ export default function RequestPage() {
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold text-gray-700">{t('request.contentLabel')}</span>
                   <textarea
-                    maxLength={destination === 'COMMUNITY' ? 10000 : 500}
+                    maxLength={destination === 'COMMUNITY' ? 10000 : MAX_CARD_PHRASE_LENGTH}
                     value={contentText}
                     onChange={(e) => setContentText(e.target.value)}
                     placeholder={t('request.contentPlaceholder')}
@@ -432,7 +435,7 @@ export default function RequestPage() {
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold text-gray-700">{t('request.context')}</span>
                 <input
-                  maxLength={kind === 'AUDIO' && destination !== 'COMMUNITY' ? 500 : 10000}
+                  maxLength={kind === 'AUDIO' && destination !== 'COMMUNITY' ? MAX_CARD_PHRASE_LENGTH : 10000}
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
                   placeholder={kind === 'TEXT' ? t('request.contextTextPlaceholder') : t('request.contextAudioPlaceholder')}
@@ -470,6 +473,9 @@ export default function RequestPage() {
             {!isPending && <button type="button" onClick={() => handleSubmit(true)} className="mt-2 min-h-11 font-semibold underline">{t('compose.edit')}</button>}
           </div>}
           {step === 2 && <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-700">{t(destination === 'COMMUNITY' ? 'request.destinationCommunitySub' : destination === 'FRIEND' ? 'request.destinationFriendSub' : 'request.destinationPersonalSub')}</p>}
+          {!pending && phraseTooLong && <p role="alert" className="mt-4 text-sm text-red-600">
+            {formatMessage(t('study.cardPhraseLimit'), { count: MAX_CARD_PHRASE_LENGTH })}
+          </p>}
           {error && !storageIssue && <p role="alert" className="mt-4 text-sm font-medium text-red-500">{error}</p>}
 
           {step === 0 && destination === 'PERSONAL' && !pending && <div className="mt-5 rounded-xl border border-blue-100 p-3">

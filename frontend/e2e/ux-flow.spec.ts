@@ -20,6 +20,7 @@ async function app(page: Page) {
   const state = {
     card: { id: 'card-1', sessionId: 'shared', createdByUserId: 'me', phrase: 'こんにちは', context: '친구와 인사할 때', tags: [], note: 'private note', position: 0, createdAt: session.createdAt, latestAttempt: attempt },
     fail: new Set<string>(), empty: false, guest: false, onboarded: true,
+    sessions: [session] as Array<Omit<typeof session, 'title'> & { title: string | null }>,
     writes: [] as { path: string; body: Record<string, unknown> }[],
     audioKeys: [] as string[],
   }
@@ -41,7 +42,7 @@ async function app(page: Page) {
     if (path.startsWith('/api/compositions/')) return route.fulfill({ status: 404, json: {} })
     if (path === '/api/practice-feedback') return ok({ items: state.empty ? [] : [{ ...attempt, attemptId: attempt.id, sessionId: session.id, sessionTitle: session.title, phrase: state.card.phrase, correctionAuthorId: null, correctionAuthorName: null, correctionUpdatedAt: null }], nextPage: null })
     if (path === '/api/users/me') return ok({ id: 'me', username: 'learner', uiLanguage: 'ko', nativeLanguage: 'ko', fluentLanguages: [], learningLanguages: ['ja'], onboardingCompleted: state.onboarded, credits: 0 })
-    if (path === '/api/sessions') return ok(state.empty ? [] : [session])
+    if (path === '/api/sessions') return ok(state.empty ? [] : state.sessions)
     if (path === '/api/sessions/shared') return ok(session)
     if (path === '/api/sessions/shared/cards') return ok([state.card])
     if (path === '/api/cards/card-1') return ok(state.card)
@@ -171,6 +172,7 @@ test('first-use home has two clear starting paths without zero counters', async 
   await expect(page.getByRole('link', { name: '친구 초대 링크', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: '혼자 첫 표현 기록', exact: true })).toBeVisible()
   await expect(page.getByText('받은 것', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '내 연습에 달린 피드백' })).toHaveCount(0)
 })
 
 for (const theme of ['light', 'dark']) {
@@ -230,4 +232,34 @@ test('landing preview works without login and narrow headers stay within the vie
   await page.screenshot({ path: info.outputPath('landing.png'), fullPage: true })
   await page.goto('/community')
   await expect(page.getByText('현재 내 언어 능력으로 교정할 수 있는 요청이 없습니다')).toHaveCount(0)
+})
+
+
+test('returning learners see notebook scopes and can continue above the feedback summary', async ({ page }) => {
+  const state = await app(page)
+  state.sessions.unshift({ ...state.sessions[0], id: 'solo', title: null, memberIds: ['me'] })
+  await page.goto('/study')
+  const notebooks = page.getByRole('region', { name: '연습 이어하기' })
+  await expect(notebooks.getByRole('button', { name: '내 연습장', exact: true })).toHaveAccessibleDescription('나만 볼 수 있음')
+  await expect(notebooks.getByRole('button', { name: 'Mina와 연습', exact: true })).toHaveAccessibleDescription('참여자에게 공유됨')
+  const feedback = page.getByRole('heading', { name: '내 연습에 달린 피드백' })
+  expect((await notebooks.boundingBox())!.y).toBeLessThan((await feedback.boundingBox())!.y)
+  await notebooks.getByRole('button', { name: 'Mina와 연습', exact: true }).click()
+  await expect(page).toHaveURL(/study\/shared$/)
+})
+
+test('a long community draft stays intact when switching to a private notebook', async ({ page }) => {
+  const state = await app(page)
+  await page.goto('/request?destination=COMMUNITY&kind=TEXT')
+  const phrase = '가'.repeat(501)
+  await page.getByRole('textbox').first().fill(phrase)
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+  await page.getByRole('button', { name: /내 연습장에 저장/ }).click()
+  await expect(page.getByText('표현은 최대 500자까지 저장할 수 있어요.')).toBeVisible()
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+  await expect(page.getByRole('button', { name: '저장', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '취소', exact: true }).click()
+  await page.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(page.getByRole('textbox').first()).toHaveValue(phrase)
+  expect(state.writes.filter(write => write.path.startsWith('/api/compositions/'))).toEqual([])
 })

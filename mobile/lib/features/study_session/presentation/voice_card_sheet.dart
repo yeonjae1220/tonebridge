@@ -8,6 +8,7 @@ import 'package:tonebridge/core/services/audio_recorder_service.dart';
 import 'package:tonebridge/core/services/presigned_upload_service.dart';
 import 'package:tonebridge/core/utils/permission_dialogs.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
+import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
 class VoiceCardSheet extends ConsumerStatefulWidget {
@@ -56,8 +57,7 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
     final hasRecording = kIsWeb
         ? _recorder.webBlobUrl != null
         : _recorder.file != null;
-    if (!hasRecording) return;
-    setState(() => _uploading = true);
+    if (!hasRecording || _uploading) return;
 
     final now = DateTime.now();
     final phrase = _phraseController.text.trim().isEmpty
@@ -65,6 +65,11 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
         : _phraseController.text.trim();
 
     final messenger = ScaffoldMessenger.of(context);
+    if (phrase.length > StudyCard.maxPhraseLength) {
+      messenger.showSnackBar(const SnackBar(content: Text(StudyCard.phraseLengthHelp)));
+      return;
+    }
+    setState(() => _uploading = true);
     final router = GoRouter.of(context);
     final repo = ref.read(studySessionRepositoryProvider);
     String? createdCardId;
@@ -248,6 +253,7 @@ class _VoiceCardSheetState extends ConsumerState<VoiceCardSheet> {
               enabled: !_uploading,
               decoration: const InputDecoration(
                 labelText: '표현 입력 (선택)',
+                helperText: StudyCard.phraseLengthHelp,
                 hintText: '예: 밥 먹었어? (비워두면 자동 생성)',
                 border: OutlineInputBorder(),
               ),
