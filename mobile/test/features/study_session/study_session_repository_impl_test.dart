@@ -59,10 +59,10 @@ void main() {
   });
 
   test(
-    'no chosen sounds leaves the field out, so stored sounds are kept',
+    'no chosen sounds sends an empty list, so an edit clears stored sounds',
     () async {
       await repo.addCorrectionNote('attempt-1', '좋아요', null);
-      expect(sentBody(), {'correctionNote': '좋아요'});
+      expect(sentBody(), {'correctionNote': '좋아요', 'soundTargets': <Object>[]});
     },
   );
 }

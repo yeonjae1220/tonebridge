@@ -965,6 +965,15 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
                 ),
               ],
               FeedbackSoundTargets(targets: attempt.soundTargets),
+              if (widget.canAddNote)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _showNoteSheet(context, editing: true),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('교정 메모 수정'),
+                  ),
+                ),
             ] else if (widget.canAddNote) ...[
               const Divider(height: 16),
               TextButton.icon(
@@ -979,14 +988,20 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
     );
   }
 
-  void _showNoteSheet(BuildContext context) {
+  void _showNoteSheet(BuildContext context, {bool editing = false}) {
+    final attempt = widget.attempt;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => NoteSheet(
-        attemptId: widget.attempt.id,
+        attemptId: attempt.id,
         onNoteAdded: widget.onNoteAdded,
+        initialNote: editing ? attempt.correctionNote ?? '' : null,
+        initialScore: editing ? attempt.score : null,
+        initialSoundGuideIds: editing
+            ? [for (final target in attempt.soundTargets) target.guideId]
+            : const [],
       ),
     );
   }
