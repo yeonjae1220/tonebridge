@@ -1,4 +1,4 @@
-.PHONY: gen build run run-prod clean store-ios store-android
+.PHONY: gen build run run-prod clean icons store-ios store-android
 
 # Generate Dart code (freezed, riverpod, json_serializable, retrofit)
 # Run this after:
@@ -36,3 +36,9 @@ store-android:
 clean:
 	flutter clean
 	dart run build_runner clean
+
+# Regenerate app icons and the native launch screen from assets/brand
+# (configs: flutter_launcher_icons.yaml, flutter_native_splash.yaml)
+icons:
+	dart run flutter_launcher_icons
+	dart run flutter_native_splash:create
