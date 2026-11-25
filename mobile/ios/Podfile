@@ -1,4 +1,4 @@
-# Firebase 12.x requires iOS 15.0+
+# iOS 15.0 is the app minimum; keep in step with IPHONEOS_DEPLOYMENT_TARGET in project.pbxproj.
 platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
