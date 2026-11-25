@@ -18,10 +18,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         applicationId = "com.mungji.tonebridge"
         // You can update the following values to match your application needs.
@@ -55,6 +51,13 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+    }
+}
+
+// Kotlin 2.4 rejects `kotlinOptions { jvmTarget = "..." }`; the compilerOptions DSL replaces it.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
