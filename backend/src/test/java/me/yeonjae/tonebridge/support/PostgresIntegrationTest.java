@@ -19,7 +19,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @ActiveProfiles("test")
 public abstract class PostgresIntegrationTest {
 
-    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
+    /**
+     * Every subclass with its own @MockitoBean set gets its own cached Spring context, and each keeps
+     * a Hikari pool (10) open against this one server. Postgres' default limit of 100 runs out at
+     * about ten such classes and the next context fails with "too many clients already".
+     */
+    private static final int MAX_CONNECTIONS = 500;
+
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine")
+            .withCommand("postgres", "-c", "max_connections=" + MAX_CONNECTIONS);
 
     static {
         POSTGRES.start();

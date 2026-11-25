@@ -62,6 +62,38 @@ class AuthState extends _$AuthState {
     });
   }
 
+  /// Sign in with Apple (iOS). Errors land in [state] like Google sign-in.
+  Future<void> signInWithApple() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(authRepositoryProvider);
+      return repo.signInWithApple();
+    });
+  }
+
+  /// Email sign-in. Unlike the social buttons, failures are thrown to the caller
+  /// (the email form shows them inline) and [state] is only touched on success.
+  Future<void> signInWithEmail({required String email, required String password}) async {
+    final repo = ref.read(authRepositoryProvider);
+    final session = await repo.signInWithEmail(email: email, password: password);
+    state = AsyncData(session);
+  }
+
+  /// Email sign-up; same error contract as [signInWithEmail].
+  Future<void> registerWithEmail({
+    required String email,
+    required String username,
+    required String password,
+  }) async {
+    final repo = ref.read(authRepositoryProvider);
+    final session = await repo.registerWithEmail(
+      email: email,
+      username: username,
+      password: password,
+    );
+    state = AsyncData(session);
+  }
+
   Future<void> signOut() async {
     state = const AsyncLoading();
     try {

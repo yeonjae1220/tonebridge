@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +46,8 @@ class AuthServiceLocalAuthTest {
     @Mock private UserPort userPort;
     @Mock private CreditPort creditPort;
     @Mock private GoogleOAuthPort googleOAuthPort;
+    @Mock private me.yeonjae.tonebridge.application.port.out.AppleIdentityTokenPort appleIdentityTokenPort;
+    @Mock private me.yeonjae.tonebridge.application.port.out.AppleIdentityPort appleIdentityPort;
     @Mock private RefreshTokenPort refreshTokenPort;
     @Mock private PasswordHasherPort passwordHasherPort;
     @Mock private JwtProvider jwtProvider;
@@ -58,8 +61,9 @@ class AuthServiceLocalAuthTest {
     @BeforeEach
     void setUp() {
         when(passwordHasherPort.encode("tonebridge-constant-time-dummy-password")).thenReturn("DUMMY_HASH");
-        authService = new AuthService(userPort, googleOAuthPort, refreshTokenPort,
-                passwordHasherPort, jwtProvider, jwtProperties, properties);
+        authService = new AuthService(userPort, googleOAuthPort, appleIdentityTokenPort, appleIdentityPort, refreshTokenPort,
+                passwordHasherPort, jwtProvider, jwtProperties, properties,
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
         authService.initDummyPasswordHash();
     }
 

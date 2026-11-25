@@ -1,4 +1,4 @@
-.PHONY: gen build run run-prod clean icons
+.PHONY: gen build run run-prod clean icons store-ios store-android
 
 # Generate Dart code (freezed, riverpod, json_serializable, retrofit)
 # Run this after:
@@ -25,6 +25,13 @@ run:
 
 # Run against prod API (same as run — prod is the only backend)
 run-prod: run
+
+# Store release builds (see scripts/build_store.sh)
+store-ios:
+	scripts/build_store.sh ios
+
+store-android:
+	scripts/build_store.sh android
 
 clean:
 	flutter clean
