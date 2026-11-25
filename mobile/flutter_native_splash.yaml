@@ -1,0 +1,9 @@
+# Launch screen, generated — edit here (or the PNG) and run `make icons`.
+# One brand colour in light and dark so the hand-off to the first Flutter frame stays calm.
+flutter_native_splash:
+  color: "#6750A4"
+  image: "assets/brand/splash_logo.png"
+  android_12:
+    color: "#6750A4"
+    image: "assets/brand/splash_logo.png"
+  web: false

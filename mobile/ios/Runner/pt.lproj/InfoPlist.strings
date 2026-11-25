@@ -1,0 +1,2 @@
+/* Shown when the app first asks for the microphone. Keep in sync with Info.plist. */
+"NSMicrophoneUsageDescription" = "O ToneBridge usa o microfone para gravar sua prática de pronúncia e seus cartões de voz.";
