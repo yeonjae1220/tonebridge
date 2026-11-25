@@ -1,0 +1,2 @@
+/* Shown when the app first asks for the microphone. Keep in sync with Info.plist. */
+"NSMicrophoneUsageDescription" = "発音練習と音声カードを録音するためにマイクを使用します。";
