@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -143,16 +144,19 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
-      GoRoute(
-        path: AppRoute.admin,
-        builder: (context, state) => const AdminPage(),
-        routes: [
-          GoRoute(
-            path: 'users',
-            builder: (context, state) => const AdminUsersPage(),
-          ),
-        ],
-      ),
+      // Admin screens are for the (former) Flutter web build only; native store
+      // builds ship without them. The backend enforces admin rights either way.
+      if (kIsWeb)
+        GoRoute(
+          path: AppRoute.admin,
+          builder: (context, state) => const AdminPage(),
+          routes: [
+            GoRoute(
+              path: 'users',
+              builder: (context, state) => const AdminUsersPage(),
+            ),
+          ],
+        ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),

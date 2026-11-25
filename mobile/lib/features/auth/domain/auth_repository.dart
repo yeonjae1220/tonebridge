@@ -8,6 +8,20 @@ abstract interface class AuthRepository {
   /// Returns null if the user cancelled or a browser navigation was initiated.
   Future<AuthSession?> signInWithGoogle();
 
+  /// Native iOS: Sign in with Apple, identity token exchanged with the backend.
+  /// Returns null if the user cancelled.
+  Future<AuthSession?> signInWithApple();
+
+  /// Email + password sign-in against the mobile endpoint (tokens in the body).
+  Future<AuthSession> signInWithEmail({required String email, required String password});
+
+  /// Creates an email + password account and signs in.
+  Future<AuthSession> registerWithEmail({
+    required String email,
+    required String username,
+    required String password,
+  });
+
   /// Fetches the currently authenticated user's profile.
   Future<User> getCurrentUser();
 

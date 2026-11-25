@@ -18,6 +18,7 @@ public enum ErrorCode {
 
     PASSWORD_RESET_INVALID(HttpStatus.BAD_REQUEST, "AUTH_007", "재설정 링크가 만료되었거나 이미 사용되었습니다"),
     PASSWORD_RESET_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_008", "비밀번호 재설정을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요"),
+    APPLE_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "AUTH_009", "Apple 인증에 실패했습니다"),
 
     // Personal exports
     EXPORT_LIMIT(HttpStatus.PAYLOAD_TOO_LARGE, "EXPORT_001", "내보내기 한도를 초과했습니다. 음성 제외 또는 지원 문의를 이용해 주세요."),

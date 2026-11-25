@@ -32,9 +32,15 @@ String normalizeUiLanguage(String? code) {
   return supportedUiLanguages.contains(code) ? code! : 'ko';
 }
 
+/// Device language, used before the user has chosen one (login, onboarding).
+final deviceLanguageProvider = Provider<String>(
+  (ref) => WidgetsBinding.instance.platformDispatcher.locale.languageCode,
+);
+
 final uiLanguageProvider = Provider<String>((ref) {
-  final session = ref.watch(authStateProvider).value;
-  return normalizeUiLanguage(session?.user.uiLanguage);
+  final chosen = ref.watch(authStateProvider).value?.user.uiLanguage;
+  if (chosen != null && supportedUiLanguages.contains(chosen)) return chosen;
+  return normalizeUiLanguage(ref.watch(deviceLanguageProvider));
 });
 
 final tProvider = Provider<ToneBridgeStrings>((ref) {

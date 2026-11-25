@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tonebridge/core/config/app_config.dart';
+import 'package:tonebridge/core/platform/apple_id_token.dart';
 import 'package:tonebridge/core/platform/google_id_token.dart'
     if (dart.library.html) 'package:tonebridge/core/platform/google_id_token_web.dart';
 import 'package:tonebridge/core/platform/web_redirect.dart'
@@ -70,6 +71,47 @@ class AuthRepositoryImpl implements AuthRepository {
     return _saveSession(TokenResponse.fromJson(response.data!));
   }
 
+  // ── Sign in with Apple (iOS) ─────────────────────────────────────────────
+
+  @override
+  Future<AuthSession?> signInWithApple() async {
+    final identityToken = await requestAppleIdentityToken();
+    if (identityToken == null) return null;
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/mobile/apple',
+      data: {'identityToken': identityToken},
+    );
+    return _saveSession(TokenResponse.fromJson(response.data!));
+  }
+
+  // ── Email / password ──────────────────────────────────────────────────────
+
+  @override
+  Future<AuthSession> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/mobile/login',
+      data: {'email': email.trim(), 'password': password},
+    );
+    return _saveSession(TokenResponse.fromJson(response.data!));
+  }
+
+  @override
+  Future<AuthSession> registerWithEmail({
+    required String email,
+    required String username,
+    required String password,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/mobile/register',
+      data: {'email': email.trim(), 'username': username.trim(), 'password': password},
+    );
+    return _saveSession(TokenResponse.fromJson(response.data!));
+  }
+
   // ── Session ───────────────────────────────────────────────────────────────
 
   @override
@@ -110,7 +152,7 @@ class AuthRepositoryImpl implements AuthRepository {
         '/api/auth/mobile/refresh',
         data: {'refreshToken': refreshToken},
       );
-      return _saveSession(TokenResponse.fromJson(response.data!));
+      return await _saveSession(TokenResponse.fromJson(response.data!));
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         await _storage.clearAll();

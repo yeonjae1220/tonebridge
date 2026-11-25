@@ -87,6 +87,15 @@ public class UserJpaAdapter implements UserPort {
     }
 
     @Override
+    public void convertToSocial(UUID id, me.yeonjae.tonebridge.domain.user.OAuthProvider provider) {
+        UserEntity user = userJpaRepository.findByIdForUpdate(id).orElseThrow();
+        user.setProvider(provider);
+        user.setPasswordHash(null);
+        user.setCredentialsVersion(Math.addExact(user.getCredentialsVersion(), 1));
+        userJpaRepository.saveAndFlush(user);
+    }
+
+    @Override
     public User save(User user) {
         if (user.id() != null) {
             Optional<UserEntity> existing = userJpaRepository.findById(user.id());

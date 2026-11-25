@@ -19,6 +19,8 @@ public interface UserPort {
     Optional<User> findByIdForUpdate(UUID id);
     long credentialsVersion(UUID id);
     void resetPassword(UUID id, String passwordHash);
+    /** Drops the password, switches the account to {@code provider} and bumps the credentials version. */
+    void convertToSocial(UUID id, me.yeonjae.tonebridge.domain.user.OAuthProvider provider);
     User save(User user);
     void deleteById(UUID id);
 }

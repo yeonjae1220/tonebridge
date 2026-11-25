@@ -6,10 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 import me.yeonjae.tonebridge.adapter.in.web.dto.TokenResponse;
 import me.yeonjae.tonebridge.adapter.out.ai.GoogleUserInfo;
 import me.yeonjae.tonebridge.application.port.in.LoginLocalUseCase;
+import me.yeonjae.tonebridge.application.port.in.LoginWithAppleUseCase;
 import me.yeonjae.tonebridge.application.port.in.LoginWithGoogleUseCase;
 import me.yeonjae.tonebridge.application.port.in.LoginWithIdTokenUseCase;
 import me.yeonjae.tonebridge.application.port.in.RefreshTokenUseCase;
 import me.yeonjae.tonebridge.application.port.in.RegisterLocalUserUseCase;
+import me.yeonjae.tonebridge.application.port.out.AppleIdentityPort;
+import me.yeonjae.tonebridge.application.port.out.AppleIdentityTokenPort;
 import me.yeonjae.tonebridge.application.port.out.GoogleOAuthPort;
 import me.yeonjae.tonebridge.application.port.out.PasswordHasherPort;
 import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
@@ -23,7 +26,9 @@ import me.yeonjae.tonebridge.shared.exception.ErrorCode;
 import me.yeonjae.tonebridge.shared.exception.ToneBridgeException;
 import me.yeonjae.tonebridge.shared.util.JwtProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,20 +36,24 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseCase,
-        RefreshTokenUseCase, RegisterLocalUserUseCase, LoginLocalUseCase {
+        RefreshTokenUseCase, RegisterLocalUserUseCase, LoginLocalUseCase, LoginWithAppleUseCase {
 
     private final UserPort userPort;
     private final GoogleOAuthPort googleOAuthPort;
+    private final AppleIdentityTokenPort appleIdentityTokenPort;
+    private final AppleIdentityPort appleIdentityPort;
     private final RefreshTokenPort refreshTokenPort;
     private final PasswordHasherPort passwordHasherPort;
     private final JwtProvider jwtProvider;
     private final JwtProperties jwtProperties;
     private final ToneBridgeProperties properties;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * loginLocal의 "계정 없음/비-LOCAL 계정" 경로에서 비교할 더미 해시.
@@ -58,16 +67,22 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
         dummyPasswordHash = passwordHasherPort.encode("tonebridge-constant-time-dummy-password");
     }
 
+    // Social logins call out to Google/Apple first and only then open a transaction, so a slow
+    // provider never holds a DB connection.
     @Override
-    @Transactional
     public TokenResponse login(String code, String redirectUri) {
-        return loginWithGoogleUser(googleOAuthPort.exchangeCodeForUserInfo(code, redirectUri));
+        GoogleUserInfo googleUser = googleOAuthPort.exchangeCodeForUserInfo(code, redirectUri);
+        return inTransaction(() -> loginWithGoogleUser(googleUser));
     }
 
     @Override
-    @Transactional
     public TokenResponse loginWithIdToken(String idToken) {
-        return loginWithGoogleUser(googleOAuthPort.verifyIdToken(idToken));
+        GoogleUserInfo googleUser = googleOAuthPort.verifyIdToken(idToken);
+        return inTransaction(() -> loginWithGoogleUser(googleUser));
+    }
+
+    private <T> T inTransaction(Supplier<T> work) {
+        return new TransactionTemplate(transactionManager).execute(status -> work.get());
     }
 
     private TokenResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
@@ -75,8 +90,53 @@ public class AuthService implements LoginWithGoogleUseCase, LoginWithIdTokenUseC
         // 동일 이메일이 별개 계정으로 분기되거나 상호 조회에 실패하는 것을 방지.
         String normalizedEmail = normalizeEmail(googleUser.email());
         User user = userPort.findByEmail(normalizedEmail)
+                .map(existing -> takeOverForSocial(existing, OAuthProvider.GOOGLE))
                 .orElseGet(() -> registerNewUser(normalizedEmail));
         return issueTokens(user.id());
+    }
+
+    /**
+     * Sign in with Apple. The Apple {@code sub} is the identity; the email only matters the first
+     * time, to create the account or attach this Apple ID to an existing account with the same
+     * verified email (same rule as Google). Without a known sub and without a verified email there
+     * is nothing safe to match on, so sign-in fails.
+     */
+    @Override
+    public TokenResponse loginWithApple(String identityToken) {
+        AppleIdentityTokenPort.AppleIdentity apple = appleIdentityTokenPort.verify(identityToken);
+        return inTransaction(() -> {
+            UUID userId = appleIdentityPort.findUserIdBySub(apple.sub())
+                    .orElseGet(() -> linkAppleIdentity(apple));
+            return issueTokens(userId);
+        });
+    }
+
+    private UUID linkAppleIdentity(AppleIdentityTokenPort.AppleIdentity apple) {
+        if (apple.email() == null || apple.email().isBlank() || !apple.emailVerified()) {
+            log.warn("Apple sign-in without a verified email for an unknown sub");
+            throw new ToneBridgeException(ErrorCode.APPLE_AUTH_FAILED);
+        }
+        String normalizedEmail = normalizeEmail(apple.email());
+        User user = userPort.findByEmail(normalizedEmail)
+                .map(existing -> takeOverForSocial(existing, OAuthProvider.APPLE))
+                .orElseGet(() -> createUser(normalizedEmail, generateUsername(normalizedEmail), OAuthProvider.APPLE, null));
+        appleIdentityPort.link(user.id(), apple.sub());
+        return user.id();
+    }
+
+    /**
+     * Email sign-up does not verify the address, so a LOCAL account with someone else's email may
+     * have been registered in advance. When the provider proves the real owner, that password and
+     * every session issued with it must stop working before the owner is let in — otherwise the
+     * squatter keeps access to the owner's account.
+     */
+    private User takeOverForSocial(User existing, OAuthProvider provider) {
+        if (existing.provider() == OAuthProvider.LOCAL) {
+            log.info("Verified {} sign-in took over local account {}", provider, existing.id());
+            userPort.convertToSocial(existing.id(), provider);
+            refreshTokenPort.deleteAllByUserId(existing.id());
+        }
+        return existing;
     }
 
     @Override

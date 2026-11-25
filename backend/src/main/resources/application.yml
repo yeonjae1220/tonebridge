@@ -74,6 +74,12 @@ google:
     token-uri: https://oauth2.googleapis.com/token
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
 
+apple:
+  sign-in:
+    # Identity tokens from the iOS app carry aud = the app's bundle id.
+    bundle-id: ${APPLE_BUNDLE_ID:com.mungji.tonebridge}
+    jwks-uri: https://appleid.apple.com/auth/keys
+
 tonebridge:
   password-reset:
     enabled: ${PASSWORD_RESET_ENABLED:false}
