@@ -36,6 +36,8 @@ tonebridge:
     scheduler-enabled: false
   cloud-audio:
     scheduler-enabled: false
+  account-audio:
+    scheduler-enabled: false
   cloud-drafts:
     scheduler-enabled: false
   storage:
