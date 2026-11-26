@@ -54,6 +54,11 @@ public enum ErrorCode {
     STORAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "STORAGE_003", "파일에 접근할 권한이 없습니다"),
     INVALID_AUDIO_KEY(HttpStatus.BAD_REQUEST, "STORAGE_004", "유효하지 않은 오디오 키 형식입니다"),
 
+    // Report
+    REPORT_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "REPORT_001", "신고할 대상을 찾을 수 없습니다"),
+    REPORT_OWN_CONTENT(HttpStatus.BAD_REQUEST, "REPORT_002", "자신의 콘텐츠는 신고할 수 없습니다"),
+    REPORT_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "REPORT_003", "신고가 너무 많습니다. 잠시 후 다시 시도해 주세요"),
+
     // Friend
     FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_001", "친구 요청을 찾을 수 없습니다"),
     FRIEND_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "FRIEND_002", "이미 친구 요청을 보냈습니다"),
