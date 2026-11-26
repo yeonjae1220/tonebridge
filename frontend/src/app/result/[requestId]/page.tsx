@@ -1,6 +1,7 @@
 'use client'
 
 import { BlockUserButton } from '@/components/privacy/BlockUserButton'
+import { ReportButton } from '@/components/privacy/ReportButton'
 
 import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
@@ -373,7 +374,10 @@ function ResultDetail({ requestId }: { requestId: string }) {
           )}
         </div>
 
-        {request && <BlockUserButton userId={request.requesterId} />}
+        {request && <div className="flex justify-end">
+          <ReportButton target="CORRECTION_REQUEST" targetId={request.id} authorId={request.requesterId} />
+          <BlockUserButton userId={request.requesterId} />
+        </div>}
         {savedCardUrl && <p role="status"><Link href={savedCardUrl} className="block rounded-xl bg-green-50 p-4 font-semibold text-green-700">{t('study.openCards')} →</Link></p>}
         {/* A failed request is never represented as an empty collection. */}
         {correctionsQuery.isError ? <QueryError retrying={correctionsQuery.isFetching} onRetry={() => void refetch()} />
@@ -406,6 +410,7 @@ function ResultDetail({ requestId }: { requestId: string }) {
                     {correction.isAi && (
                       <span className="text-xs text-purple-500 font-medium">{t('result.aiCorrection')}</span>
                     )}
+                    <ReportButton target="CORRECTION" targetId={correction.id} authorId={correction.correctorId} />
                     <BlockUserButton userId={correction.correctorId} />
                     <div className="ml-auto flex items-center gap-2">
                       <button
