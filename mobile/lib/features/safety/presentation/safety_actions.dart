@@ -32,6 +32,8 @@ Future<bool> showReportSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Above the shell's tab bar, so the bar can't be tapped mid-report.
+    useRootNavigator: true,
     builder: (_) => ReportSheet(
       target: target,
       targetId: targetId,
