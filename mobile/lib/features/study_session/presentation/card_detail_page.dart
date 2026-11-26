@@ -492,9 +492,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                           currentUserId != null &&
                           _recordingPurpose == _RecordingPurpose.example,
                       canManageAudio: currentUserId == card.createdByUserId,
-                      canReportAudio:
-                          currentUserId != null &&
-                          currentUserId != card.createdByUserId,
+                      canReportAudio: currentUserId != null,
                       onStart: _startingRecording ? null : _startRecording,
                       onSubmit: () => _submitNativeAudio(card),
                     ),
