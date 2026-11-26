@@ -31,9 +31,14 @@ abstract class StudyCard with _$StudyCard {
   factory StudyCard.fromJson(Map<String, dynamic> json) =>
       _$StudyCardFromJson(json);
 
+  /// Example voices moved to the card's native-audio list and no longer set
+  /// [nativeAudioUrl], so the latest attempt decides; the legacy field only
+  /// keeps older cards from regressing to [CardStatus.noAudio].
   CardStatus get cardStatus {
-    if (nativeAudioUrl == null) return CardStatus.noAudio;
     if (latestAttempt?.isCorrected == true) return CardStatus.corrected;
-    return CardStatus.recorded;
+    if (latestAttempt != null || nativeAudioUrl != null) {
+      return CardStatus.recorded;
+    }
+    return CardStatus.noAudio;
   }
 }
