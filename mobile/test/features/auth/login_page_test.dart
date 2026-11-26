@@ -118,6 +118,33 @@ void main() {
     expect(container.read(authStateProvider).value, _session);
   });
 
+  testWidgets('every failed Google sign-in shows an error, not only the first', (tester) async {
+    when(() => repo.signInWithGoogle()).thenThrow(_apiError(500, 'COMMON_001'));
+    await pumpLogin(tester);
+
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      await tester.tap(find.byKey(const Key('google-sign-in')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget, reason: 'attempt $attempt');
+      expect(find.text("Couldn't sign you in. Please try again."), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
+    verify(() => repo.signInWithGoogle()).called(2);
+  });
+
+  testWidgets('cancelling the Google sheet shows no error', (tester) async {
+    when(() => repo.signInWithGoogle()).thenAnswer((_) async => null);
+    await pumpLogin(tester);
+
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+  });
+
   testWidgets('email sign-in succeeds, updates the session and closes the sheet', (tester) async {
     when(() => repo.signInWithEmail(email: any(named: 'email'), password: any(named: 'password')))
         .thenAnswer((_) async => _session);

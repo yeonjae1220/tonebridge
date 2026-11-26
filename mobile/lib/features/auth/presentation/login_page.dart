@@ -70,8 +70,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     // Transition listener: catches sign-in errors triggered by a button press.
+    // A retry's AsyncLoading keeps the previous error (Riverpod 3), so "the
+    // previous state had no error" would skip every failure after the first;
+    // key on a load that just finished with an error instead.
     ref.listen(authStateProvider, (previous, next) {
-      if (next.hasError && !(previous?.hasError ?? false) && mounted) {
+      final finishedWithError = next.hasError &&
+          !next.isLoading &&
+          (previous == null || previous.isLoading || !previous.hasError);
+      if (finishedWithError && mounted) {
         _errorShown = true;
         _showError(next.error!);
       }
