@@ -85,7 +85,7 @@ UGC 앱은 신고·차단·이용약관(무관용 조항)·운영자 연락 수�
 >
 > Microphone: used only to record pronunciation practice and voice cards, when the user taps the record button.
 > Account deletion: Profile → Settings → Delete account.
-> Reporting / blocking: (fill in the real path once the report/block UI is merged — not in the app yet)
+> Reporting / blocking: Friends tab → ⋮ next to a friend or a friend request → Report user / Block. Inside a shared notebook card someone else wrote: ⋮ in the top bar → Report content / Block author; the flag icon on another person's example recording or on feedback reports that item. The report form can also block the author in the same step. Blocked users: Profile → Settings → Blocked users (unblock there). Reports reach the operator console immediately and are reviewed within 24 hours; the operator can remove content or the account.
 >
 > Demo account: (email) / (password)
 
@@ -113,7 +113,7 @@ iPad를 지원하지 않으므로(`TARGETED_DEVICE_FAMILY = 1`) **iPhone 6.9" �
 | 항목 | 상태 |
 |---|---|
 | 개인정보처리방침·이용약관 페이지 | 미완 (세션 카드) |
-| 신고·차단 UI | 미완 (세션 카드) |
+| 신고·차단 UI | 앱 UI 구현(이 PR) · 백엔드 #96 머지 — 운영 배포 후 k8s `REPORT_ALERT_TO` 설정 필요. 웹 신고 버튼은 별도 PR |
 | Apple 토큰 revoke (계정 삭제 시) | 미구현 — .p8 키 필요 |
 | App ID에 Sign in with Apple 켜기 | 사람이 할 일 (1절) |
 | 최종 앱 아이콘 | 임시 아이콘 사용 중 |
