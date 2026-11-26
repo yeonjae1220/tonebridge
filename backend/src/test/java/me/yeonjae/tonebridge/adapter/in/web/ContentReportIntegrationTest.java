@@ -2,6 +2,7 @@ package me.yeonjae.tonebridge.adapter.in.web;
 
 import me.yeonjae.tonebridge.application.port.out.FcmNotificationPort;
 import me.yeonjae.tonebridge.application.port.out.NotificationPort;
+import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
 import me.yeonjae.tonebridge.application.port.out.StoragePort;
 import me.yeonjae.tonebridge.application.service.AdminReportService;
 import me.yeonjae.tonebridge.support.PostgresIntegrationTest;
@@ -38,6 +39,8 @@ class ContentReportIntegrationTest extends PostgresIntegrationTest {
     @MockitoBean FcmNotificationPort push;
     @MockitoBean NotificationPort sse;
     @MockitoBean StoragePort storage;
+    // Account deletion revokes refresh tokens in Redis, which CI does not run.
+    @MockitoBean RefreshTokenPort refreshTokens;
 
     MockMvc mvc;
     UUID reporter, friend, stranger, session, card, nativeAudio, attempt, request, ownRequest, correction;
