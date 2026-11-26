@@ -1,6 +1,7 @@
 'use client'
 
 import { BlockUserButton } from '@/components/privacy/BlockUserButton'
+import { ReportButton } from '@/components/privacy/ReportButton'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -275,6 +276,7 @@ function FriendsContent() {
                         <p className="break-all text-sm font-semibold text-gray-800">{user.username}</p>
                         <p className="text-xs text-gray-500">{langLabel(user.nativeLanguage)}</p>
                       </div>
+                      <ReportButton target="USER" targetId={user.id} />
                       <BlockUserButton userId={user.id} username={user.username} />
                       {isFriend ? (
                         <span className="shrink-0 text-xs text-green-600 font-medium">{t('friends.alreadyFriends')}</span>
@@ -324,6 +326,7 @@ function FriendsContent() {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <ReportButton target="USER" targetId={req.senderId} />
                     <BlockUserButton userId={req.senderId} username={req.senderUsername} />
                     <button
                       onClick={() => { setAcceptingId(req.id); acceptMutation.mutate(req.id) }}
@@ -384,6 +387,7 @@ function FriendsContent() {
                       <p className="text-xs text-gray-500">{langLabel(friend.nativeLanguage)}</p>
                     </div>
                   </div>
+                  <ReportButton target="USER" targetId={friend.id} />
                   <BlockUserButton userId={friend.id} username={friend.username} />
                   <button type="button"
                     disabled={practiceMutation.isPending}
