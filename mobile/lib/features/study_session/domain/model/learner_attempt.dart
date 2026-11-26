@@ -15,6 +15,8 @@ abstract class LearnerAttempt with _$LearnerAttempt {
     String? correctionNote,
     int? score,
     required DateTime attemptedAt,
+    // Who wrote the feedback; lets the learner report it.
+    String? correctionAuthorId,
     // Absent from servers before V35; mobile only displays these.
     @Default(<SoundTarget>[]) List<SoundTarget> soundTargets,
   }) = _LearnerAttempt;
