@@ -1,6 +1,7 @@
 package me.yeonjae.tonebridge.application.service;
 
 import me.yeonjae.tonebridge.application.port.in.DeleteCurrentUserUseCase;
+import me.yeonjae.tonebridge.application.port.out.RefreshTokenPort;
 import me.yeonjae.tonebridge.application.port.out.StoragePort;
 import me.yeonjae.tonebridge.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,8 @@ class AccountAudioPurgeIntegrationTest extends PostgresIntegrationTest {
     @Autowired DeleteCurrentUserUseCase deleteUser;
     @Autowired AccountAudioPurge purge;
     @MockitoBean StoragePort storage;
+    // Account deletion revokes refresh tokens in Redis, which CI does not run.
+    @MockitoBean RefreshTokenPort refreshTokens;
 
     UUID leaving;
     UUID friend;
