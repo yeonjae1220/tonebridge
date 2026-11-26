@@ -547,12 +547,13 @@ class _ProgressHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
+          // Wrap, not Row: three chips do not fit narrow phones at larger text sizes.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _StatusChip(label: '교정완료', count: corrected, color: Colors.green),
-              const SizedBox(width: 8),
               _StatusChip(label: '녹음완료', count: recorded, color: Colors.orange),
-              const SizedBox(width: 8),
               _StatusChip(label: '미녹음', count: noAudio, color: Colors.grey),
             ],
           ),
@@ -606,6 +607,8 @@ class _StatusChip extends StatelessWidget {
 // ── Card List Item ────────────────────────────────────────────────────────────
 
 enum _CardItemAction { move }
+
+const double _trailingButtonSize = 32;
 
 class _CardListItem extends ConsumerWidget {
   const _CardListItem({
@@ -684,9 +687,16 @@ class _CardListItem extends ConsumerWidget {
                   ),
                 ),
                 if (canManage)
+                  // ListTile gives `trailing` only ~56px of height, so the default
+                  // 48px button plus the handle below it overflowed.
                   PopupMenuButton<_CardItemAction>(
                     tooltip: '카드 메뉴',
                     padding: EdgeInsets.zero,
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(_trailingButtonSize),
+                      fixedSize: const Size.square(_trailingButtonSize),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     icon: const Icon(Icons.more_vert_rounded, size: 20),
                     onSelected: (action) {
                       if (action == _CardItemAction.move) {
@@ -708,11 +718,11 @@ class _CardListItem extends ConsumerWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
             Icon(
               showDragHandle
                   ? Icons.drag_indicator_rounded
                   : Icons.chevron_right_rounded,
+              size: 20,
               color: theme.colorScheme.outline,
             ),
           ],
@@ -827,7 +837,9 @@ class _AddCardSheetState extends ConsumerState<_AddCardSheet> {
     if (phrase.isEmpty || _submitting) return;
     final messenger = ScaffoldMessenger.of(context);
     if (phrase.length > StudyCard.maxPhraseLength) {
-      messenger.showSnackBar(const SnackBar(content: Text(StudyCard.phraseLengthHelp)));
+      messenger.showSnackBar(
+        const SnackBar(content: Text(StudyCard.phraseLengthHelp)),
+      );
       return;
     }
     setState(() => _submitting = true);
