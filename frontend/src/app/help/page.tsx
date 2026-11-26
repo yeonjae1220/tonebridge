@@ -57,6 +57,10 @@ export default function HelpPage() {
         <p>{ko ? '접속 문제는 아래로 문의할 수 있습니다. 문의만으로 비밀번호나 계정 권한이 바뀌지 않으며, 본인 확인과 가능한 조치를 안내합니다. 비밀번호·인증 코드는 보내지 마세요.' : 'Contact us below for access issues. A message alone does not change passwords or access; identity verification and available options must be checked. Never send passwords or verification codes.'}</p>
         <Link href="/login" className="inline-block py-2 text-blue-600">{ko ? '로그인으로 돌아가기' : 'Back to login'}</Link>
       </section>
+      <nav aria-label={ko ? '정책' : 'Policies'} className="flex gap-4 text-sm">
+        <Link href="/terms" className="inline-flex min-h-11 items-center text-blue-600 underline">{ko ? '이용약관' : 'Terms of Service'}</Link>
+        <Link href="/privacy" className="inline-flex min-h-11 items-center text-blue-600 underline">{ko ? '개인정보 처리방침' : 'Privacy Policy'}</Link>
+      </nav>
       <form onSubmit={submit} className="space-y-3">
         <label className="block text-sm">{ko ? '답변받을 이메일 (선택)' : 'Reply email (optional)'}
           <input type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} disabled={sending} className="mt-1 w-full rounded border p-2 bg-surface" />
