@@ -27,6 +27,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -103,6 +104,29 @@ class ContentReportIntegrationTest extends PostgresIntegrationTest {
         report(reporter, "USER", reporter, "SPAM", false)
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("REPORT_002"));
         report(reporter, "CORRECTION_REQUEST", ownRequest, "SPAM", false).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void exampleAudioIsMarkedMineByWhoRecordedItNotWhoWroteTheCard() throws Exception {
+        // The card is the friend's, but any member may add example audio to it.
+        String ownKey = "audio/" + UUID.randomUUID() + "/mine.m4a";
+        jdbc.update("INSERT INTO audio_upload_owners(audio_key,owner_id) VALUES (?,?)", ownKey, reporter);
+        UUID own = jdbc.queryForObject("INSERT INTO card_native_audio(card_id,audio_key) VALUES (?,?) RETURNING id",
+                UUID.class, card, ownKey);
+        UUID legacy = jdbc.queryForObject("INSERT INTO card_native_audio(card_id,audio_key) VALUES (?,?) RETURNING id",
+                UUID.class, card, "audio/" + UUID.randomUUID() + "/legacy.m4a");
+
+        mvc.perform(get("/api/cards/{id}/native-audios", card).with(as(reporter)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + own + "')].mine").value(true))
+                .andExpect(jsonPath("$[?(@.id=='" + nativeAudio + "')].mine").value(false))
+                .andExpect(jsonPath("$[?(@.id=='" + legacy + "')].mine").value(false));
+        mvc.perform(get("/api/cards/{id}/native-audios", card).with(as(friend)))
+                .andExpect(jsonPath("$[?(@.id=='" + nativeAudio + "')].mine").value(true))
+                .andExpect(jsonPath("$[?(@.id=='" + own + "')].mine").value(false));
+        // What the client hides must match what the server refuses.
+        report(reporter, "NATIVE_AUDIO", own, "SPAM", false)
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("REPORT_002"));
     }
 
     @Test

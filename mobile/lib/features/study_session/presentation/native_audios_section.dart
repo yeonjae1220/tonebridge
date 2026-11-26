@@ -35,8 +35,9 @@ class NativeAudiosSection extends ConsumerStatefulWidget {
   final bool showRecorder;
   final bool canManageAudio;
 
-  /// Examples on someone else's card; the server rejects reports of the
-  /// viewer's own recording, and the sheet says so.
+  /// The viewer is signed in. Each recording is then reportable unless the
+  /// viewer recorded it ([NativeAudioEntry.mine]); who wrote the card does not
+  /// matter, since any notebook member can add example audio.
   final bool canReportAudio;
   final VoidCallback? onStart;
   final VoidCallback onSubmit;
@@ -183,7 +184,7 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
                       onDelete: widget.canManageAudio
                           ? () => _deleteAudio(a)
                           : null,
-                      onReport: widget.canReportAudio
+                      onReport: widget.canReportAudio && !a.mine
                           ? () => _reportAudio(a)
                           : null,
                     ),
