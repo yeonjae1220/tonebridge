@@ -73,7 +73,7 @@ minSdk 24 · targetSdk 36. 병합된 권한은 `INTERNET`·`ACCESS_NETWORK_STATE
 
 | 항목 | 답 |
 |---|---|
-| 개인정보처리방침 URL | `https://tonebridge.mungji.com/privacy` — #94 머지·배포 후 열린다(support@ 수신 설정 대기) |
+| 개인정보처리방침 URL | `https://tonebridge.mungji.com/privacy` |
 | 광고 포함 | 아니요 |
 | 앱 액세스 권한 | 일부 기능 제한 → 심사용 이메일 계정 제공 (이메일 로그인, PR #90) |
 | 콘텐츠 등급 설문 | 카테고리: 그 외(참고·교육). 폭력·성적 콘텐츠·도박 없음. **사용자 간 상호작용·사용자 생성 콘텐츠 공유: 예** |
@@ -129,7 +129,7 @@ minSdk 24 · targetSdk 36. 병합된 권한은 `INTERNET`·`ACCESS_NETWORK_STATE
 
 | 항목 | 상태 |
 |---|---|
-| 처리방침·약관 페이지 | #94 준비됨 — support@mungji.com 수신 설정 후 머지 |
+| 처리방침·약관 페이지 | 완료 — `/privacy`, `/terms` (#94). 연락처 support@mungji.com 수신 설정은 사람이 할 일 |
 | 앱 아이콘 | 임시 브랜드 아이콘(#91) — 최종 디자인 대기 |
 | Android 앱 표시명 `ToneBridge` | 완료 (#89) |
 | 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 `tonebridge-mail` Secret에 `REPORT_ALERT_TO` 넣기 필요(`MAIL_FROM`은 설정됨) — [password-reset.md](../product/password-reset.md#운영-메일-설정) |

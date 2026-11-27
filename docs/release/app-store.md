@@ -25,7 +25,7 @@ Android 쪽은 [android-play.md](android-play.md), 실기기 확인은 [device-q
 | 카테고리 | 교육 (보조: 참고) |
 | 지원 URL | https://tonebridge.mungji.com/help |
 | 마케팅 URL | https://tonebridge.mungji.com |
-| 개인정보처리방침 URL | https://tonebridge.mungji.com/privacy — #94 머지·배포 후 열린다(support@ 수신 설정 대기) |
+| 개인정보처리방침 URL | https://tonebridge.mungji.com/privacy (한국어 기본, `?lang=en` 영어) |
 | 가격 | 무료, 앱 내 구입 없음 |
 | 저작권 | © 2026 mungji |
 
@@ -117,7 +117,7 @@ iPad를 지원하지 않으므로(`TARGETED_DEVICE_FAMILY = 1`) **iPhone 6.9" �
 
 | 항목 | 상태 |
 |---|---|
-| 개인정보처리방침·이용약관 페이지 | #94 준비됨 — support@mungji.com 수신 설정 후 머지 |
+| 개인정보처리방침·이용약관 페이지 | 완료 — `/privacy`, `/terms` (#94). 연락처 support@mungji.com 수신 설정은 사람이 할 일 |
 | 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 `tonebridge-mail` Secret에 `REPORT_ALERT_TO` 넣기 필요(`MAIL_FROM`은 설정됨) — [password-reset.md](../product/password-reset.md#운영-메일-설정) |
 | Apple 토큰 revoke (계정 삭제 시) | 미구현 — .p8 키 필요 |
 | App ID에 Sign in with Apple 켜기 | 사람이 할 일 (1절) |
