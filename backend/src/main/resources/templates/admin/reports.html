@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: layout(~{::body}, '신고', 'reports')}"
+      lang="ko">
+<body>
+
+<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">
+  <h1 class="page-title" style="margin:0;">신고</h1>
+  <span class="text-muted" th:text="'(미처리 ' + ${reports.size()} + '건, 오래된 순)'"></span>
+</div>
+<p class="text-muted" style="margin-bottom:20px;">이용약관은 신고를 24시간 안에 검토한다고 약속합니다. 위반이면 콘텐츠를 삭제하거나 계정을 삭제하고, 아니면 기각하세요.</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>접수</th>
+        <th>대상 · 사유</th>
+        <th>신고된 내용</th>
+        <th>신고자 → 대상자</th>
+        <th>처리</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:if="${reports.empty}">
+        <td colspan="5" style="text-align:center; padding:32px; color:var(--muted);">미처리 신고가 없습니다.</td>
+      </tr>
+      <tr th:each="r : ${reports}">
+        <td class="text-muted" th:text="${#temporals.format(r.createdAt(), 'MM-dd HH:mm')}"></td>
+        <td>
+          <div style="font-weight:500;" th:text="${r.type()}"></div>
+          <div class="text-muted" th:text="${r.reason()}"></div>
+          <div class="text-muted" th:if="${r.detail()}" th:text="'“' + ${r.detail()} + '”'"></div>
+        </td>
+        <td style="max-width:360px; white-space:pre-wrap;">
+          <span th:text="${r.content()}"></span>
+          <div th:if="${r.audioUrl()}"><audio controls preload="none" th:src="${r.audioUrl()}"></audio></div>
+        </td>
+        <td class="text-muted">
+          <span th:text="${r.reporter() ?: '(탈퇴)'}"></span> →
+          <span style="font-weight:500;" th:text="${r.reportedUser() ?: '(알 수 없음)'}"></span>
+          <div th:if="${r.reportsAgainstUser() > 1}" th:text="'이 사용자에 대한 미처리 신고 ' + ${r.reportsAgainstUser()} + '건'"></div>
+        </td>
+        <td style="white-space:nowrap;">
+          <form th:if="${r.canRemoveContent()}" th:action="@{/admin/reports/{id}/remove-content(id=${r.id()})}" method="post" style="display:inline;">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit">콘텐츠 삭제</button>
+          </form>
+          <form th:if="${r.reportedUserId() != null}" th:action="@{/admin/reports/{id}/delete-account(id=${r.id()})}" method="post" style="display:inline;">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <!-- The admin CSP blocks inline scripts, so the irreversible action is confirmed with a required checkbox. -->
+            <label class="text-muted"><input type="checkbox" name="confirm" required/> 되돌릴 수 없음</label>
+            <button type="submit">계정 삭제</button>
+          </form>
+          <form th:action="@{/admin/reports/{id}/dismiss(id=${r.id()})}" method="post" style="display:inline;">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit">기각</button>
+          </form>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

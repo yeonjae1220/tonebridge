@@ -11,6 +11,9 @@ import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/friend/domain/model/friend.dart';
 import 'package:tonebridge/features/friend/domain/model/user_search_result.dart';
 import 'package:tonebridge/features/friend/presentation/friend_provider.dart';
+import 'package:tonebridge/features/safety/domain/safety_repository.dart';
+import 'package:tonebridge/features/safety/presentation/safety_actions.dart';
+import 'package:tonebridge/features/safety/presentation/safety_strings.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
 
@@ -162,7 +165,12 @@ class _PendingRequestsCard extends ConsumerWidget {
                 ),
                 trailing: Wrap(
                   spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    _UserActionsMenu(
+                      userId: request.senderId,
+                      username: request.senderUsername,
+                    ),
                     TextButton(
                       onPressed: () => ref
                           .read(friendListStateProvider.notifier)
@@ -255,35 +263,117 @@ class _FriendTileState extends ConsumerState<_FriendTile> {
         subtitle: _opening
             ? const LinearProgressIndicator()
             : Text(strings.continueTogether),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline_rounded),
-          tooltip: strings.delete,
-          onPressed: () async {
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(strings.delete),
-                content: Text(strings.removeFriendConfirm(friend.username)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: Text(strings.cancel),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(ctx).pop(true),
-                    child: Text(strings.delete),
-                  ),
-                ],
-              ),
-            );
-            if (confirmed ?? false) {
-              await ref
-                  .read(friendListStateProvider.notifier)
-                  .removeFriend(friend.id);
-            }
-          },
+        trailing: _UserActionsMenu(
+          userId: friend.id,
+          username: friend.username,
+          onRemove: _confirmRemove,
         ),
       ),
+    );
+  }
+
+  Future<void> _confirmRemove() async {
+    final friend = widget.friend;
+    final strings = ref.read(tProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(strings.removeFriend),
+        content: Text(strings.removeFriendConfirm(friend.username)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(strings.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) {
+      await ref.read(friendListStateProvider.notifier).removeFriend(friend.id);
+    }
+  }
+}
+
+enum _UserAction { remove, report, block }
+
+/// Remove / report / block menu shared by friends and incoming requests.
+class _UserActionsMenu extends ConsumerWidget {
+  const _UserActionsMenu({
+    required this.userId,
+    required this.username,
+    this.onRemove,
+  });
+
+  final String userId;
+  final String username;
+  final Future<void> Function()? onRemove;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
+    final error = Theme.of(context).colorScheme.error;
+    return PopupMenuButton<_UserAction>(
+      key: ValueKey('user-actions-$userId'),
+      tooltip: strings.moreActions,
+      icon: const Icon(Icons.more_vert_rounded),
+      onSelected: (action) async {
+        switch (action) {
+          case _UserAction.remove:
+            await onRemove?.call();
+          case _UserAction.report:
+            await showReportSheet(
+              context,
+              ref,
+              target: ReportTarget.user,
+              targetId: userId,
+              authorName: username,
+            );
+          case _UserAction.block:
+            await confirmAndBlock(
+              context,
+              ref,
+              userId: userId,
+              username: username,
+            );
+        }
+      },
+      itemBuilder: (_) => [
+        if (onRemove != null)
+          PopupMenuItem(
+            value: _UserAction.remove,
+            child: _MenuRow(Icons.person_remove_outlined, strings.removeFriend),
+          ),
+        PopupMenuItem(
+          value: _UserAction.report,
+          child: _MenuRow(Icons.flag_outlined, strings.reportUser),
+        ),
+        PopupMenuItem(
+          value: _UserAction.block,
+          child: _MenuRow(Icons.block_rounded, strings.block, color: error),
+        ),
+      ],
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow(this.icon, this.label, {this.color});
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(color: color)),
+      ],
     );
   }
 }

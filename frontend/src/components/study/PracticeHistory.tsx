@@ -8,6 +8,7 @@ import { QueryError } from '@/components/ui/QueryError'
 import { StudyAudioPlayer } from '@/components/audio/StudyAudioPlayer'
 import { WriteOutcomeUnknownError } from '@/lib/writeDeadline'
 import { StudyScore } from './StudyScore'
+import { ReportButton } from '@/components/privacy/ReportButton'
 import { FeedbackSoundPicker, FeedbackSoundTargets } from './FeedbackSounds'
 
 type FeedbackPayload = { attemptId: string; correctionNote: string; score: number | null; soundGuideIds: string[] }
@@ -130,6 +131,9 @@ export function PracticeHistory({ attempts, userId, loading, failed, onRetry, re
                 {' · '}{t(attempt.correctionUpdatedAt ? 'feedback.updated' : 'feedback.legacy')}
                 {' · '}{formatDate(attempt.correctionUpdatedAt ?? attempt.attemptedAt, language)}
               </p>
+              {attempt.correctionAuthorId && <div className="flex justify-end">
+                <ReportButton target="ATTEMPT_FEEDBACK" targetId={attempt.id} authorId={attempt.correctionAuthorId} />
+              </div>}
               <FeedbackSoundTargets guideIds={(attempt.soundTargets ?? []).map(target => target.guideId)} />
             </div>}
             {attempt.learnerId === userId && attempt.correctionNote && <button type="button" disabled={recordingBusy}

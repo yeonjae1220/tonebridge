@@ -116,8 +116,11 @@ void main() {
       await showFriends(tester);
       await tester.tap(find.text('alice'));
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(find.byKey(const ValueKey('user-actions-friend-1')));
+      // The progress bar never settles, so step through the menu animations.
+      await pumpFrames(tester, 3);
+      await tester.tap(find.text('Remove friend'));
+      await pumpFrames(tester, 3);
       await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump(const Duration(milliseconds: 350));
@@ -158,8 +161,11 @@ void main() {
       await tester.tap(find.text('alice'));
       await tester.pump();
       verify(() => study.createSession('friend-1')).called(1);
-      await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(find.byKey(const ValueKey('user-actions-friend-1')));
+      // The progress bar never settles, so step through the menu animations.
+      await pumpFrames(tester, 3);
+      await tester.tap(find.text('Remove friend'));
+      await pumpFrames(tester, 3);
       await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump(const Duration(milliseconds: 350));
@@ -171,4 +177,10 @@ void main() {
       verifyNever(() => study.createSession('friend-2'));
     },
   );
+}
+
+Future<void> pumpFrames(WidgetTester tester, int count) async {
+  for (var i = 0; i < count; i++) {
+    await tester.pump(const Duration(milliseconds: 350));
+  }
 }

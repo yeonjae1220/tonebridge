@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tonebridge/core/i18n/ui_language.dart';
+import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
 import 'package:tonebridge/features/profile/data/profile_repository_impl.dart';
 import 'package:tonebridge/features/profile/presentation/profile_provider.dart';
+import 'package:tonebridge/features/safety/presentation/safety_strings.dart';
 
 class ProfileSettingsPage extends ConsumerWidget {
   const ProfileSettingsPage({super.key});
@@ -145,6 +148,17 @@ class ProfileSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              key: const ValueKey('settings-blocked-users'),
+              leading: const Icon(Icons.block_rounded),
+              title: Text(strings.blockedUsers),
+              subtitle: Text(strings.blockedUsersSubtitle),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push(AppRoute.blockedUsers),
             ),
           ),
           const SizedBox(height: 20),

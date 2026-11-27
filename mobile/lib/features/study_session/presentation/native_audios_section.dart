@@ -2,8 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
+import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
+import 'package:tonebridge/features/safety/domain/safety_repository.dart';
+import 'package:tonebridge/features/safety/presentation/safety_actions.dart';
+import 'package:tonebridge/features/safety/presentation/safety_strings.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/native_audio_entry.dart';
 import 'package:tonebridge/features/study_session/presentation/study_provider.dart';
@@ -18,6 +24,7 @@ class NativeAudiosSection extends ConsumerStatefulWidget {
     required this.canManageAudio,
     required this.onStart,
     required this.onSubmit,
+    this.canReportAudio = false,
     super.key,
   });
 
@@ -27,6 +34,11 @@ class NativeAudiosSection extends ConsumerStatefulWidget {
   final bool uploading;
   final bool showRecorder;
   final bool canManageAudio;
+
+  /// The viewer is signed in. Each recording is then reportable unless the
+  /// viewer recorded it ([NativeAudioEntry.mine]); who wrote the card does not
+  /// matter, since any notebook member can add example audio.
+  final bool canReportAudio;
   final VoidCallback? onStart;
   final VoidCallback onSubmit;
 
@@ -45,6 +57,16 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
       p.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _reportAudio(NativeAudioEntry entry) async {
+    final blocked = await showReportSheet(
+      context,
+      ref,
+      target: ReportTarget.nativeAudio,
+      targetId: entry.id,
+    );
+    if (blocked && mounted) context.go(AppRoute.study);
   }
 
   Future<void> _playAudio(NativeAudioEntry entry) async {
@@ -162,6 +184,9 @@ class _NativeAudiosSectionState extends ConsumerState<NativeAudiosSection> {
                       onDelete: widget.canManageAudio
                           ? () => _deleteAudio(a)
                           : null,
+                      onReport: widget.canReportAudio && !a.mine
+                          ? () => _reportAudio(a)
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -236,12 +261,14 @@ class _AudioEntryTile extends ConsumerStatefulWidget {
     required this.cardId,
     required this.onPlay,
     required this.onDelete,
+    this.onReport,
   });
 
   final NativeAudioEntry entry;
   final String cardId;
   final VoidCallback onPlay;
   final VoidCallback? onDelete;
+  final VoidCallback? onReport;
 
   @override
   ConsumerState<_AudioEntryTile> createState() => _AudioEntryTileState();
@@ -335,6 +362,19 @@ class _AudioEntryTileState extends ConsumerState<_AudioEntryTile> {
                   ),
                   onPressed: _editNote,
                   tooltip: hasNote ? '메모 수정' : '메모 추가',
+                ),
+              if (widget.onReport != null)
+                IconButton(
+                  key: ValueKey('report-audio-${widget.entry.id}'),
+                  icon: Icon(
+                    Icons.flag_outlined,
+                    size: 20,
+                    color: theme.colorScheme.onSecondaryContainer.withValues(
+                      alpha: 0.6,
+                    ),
+                  ),
+                  onPressed: widget.onReport,
+                  tooltip: ref.watch(tProvider).report,
                 ),
               if (widget.onDelete != null)
                 IconButton(

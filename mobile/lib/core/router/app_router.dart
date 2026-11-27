@@ -19,6 +19,7 @@ import 'package:tonebridge/features/profile/presentation/language_edit_page.dart
 import 'package:tonebridge/features/profile/presentation/profile_page.dart';
 import 'package:tonebridge/features/profile/presentation/profile_settings_page.dart';
 import 'package:tonebridge/features/request/presentation/request_page.dart';
+import 'package:tonebridge/features/safety/presentation/blocked_users_page.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
 import 'package:tonebridge/features/study_session/presentation/card_detail_page.dart';
 import 'package:tonebridge/features/study_session/presentation/session_detail_page.dart';
@@ -37,6 +38,7 @@ abstract final class AppRoute {
   static const String languageEdit = '/profile/language-edit';
   static const String wallet = '/profile/wallet';
   static const String profileSettings = '/profile/settings';
+  static const String blockedUsers = '/profile/settings/blocked';
   static const String study = '/study';
   static const String admin = '/admin';
   static const String adminUsers = '/admin/users';
@@ -231,6 +233,12 @@ GoRouter appRouter(Ref ref) {
                   GoRoute(
                     path: 'settings',
                     builder: (context, state) => const ProfileSettingsPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'blocked',
+                        builder: (context, state) => const BlockedUsersPage(),
+                      ),
+                    ],
                   ),
                 ],
               ),

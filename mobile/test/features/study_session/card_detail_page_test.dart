@@ -295,6 +295,38 @@ void main() {
     },
   );
 
+  for (final viewer in ['user-1', 'friend-1']) {
+    testWidgets(
+      '$viewer can report only the example audio someone else recorded',
+      (tester) async {
+        when(() => repo.getNativeAudios('card-1')).thenAnswer(
+          (_) async => [
+            NativeAudioEntry(
+              id: 'mine',
+              cardId: 'card-1',
+              createdAt: DateTime(2026, 10, 28),
+              mine: true,
+            ),
+            NativeAudioEntry(
+              id: 'theirs',
+              cardId: 'card-1',
+              createdAt: DateTime(2026, 10, 29),
+            ),
+          ],
+        );
+
+        // user-1 wrote the card; friend-1 is another member of the notebook.
+        await showPage(tester, userId: viewer);
+
+        expect(find.byKey(const ValueKey('report-audio-mine')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('report-audio-theirs')),
+          findsOneWidget,
+        );
+      },
+    );
+  }
+
   testWidgets('feedback without pointed sounds shows no guide section', (
     tester,
   ) async {

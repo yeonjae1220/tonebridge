@@ -91,6 +91,9 @@ tonebridge:
     base-url: ${FRONTEND_URL:http://localhost:3000}
   validation:
     enabled: ${TONEBRIDGE_VALIDATION_ENABLED:false}
+  reports:
+    # Operator inbox for new-report alerts; sent with the password-reset SMTP settings.
+    alert-to: ${REPORT_ALERT_TO:}
   storage:
     # Blank = AWS S3 (SDK resolves endpoint automatically).
     # Non-blank = S3-compatible (MinIO / local): uses forcePathStyle + endpointOverride.

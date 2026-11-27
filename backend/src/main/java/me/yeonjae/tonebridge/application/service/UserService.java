@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -29,6 +30,7 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
 
     private final UserPort userPort;
     private final RefreshTokenPort refreshTokenPort;
+    private final AccountAudioPurge accountAudio;
 
     private static final int MAX_SEARCH_LIMIT = 20;
 
@@ -80,7 +82,10 @@ public class UserService implements CompleteOnboardingUseCase, DeleteCurrentUser
     @Override
     public void delete(UUID userId) {
         refreshTokenPort.deleteAllByUserId(userId);
+        // Rows cascade with the user; recordings live in object storage and are queued for deletion here.
+        Set<String> orphanedAudio = accountAudio.detach(userId);
         userPort.deleteById(userId);
+        accountAudio.queueUnreferenced(orphanedAudio);
     }
 
     private void validateAndSetUsername(User user, String newUsername) {

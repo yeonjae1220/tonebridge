@@ -6,12 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:tonebridge/core/i18n/ui_language.dart';
 import 'package:tonebridge/core/providers/core_providers.dart';
 import 'package:tonebridge/core/router/app_router.dart';
 import 'package:tonebridge/core/services/audio_recorder_service.dart';
 import 'package:tonebridge/core/services/presigned_upload_service.dart';
 import 'package:tonebridge/core/utils/permission_dialogs.dart';
 import 'package:tonebridge/features/auth/presentation/auth_provider.dart';
+import 'package:tonebridge/features/safety/domain/safety_repository.dart';
+import 'package:tonebridge/features/safety/presentation/safety_actions.dart';
+import 'package:tonebridge/features/safety/presentation/safety_strings.dart';
 import 'package:tonebridge/features/study_session/data/study_session_repository_impl.dart';
 import 'package:tonebridge/features/study_session/domain/model/learner_attempt.dart';
 import 'package:tonebridge/features/study_session/domain/model/study_card.dart';
@@ -416,7 +420,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                         ),
                       ],
                     )
-                  : const SizedBox.shrink(),
+                  : currentUserId == null
+                  ? const SizedBox.shrink()
+                  : _OthersCardMenu(card: card),
               orElse: () => const SizedBox.shrink(),
             ),
           ],
@@ -486,6 +492,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
                           currentUserId != null &&
                           _recordingPurpose == _RecordingPurpose.example,
                       canManageAudio: currentUserId == card.createdByUserId,
+                      canReportAudio: currentUserId != null,
                       onStart: _startingRecording ? null : _startRecording,
                       onSubmit: () => _submitNativeAudio(card),
                     ),
@@ -511,6 +518,59 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
           },
         ),
       ),
+    );
+  }
+}
+
+enum _OthersCardAction { report, block }
+
+/// Report / block for a card someone else wrote. Blocking removes this user
+/// from the shared notebook, so it leaves the card screen afterwards.
+class _OthersCardMenu extends ConsumerWidget {
+  const _OthersCardMenu({required this.card});
+  final StudyCard card;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(tProvider);
+    final error = Theme.of(context).colorScheme.error;
+    return PopupMenuButton<_OthersCardAction>(
+      key: const ValueKey('card-others-menu'),
+      tooltip: strings.moreActions,
+      onSelected: (action) async {
+        final Future<bool> result = action == _OthersCardAction.report
+            ? showReportSheet(
+                context,
+                ref,
+                target: ReportTarget.card,
+                targetId: card.id,
+              )
+            : confirmAndBlock(context, ref, userId: card.createdByUserId);
+        final blocked = await result;
+        if (blocked && context.mounted) context.go(AppRoute.study);
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _OthersCardAction.report,
+          child: Row(
+            children: [
+              const Icon(Icons.flag_outlined),
+              const SizedBox(width: 8),
+              Text(strings.reportContent),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _OthersCardAction.block,
+          child: Row(
+            children: [
+              Icon(Icons.block_rounded, color: error),
+              const SizedBox(width: 8),
+              Text(strings.blockAuthor, style: TextStyle(color: error)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -847,6 +907,10 @@ class _AttemptsSection extends ConsumerWidget {
                 cardId: cardId,
                 canAddNote: canAddNote,
                 isOwnAttempt: a.learnerId == currentUserId,
+                canReportFeedback:
+                    currentUserId != null &&
+                    a.correctionAuthorId != null &&
+                    a.correctionAuthorId != currentUserId,
                 onNoteAdded: () {
                   ref.invalidate(cardAttemptsProvider(cardId));
                   ref.invalidate(sessionCardsProvider(sessionId));
@@ -866,6 +930,7 @@ class _AttemptItem extends ConsumerStatefulWidget {
     required this.cardId,
     required this.canAddNote,
     required this.isOwnAttempt,
+    required this.canReportFeedback,
     required this.onNoteAdded,
   });
 
@@ -873,6 +938,7 @@ class _AttemptItem extends ConsumerStatefulWidget {
   final String cardId;
   final bool canAddNote;
   final bool isOwnAttempt;
+  final bool canReportFeedback;
   final VoidCallback onNoteAdded;
 
   @override
@@ -965,15 +1031,25 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
                 ),
               ],
               FeedbackSoundTargets(targets: attempt.soundTargets),
-              if (widget.canAddNote)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => _showNoteSheet(context, editing: true),
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('교정 메모 수정'),
-                  ),
-                ),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 4,
+                children: [
+                  if (widget.canReportFeedback)
+                    TextButton.icon(
+                      key: ValueKey('report-feedback-${attempt.id}'),
+                      onPressed: () => _reportFeedback(context),
+                      icon: const Icon(Icons.flag_outlined, size: 16),
+                      label: Text(ref.watch(tProvider).report),
+                    ),
+                  if (widget.canAddNote)
+                    TextButton.icon(
+                      onPressed: () => _showNoteSheet(context, editing: true),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('교정 메모 수정'),
+                    ),
+                ],
+              ),
             ] else if (widget.canAddNote) ...[
               const Divider(height: 16),
               TextButton.icon(
@@ -986,6 +1062,16 @@ class _AttemptItemState extends ConsumerState<_AttemptItem> {
         ),
       ),
     );
+  }
+
+  Future<void> _reportFeedback(BuildContext context) async {
+    final blocked = await showReportSheet(
+      context,
+      ref,
+      target: ReportTarget.attemptFeedback,
+      targetId: widget.attempt.id,
+    );
+    if (blocked && context.mounted) context.go(AppRoute.study);
   }
 
   void _showNoteSheet(BuildContext context, {bool editing = false}) {

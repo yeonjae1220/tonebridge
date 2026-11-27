@@ -21,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -76,6 +78,17 @@ public class CardNativeAudioService implements
         StudyCard card = requireCard(cardId);
         requireMember(card.sessionId(), requesterId);
         return nativeAudioPort.findAllByCardId(cardId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> recordedBy(UUID userId, List<CardNativeAudio> audios) {
+        Set<String> mine = audioOwnership.ownedBy(userId,
+                audios.stream().map(CardNativeAudio::audioKey).toList());
+        return audios.stream()
+                .filter(a -> mine.contains(a.audioKey()))
+                .map(CardNativeAudio::id)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override

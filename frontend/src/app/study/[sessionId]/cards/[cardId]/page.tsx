@@ -1,5 +1,6 @@
 'use client'
 
+import { ReportButton } from '@/components/privacy/ReportButton'
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -181,6 +182,7 @@ function StudyCardDetail() {
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(() => router.push(`/study/${sessionId}`))} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100">←</button>
           <h1 className="text-xl font-bold text-gray-900">{t('study.cardDetail.title')}</h1>
+          {card && <div className="ml-auto"><ReportButton target="CARD" targetId={card.id} authorId={card.createdByUserId} /></div>}
         </div>
 
         {cardError && <QueryError onRetry={() => void refetchCard()} retrying={cardFetching} />}

@@ -127,5 +127,5 @@ minSdk 24 · targetSdk 36. 병합된 권한은 `INTERNET`·`ACCESS_NETWORK_STATE
 | 처리방침·약관 페이지 | 완료 — `/privacy`, `/terms` |
 | 앱 아이콘 | Flutter 기본 아이콘 |
 | Android 앱 표시명 `ToneBridge` | PR #89 (머지 대기) |
-| 신고·차단 UI | 미완 (별도 세션 카드) — UGC 정책상 프로덕션 전 필요, 비공개 테스트는 가능 |
+| 신고·차단 UI | 앱 UI 구현 · 백엔드 #96 머지 — 운영 배포 후 k8s `REPORT_ALERT_TO` 설정 필요 |
 | Android OAuth 클라이언트 (SHA-1 2개) | Play 앱 서명 키 확정 후 |

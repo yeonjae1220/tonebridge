@@ -12,6 +12,7 @@ import me.yeonjae.tonebridge.adapter.in.web.dto.CardNativeAudioResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.LearnerAttemptResponse;
 import me.yeonjae.tonebridge.adapter.in.web.dto.StudyCardResponse;
 import me.yeonjae.tonebridge.application.port.in.*;
+import me.yeonjae.tonebridge.domain.studycard.CardNativeAudio;
 import me.yeonjae.tonebridge.domain.studycard.StudyCard;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -179,7 +180,7 @@ public class StudyCardController {
             @Valid @RequestBody ConfirmAudioDto dto) {
         var audio = submissions.example(operation,
                 new AddCardNativeAudioUseCase.ConfirmCommand(cardId, userId, dto.audioKey()));
-        return ResponseEntity.status(HttpStatus.CREATED).body(CardNativeAudioResponse.from(audio));
+        return ResponseEntity.status(HttpStatus.CREATED).body(nativeAudioResponse(audio, userId));
     }
 
     @GetMapping("/cards/{cardId}/native-audios")
@@ -187,7 +188,10 @@ public class StudyCardController {
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID cardId) {
         var audios = getNativeAudiosUseCase.getAudios(cardId, userId);
-        return ResponseEntity.ok(audios.stream().map(CardNativeAudioResponse::from).toList());
+        var mine = getNativeAudiosUseCase.recordedBy(userId, audios);
+        return ResponseEntity.ok(audios.stream()
+                .map(a -> CardNativeAudioResponse.from(a, mine.contains(a.id())))
+                .toList());
     }
 
     @GetMapping("/native-audios/{audioId}/download-url")
@@ -224,7 +228,12 @@ public class StudyCardController {
             @PathVariable UUID audioId,
             @Valid @RequestBody NoteDto dto) {
         var audio = updateNativeAudioNoteUseCase.updateNote(audioId, userId, dto.note());
-        return ResponseEntity.ok(CardNativeAudioResponse.from(audio));
+        return ResponseEntity.ok(nativeAudioResponse(audio, userId));
+    }
+
+    private CardNativeAudioResponse nativeAudioResponse(CardNativeAudio audio, UUID userId) {
+        boolean mine = getNativeAudiosUseCase.recordedBy(userId, List.of(audio)).contains(audio.id());
+        return CardNativeAudioResponse.from(audio, mine);
     }
 
     /**
