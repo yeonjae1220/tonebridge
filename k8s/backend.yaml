@@ -98,13 +98,13 @@ spec:
             - name: STORAGE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: tonebridge-secret
-                  key: MINIO_ROOT_USER
+                  name: tonebridge-storage
+                  key: STORAGE_ACCESS_KEY
             - name: STORAGE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: tonebridge-secret
-                  key: MINIO_ROOT_PASSWORD
+                  name: tonebridge-storage
+                  key: STORAGE_SECRET_KEY
             - name: CORS_ALLOWED_ORIGINS
               valueFrom:
                 secretKeyRef:

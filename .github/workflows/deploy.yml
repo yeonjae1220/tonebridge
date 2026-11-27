@@ -212,7 +212,6 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
-          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
           CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
@@ -227,6 +226,9 @@ jobs:
           # 네임스페이스 먼저 생성 (Secret 적용 전 필수)
           sudo kubectl apply -f /opt/tonebridge/k8s/namespace.yaml
 
+          # MinIO에서 버킷 권한을 검증한 뒤 별도로 발급하는 앱 전용 Secret
+          sudo kubectl get secret tonebridge-storage -n tonebridge -o name >/dev/null
+
           # k8s Secret 동적 생성/업데이트 (민감 값은 GitHub Actions Secrets에서 주입)
           sudo kubectl create secret generic tonebridge-secret \
             --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
@@ -238,8 +240,6 @@ jobs:
             --from-literal=CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
             --from-literal=MINIO_ROOT_USER="${MINIO_ROOT_USER}" \
             --from-literal=MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
-            --from-literal=STORAGE_ACCESS_KEY="${MINIO_ROOT_USER}" \
-            --from-literal=STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY}" \
             --from-literal=CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
             --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
             --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
