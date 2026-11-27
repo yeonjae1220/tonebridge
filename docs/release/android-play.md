@@ -132,7 +132,7 @@ minSdk 24 · targetSdk 36. 병합된 권한은 `INTERNET`·`ACCESS_NETWORK_STATE
 | 처리방침·약관 페이지 | 완료 — `/privacy`, `/terms` (#94). 연락처 support@mungji.com 수신 설정은 사람이 할 일 |
 | 앱 아이콘 | 임시 브랜드 아이콘(#91) — 최종 디자인 대기 |
 | Android 앱 표시명 `ToneBridge` | 완료 (#89) |
-| 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 k8s `REPORT_ALERT_TO`·`MAIL_FROM` 설정 필요 |
+| 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 `tonebridge-mail` Secret에 `REPORT_ALERT_TO` 넣기 필요(`MAIL_FROM`은 설정됨) — [password-reset.md](../product/password-reset.md#운영-메일-설정) |
 | Android OAuth 클라이언트 (SHA-1 2개) | 업로드 키용은 지금 만들 수 있음 · 앱 서명 키용은 첫 AAB 업로드 후 |
 | 업로드용 AAB | build 374(9951c7a) — gpunode `~/store-builds/tonebridge-android-374/` (심볼 포함) |
 | 그래픽 이미지 1024×500 · 스크린샷 | 미제작 — 심사 계정 샘플 데이터로 찍는다 |

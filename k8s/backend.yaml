@@ -168,6 +168,14 @@ spec:
                   name: tonebridge-mail
                   key: MAIL_FROM
                   optional: true
+            # Operator inbox for new-report alerts (App Store 1.2: review within 24h).
+            # Blank or absent = reports are stored but no mail goes out (a warning is logged).
+            - name: REPORT_ALERT_TO
+              valueFrom:
+                secretKeyRef:
+                  name: tonebridge-mail
+                  key: REPORT_ALERT_TO
+                  optional: true
             - name: FRONTEND_URL
               value: https://tonebridge.mungji.com
             - name: GOOGLE_REDIRECT_URI
