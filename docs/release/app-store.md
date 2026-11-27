@@ -118,7 +118,7 @@ iPad를 지원하지 않으므로(`TARGETED_DEVICE_FAMILY = 1`) **iPhone 6.9" �
 | 항목 | 상태 |
 |---|---|
 | 개인정보처리방침·이용약관 페이지 | #94 준비됨 — support@mungji.com 수신 설정 후 머지 |
-| 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 k8s `REPORT_ALERT_TO`·`MAIL_FROM` 설정 필요 |
+| 신고·차단 UI | 완료 (앱·웹·백엔드) — 운영 `tonebridge-mail` Secret에 `REPORT_ALERT_TO` 넣기 필요(`MAIL_FROM`은 설정됨) — [password-reset.md](../product/password-reset.md#운영-메일-설정) |
 | Apple 토큰 revoke (계정 삭제 시) | 미구현 — .p8 키 필요 |
 | App ID에 Sign in with Apple 켜기 | 사람이 할 일 (1절) |
 | 최종 앱 아이콘 | 임시 브랜드 아이콘(#91) 사용 중 |

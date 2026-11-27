@@ -26,7 +26,8 @@ SMTP는 기본 비활성이다. Kubernetes `tonebridge/tonebridge-mail` Secret�
 | MAIL_PORT | STARTTLS 제출 포트, 기본 587 |
 | MAIL_USERNAME | 발송 계정 |
 | MAIL_PASSWORD | 발송 계정의 앱 비밀번호 |
-| MAIL_FROM | 발송 가능한 이메일 주소, 표시 이름은 ToneBridge |
+| MAIL_FROM | 발송 가능한 이메일 주소, 표시 이름은 ToneBridge. SMTP 계정 자신의 주소를 쓴다 — mungji.com SPF는 Cloudflare만 허용하므로 Gmail SMTP로 `@mungji.com` 발신을 하면 스팸·발신자 재작성이 된다 |
+| REPORT_ALERT_TO | 신고 알림을 받을 운영자 주소(예: `support@mungji.com`, Cloudflare Email Routing으로 전달). 비우면 신고는 저장되지만 메일은 가지 않는다. 같은 SMTP 설정으로 보내므로 `PASSWORD_RESET_ENABLED=true`여야 한다 |
 
 `FRONTEND_URL`은 신뢰하는 HTTPS 서비스 URL이어야 한다. 요청 Host 헤더를 링크 생성에 사용하지 않는다.
 SMTP 인증·필수 STARTTLS·서버 인증서 검증·유한 연결/읽기/쓰기 제한 시간을 사용한다.
